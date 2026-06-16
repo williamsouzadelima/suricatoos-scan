@@ -8,7 +8,7 @@ To report a security vulnerability:
 1. **Do not** disclose the vulnerability publicly (GitHub issues or any other
    public forum).
 
-2. Go to the [Security tab](https://github.com/williamsouzadelima/suricatoos/security) of
+2. Go to the [Security tab](https://github.com/williamsouzadelima/suricatoos-scan/security) of
    the Suricatoos repository.
 
 3. Click **"Report a vulnerability"** to open GitHub's private vulnerability

@@ -55,7 +55,7 @@ Pin-Priority: -1
 apt update
 apt install firefox -y
 
-# Temporary fix for whatportis bug - See https://github.com/williamsouzadelima/suricatoos/issues/984
+# Temporary fix for whatportis bug - See https://github.com/williamsouzadelima/suricatoos-scan/issues/984
 sed -i 's/purge()/truncate()/g' /usr/local/lib/python3.10/dist-packages/whatportis/cli.py
 
 # update whatportis

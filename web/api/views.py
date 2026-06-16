@@ -1235,7 +1235,7 @@ class SuricatoosUpdateCheck(APIView):
 	def get(self, request):
 		req = self.request
 		github_api = \
-			'https://api.github.com/repos/williamsouzadelima/suricatoos/releases'
+			'https://api.github.com/repos/williamsouzadelima/suricatoos-scan/releases'
 		response = requests.get(github_api).json()
 		if 'message' in response:
 			return Response({'status': False, 'message': 'RateLimited'})
@@ -1274,7 +1274,7 @@ class SuricatoosUpdateCheck(APIView):
 			notification_type=SYSTEM_LEVEL_NOTIFICATION,
 			project_slug=None,
 			icon='mdi-update',
-			redirect_link='https://github.com/williamsouzadelima/suricatoos/releases',
+			redirect_link='https://github.com/williamsouzadelima/suricatoos-scan/releases',
 			open_in_new_tab=True
 		)
 

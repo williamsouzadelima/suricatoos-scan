@@ -24,7 +24,7 @@ function check_suricatoos_update() {
     window.localStorage.getItem("update_available") === "true"
   ) {
     // redirect to github release page
-    window.open("https://github.com/williamsouzadelima/suricatoos/releases", "_blank");
+    window.open("https://github.com/williamsouzadelima/suricatoos-scan/releases", "_blank");
   } else {
     Swal.fire({
       title: "Checking Suricatoos latest version...",

@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/williamsouzadelima/suricatoos/releases"><img src="https://img.shields.io/badge/version-v2.2.0-informational" alt="Version" /></a>
+  <a href="https://github.com/williamsouzadelima/suricatoos-scan/releases"><img src="https://img.shields.io/badge/version-v2.2.0-informational" alt="Version" /></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-red.svg" alt="License" /></a>
 </p>
 
@@ -44,7 +44,7 @@ scheduling, scan engines, and exportable reports.
 ## Quick install
 
 ```bash
-git clone https://github.com/williamsouzadelima/suricatoos && cd suricatoos
+git clone https://github.com/williamsouzadelima/suricatoos-scan && cd suricatoos-scan
 sudo ./install.sh
 ```
 
@@ -83,7 +83,7 @@ under **Settings → API**, or via the optional `GITGUARDIAN_API_KEY` in `.env`
 ## Contributing
 
 Contributions are welcome — see `.github/CONTRIBUTING.md`. Pick an
-[open issue](https://github.com/williamsouzadelima/suricatoos/issues) or propose a new one.
+[open issue](https://github.com/williamsouzadelima/suricatoos-scan/issues) or propose a new one.
 
 ## Security
 

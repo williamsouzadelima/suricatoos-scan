@@ -30,7 +30,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: williamsouzadelima/suricatoos
+          images: williamsouzadelima/suricatoos-scan
           tags: |
             type=raw,value=pr-${{ github.event.pull_request.number }}
             type=sha,prefix=sha-
