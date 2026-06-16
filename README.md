@@ -28,7 +28,8 @@ scheduling, scan engines, and exportable reports.
 - **Port scanning** and service detection
 - **Endpoint / directory enumeration** and screenshotting
 - **Vulnerability scanning** (template-based) with severity triage
-- **OSINT** gathering (emails, metadata, leaked credentials)
+- **Secret scanning** — detect hardcoded secrets & credentials (gitleaks + GitGuardian ggshield)
+- **OSINT** gathering (emails, metadata, leaked credentials, optional SpiderFoot integration)
 - **Scheduled & recurring scans**
 - **PDF/HTML reporting** with multiple templates
 - **Project-based** organization and role-based access
@@ -66,7 +67,12 @@ Useful targets: `make down`, `make restart`, `make logs`, `make pull`.
 
 Application and infrastructure settings live in `.env` (database credentials,
 super-user, domain name, concurrency). Default scan-engine definitions are in
-`default_yaml_config.yaml` and editable in-app under **Scan Engines**.
+`default_yaml_config.yaml` and editable in-app under **Scan Engines**, including
+the `secret_scan` (gitleaks/ggshield) and `osint.enable_spiderfoot` sections.
+
+The GitGuardian API key used by the `ggshield` secret scanner can be set in-app
+under **Settings → API**, or via the optional `GITGUARDIAN_API_KEY` in `.env`
+(see `.env.example`); it is only required for ggshield.
 
 ## Updating
 

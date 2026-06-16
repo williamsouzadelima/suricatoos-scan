@@ -57,6 +57,21 @@ API Vault
                 <span class="text-muted float-end optional-text mt-2">This is optional. Get your API key from <a href="https://netlas.io" target="_blank">https://netlas.io</a></span>
               </div>
               <div class="mb-3">
+                <label for="key_gitguardian" class="form-label">GitGuardian</label>
+                <p class="text-muted">GitGuardian keys are used by the ggshield secret scanner (secret_scan engine) to detect leaked secrets in scan artifacts.</p>
+                <div class="flex-grow-1 position-relative">
+                {% if gitguardian_key %}
+                  <input class="form-control" type="password" id="key_gitguardian" name="key_gitguardian" placeholder="Enter GitGuardian Key" value="{{gitguardian_key}}">
+                {% else %}
+                  <input class="form-control" type="text" id="key_gitguardian" name="key_gitguardian" placeholder="Enter GitGuardian Key">
+                {% endif %}
+                  <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
+                    <span class="password-eye"></span>
+                  </div>
+                </div>
+                <span class="text-muted float-end optional-text mt-2">This is optional, needed only for ggshield. Get your token from <a href="https://dashboard.gitguardian.com/api/personal-access-tokens" target="_blank">GitGuardian</a></span>
+              </div>
+              <div class="mb-3">
                 <label for="key_chaos" class="form-label">Chaos by Project Discovery</label>
                 <p class="text-muted">Chaos keys will be used for subdomain enumeration and recon data for Public Bug Bounty Programs.</p>
                 <div class="flex-grow-1 position-relative">

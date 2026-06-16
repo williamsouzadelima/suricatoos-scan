@@ -53,6 +53,7 @@ Scan Engines
             <th class="text-center">Directory & Files Discovery</th>
             <th class="text-center">Fetch URLs</th>
             <th class="text-center">Vulnerability Scan</th>
+            <th class="text-center">Secret Scan</th>
             <th class="text-center">Action</th>
           </tr>
         </thead>
@@ -119,6 +120,13 @@ Scan Engines
             </td>
             <td class="text-center">
               {% if 'vulnerability_scan' in engine.tasks %}
+              {% include 'base/_items/green_tick.html' %}
+              {% else %}
+              {% include 'base/_items/red_cross.html' %}
+              {%endif%}
+            </td>
+            <td class="text-center">
+              {% if 'secret_scan' in engine.tasks %}
               {% include 'base/_items/green_tick.html' %}
               {% else %}
               {% include 'base/_items/red_cross.html' %}

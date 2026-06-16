@@ -46,6 +46,7 @@ services:
       - POSTGRES_HOST=${POSTGRES_HOST}
       - MAX_CONCURRENCY=${MAX_CONCURRENCY}
       - MIN_CONCURRENCY=${MIN_CONCURRENCY}
+      - GITGUARDIAN_API_KEY=${GITGUARDIAN_API_KEY}
     depends_on:
       - db
       - redis

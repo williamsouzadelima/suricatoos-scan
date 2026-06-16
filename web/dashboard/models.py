@@ -51,6 +51,14 @@ class ChaosAPIKey(models.Model):
 
 	def __str__(self):
 		return self.key
+
+
+class GitGuardianAPIKey(models.Model):
+	id = models.AutoField(primary_key=True)
+	key = models.CharField(max_length=500)
+
+	def __str__(self):
+		return self.key
 	
 
 class HackerOneAPIKey(models.Model):

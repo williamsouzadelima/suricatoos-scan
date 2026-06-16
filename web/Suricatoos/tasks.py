@@ -2519,11 +2519,20 @@ def run_gitleaks_scan(self, scan_path):
 
 
 def run_ggshield_scan(self, scan_path):
-	"""Run ggshield (GitGuardian) secret scan over a path. Requires
-	GITGUARDIAN_API_KEY in the worker environment and network access."""
-	if not os.environ.get('GITGUARDIAN_API_KEY'):
-		logger.warning('ggshield: GITGUARDIAN_API_KEY not set, skipping ggshield scan')
+	"""Run ggshield (GitGuardian) secret scan over a path. The GitGuardian API key
+	is read from the API vault (Settings -> API), falling back to the
+	GITGUARDIAN_API_KEY environment variable."""
+	gg_key = None
+	db_key = GitGuardianAPIKey.objects.first()
+	if db_key and db_key.key:
+		gg_key = db_key.key
+	gg_key = gg_key or os.environ.get('GITGUARDIAN_API_KEY')
+	if not gg_key:
+		logger.warning('ggshield: no GitGuardian API key (set it in Settings -> API or the GITGUARDIAN_API_KEY env var), skipping ggshield scan')
 		return 0
+	# ggshield reads the key from the environment; set it here (not on the command
+	# line) so the key is never written to the command history/logs.
+	os.environ['GITGUARDIAN_API_KEY'] = gg_key
 	report = f'{self.results_dir}/ggshield.json'
 	cmd = (
 		f'ggshield secret scan path --recursive --json --exit-zero '
