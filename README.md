@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/williamsouzadelima/suricatoos/releases"><img src="https://img.shields.io/badge/version-v1.0.0-informational" alt="Version" /></a>
+  <a href="https://github.com/williamsouzadelima/suricatoos/releases"><img src="https://img.shields.io/badge/version-v2.2.0-informational" alt="Version" /></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-red.svg" alt="License" /></a>
 </p>
 
