@@ -60,7 +60,9 @@ osint: {
   ],
   # 'custom_dorks': [],
   'intensity': 'normal',
-  'documents_limit': 50
+  'documents_limit': 50,
+  'enable_spiderfoot': false,        # SpiderFoot OSINT (cloned at runtime), set true to enable
+  # 'spiderfoot_preset': 'passive'   # passive | footprint | investigate | all
 }
 dir_file_fuzz: {
   'auto_calibration': true,
@@ -114,4 +116,10 @@ screenshot: {
   'intensity': 'normal',
   'timeout': 10,
   'threads': 40
+}
+secret_scan: {
+  'run_gitleaks': true,            # local secret scanning (gitleaks), no network
+  'run_ggshield': false,          # GitGuardian ggshield, needs GITGUARDIAN_API_KEY + network
+  'gitleaks_mode': 'dir',         # 'dir' (scan collected result files) or 'git' (scan git history)
+  # 'scan_path': ''               # defaults to the scan's results directory
 }

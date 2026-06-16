@@ -113,6 +113,14 @@ then
 fi
 python3 -m pip install -r /usr/src/github/theHarvester/requirements/base.txt
 
+# clone spiderfoot
+if [ ! -d "/usr/src/github/spiderfoot" ]
+then
+  echo "Cloning SpiderFoot"
+  git clone https://github.com/smicallef/spiderfoot /usr/src/github/spiderfoot
+fi
+python3 -m pip install -r /usr/src/github/spiderfoot/requirements.txt
+
 # clone vulscan
 if [ ! -d "/usr/src/github/scipag_vulscan" ]
 then
@@ -253,6 +261,7 @@ workers=(
     "osint_discovery_queue:10:osint_discovery_worker"
     "h8mail_queue:10:h8mail_worker"
     "theHarvester_queue:10:theHarvester_worker"
+    "spiderfoot_queue:10:spiderfoot_worker"
     "send_scan_notif_queue:10:send_scan_notif_worker"
 )
 

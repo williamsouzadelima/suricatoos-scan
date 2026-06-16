@@ -92,6 +92,19 @@ USER_AGENT = 'user_agent'
 DELAY = 'delay'
 PROVIDERS = 'providers'
 
+# Suricatoos — secret scanning (secret_scan engine) + spiderfoot OSINT keys
+SECRET_SCAN = 'secret_scan'
+RUN_GITLEAKS = 'run_gitleaks'
+RUN_GGSHIELD = 'run_ggshield'
+GITLEAKS = 'gitleaks'
+GGSHIELD = 'ggshield'
+GITLEAKS_MODE = 'gitleaks_mode'
+SCAN_PATH = 'scan_path'
+SECRET_SCAN_TARGETS = 'targets'
+ENABLE_SPIDERFOOT = 'enable_spiderfoot'
+SPIDERFOOT = 'spiderfoot'
+SPIDERFOOT_PRESET = 'spiderfoot_preset'
+
 ###############################################################################
 # Scan DEFAULTS
 ###############################################################################
@@ -104,6 +117,15 @@ DEFAULT_SCAN_INTENSITY = 'normal'
 ###############################################################################
 # Tools DEFAULTS
 ###############################################################################
+
+# Suricatoos — secret scan / spiderfoot OSINT defaults
+SPIDERFOOT_DIR = '/usr/src/github/spiderfoot'
+SPIDERFOOT_EXEC_PATH = '/usr/src/github/spiderfoot/sf.py'
+DEFAULT_RUN_GITLEAKS = True
+DEFAULT_RUN_GGSHIELD = False
+DEFAULT_ENABLE_SPIDERFOOT = False
+# Secrets are reported at critical severity (4 in NUCLEI_REVERSE_SEVERITY_MAP).
+SECRET_DEFAULT_SEVERITY = 4
 
 # amass
 AMASS_DEFAULT_WORDLIST_PATH = (

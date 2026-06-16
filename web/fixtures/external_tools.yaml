@@ -346,3 +346,57 @@
     is_github_cloned: false
     github_clone_path: null
     subdomain_gathering_command: null
+- model: scanEngine.installedexternaltool
+  pk: 21
+  fields:
+    logo_url: null
+    name: gitleaks
+    description: Gitleaks is a SAST tool for detecting hardcoded secrets like passwords,
+      API keys, and tokens in git repos and files.
+    github_url: https://github.com/gitleaks/gitleaks
+    license_url: https://github.com/gitleaks/gitleaks/blob/master/LICENSE
+    version_lookup_command: gitleaks version
+    update_command: go install -v github.com/zricethezav/gitleaks/v8@latest
+    install_command: go install -v github.com/zricethezav/gitleaks/v8@latest
+    version_match_regex: (\d+\.)?(\d+\.)?(\*|\d+)
+    is_default: true
+    is_subdomain_gathering: false
+    is_github_cloned: false
+    github_clone_path: null
+    subdomain_gathering_command: null
+- model: scanEngine.installedexternaltool
+  pk: 22
+  fields:
+    logo_url: null
+    name: ggshield
+    description: ggshield is GitGuardian's CLI to detect 500+ types of hardcoded
+      secrets. Requires a GITGUARDIAN_API_KEY.
+    github_url: https://github.com/GitGuardian/ggshield
+    license_url: https://github.com/GitGuardian/ggshield/blob/main/LICENSE
+    version_lookup_command: ggshield --version
+    update_command: pip install --upgrade ggshield
+    install_command: pip install ggshield
+    version_match_regex: (\d+\.)?(\d+\.)?(\*|\d+)
+    is_default: true
+    is_subdomain_gathering: false
+    is_github_cloned: false
+    github_clone_path: null
+    subdomain_gathering_command: null
+- model: scanEngine.installedexternaltool
+  pk: 20
+  fields:
+    logo_url: null
+    name: spiderfoot
+    description: SpiderFoot is an open source OSINT automation tool that integrates
+      with 100+ data sources to gather intelligence on IPs, domains, emails and more.
+    github_url: https://github.com/smicallef/spiderfoot
+    license_url: https://github.com/smicallef/spiderfoot/blob/master/LICENSE
+    version_lookup_command: cat /usr/src/github/spiderfoot/VERSION
+    update_command: 'git pull'
+    install_command: git clone https://github.com/smicallef/spiderfoot /usr/src/github/spiderfoot
+    version_match_regex: (\d+\.)?(\d+\.)?(\*|\d+)
+    is_default: true
+    is_subdomain_gathering: false
+    is_github_cloned: true
+    github_clone_path: /usr/src/github/spiderfoot
+    subdomain_gathering_command: null

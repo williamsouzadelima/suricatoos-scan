@@ -776,6 +776,13 @@ class EmailSerializer(serializers.ModelSerializer):
 		fields = '__all__'
 
 
+class LeakedSecretSerializer(serializers.ModelSerializer):
+
+	class Meta:
+		model = LeakedSecret
+		fields = '__all__'
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:

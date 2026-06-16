@@ -199,7 +199,8 @@ def initiate_scan(
 				dir_file_fuzz.si(ctx=ctx, description='Directories & files fuzz'),
 				vulnerability_scan.si(ctx=ctx, description='Vulnerability scan'),
 				screenshot.si(ctx=ctx, description='Screenshot'),
-				waf_detection.si(ctx=ctx, description='WAF detection')
+				waf_detection.si(ctx=ctx, description='WAF detection'),
+				secret_scan.si(ctx=ctx, description='Secret scan')
 			)
 		)
 
@@ -752,6 +753,18 @@ def osint_discovery(config, host, scan_history_id, activity_id, results_dir, ctx
 		)
 		grouped_tasks.append(_task)
 
+	if config.get(ENABLE_SPIDERFOOT, DEFAULT_ENABLE_SPIDERFOOT):
+		ctx['track'] = False
+		_task = spiderfoot_scan.si(
+			config=config,
+			host=host,
+			scan_history_id=scan_history_id,
+			activity_id=activity_id,
+			results_dir=results_dir,
+			ctx=ctx
+		)
+		grouped_tasks.append(_task)
+
 	celery_group = group(grouped_tasks)
 	job = celery_group.apply_async()
 	while not job.ready():
@@ -1187,7 +1200,7 @@ def h8mail(config, host, scan_history_id, activity_id, results_dir, ctx={}):
 		email_address = cred['target']
 		pwn_num = cred['pwn_num']
 		pwn_data = cred.get('data', [])
-		email, created = save_email(email_address, scan_history=scan)
+		email, created = save_email(email_address, scan_history=scan_history)
 		# if email:
 		# 	self.notify(fields={'Emails': f'• `{email.address}`'})
 	return creds
@@ -2383,6 +2396,195 @@ def add_gpt_description_db(title, path, description, impact, remediation, refere
 		ref, created = VulnerabilityReference.objects.get_or_create(url=url)
 		gpt_report.references.add(ref)
 		gpt_report.save()
+
+@app.task(name='spiderfoot_scan', queue='spiderfoot_queue', bind=False)
+def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx={}):
+	"""Run SpiderFoot OSINT headless (no web UI) and map discovered events to
+	existing models (emails, subdomains, IPs, employees). Opt-in via the
+	osint.enable_spiderfoot config flag.
+	"""
+	scan_history = ScanHistory.objects.get(pk=scan_history_id)
+	preset = config.get(SPIDERFOOT_PRESET, 'passive')
+	out = f'{results_dir}/spiderfoot.json'
+	history_file = f'{results_dir}/commands.txt'
+	# -q keeps stdout as pure JSON; redirect to file (shell=True because of '>')
+	cmd = f'python3 {SPIDERFOOT_EXEC_PATH} -s {host} -u {preset} -o json -q > {out}'
+	run_command(
+		cmd,
+		shell=True,
+		history_file=history_file,
+		scan_id=scan_history_id,
+		activity_id=activity_id)
+	try:
+		with open(out) as f:
+			events = json.load(f) or []
+	except Exception as e:
+		logger.exception(e)
+		return []
+	for ev in events:
+		etype = ev.get('type')
+		data = ev.get('data')
+		if not data:
+			continue
+		try:
+			if etype == 'EMAILADDR':
+				save_email(data, scan_history=scan_history)
+			elif etype in ('DOMAIN_NAME', 'INTERNET_NAME'):
+				save_subdomain(data, ctx=ctx)
+			elif etype == 'IP_ADDRESS':
+				save_ip_address(data)
+			elif etype == 'HUMAN_NAME':
+				save_employee(data, designation='spiderfoot', scan_history=scan_history)
+		except Exception as e:
+			logger.warning(f'spiderfoot: could not save {etype}={data}: {e}')
+	logger.info(f'spiderfoot: processed {len(events)} event(s) for {host}')
+	return events
+
+
+#-------------------#
+# SECRET SCAN       #
+#-------------------#
+
+def redact_secret(value):
+	"""Mask a secret so the raw value is never persisted. Keeps only a short
+	prefix/suffix for human triage."""
+	if not value:
+		return value
+	value = str(value)
+	if len(value) <= 8:
+		return '*' * len(value)
+	return f'{value[:3]}{"*" * 8}{value[-2:]}'
+
+
+def save_leaked_secret(data, scan_history=None, domain=None):
+	"""Idempotently persist a LeakedSecret. `data['secret_redacted']` MUST already
+	be masked by the caller (see redact_secret). Returns the object if newly
+	created, else None."""
+	data = dict(data)
+	data['scan_history'] = scan_history
+	data['target_domain'] = domain
+	if record_exists(
+			LeakedSecret,
+			data=data,
+			exclude_keys=['secret_redacted', 'description', 'discovered_date']):
+		return None
+	leaked_secret, created = LeakedSecret.objects.get_or_create(**data)
+	return leaked_secret if created else None
+
+
+def run_gitleaks_scan(self, scan_path):
+	"""Run gitleaks over a filesystem path / git repo and store findings as
+	LeakedSecret. Fully local, no network. Returns count of new findings."""
+	config = self.yaml_configuration.get(SECRET_SCAN) or {}
+	mode = config.get(GITLEAKS_MODE, 'dir')  # 'dir' (filesystem) or 'git' (history)
+	report = f'{self.results_dir}/gitleaks.json'
+	cmd = (
+		f'gitleaks {mode} {scan_path} --report-format json '
+		f'--report-path {report} --no-banner --exit-code 0'
+	)
+	if mode == 'git':
+		cmd += ' --log-opts="--all"'
+	run_command(
+		cmd,
+		shell=True,
+		history_file=self.history_file,
+		scan_id=self.scan_id,
+		activity_id=self.activity_id)
+	findings = []
+	try:
+		with open(report) as f:
+			findings = json.load(f) or []
+	except FileNotFoundError:
+		logger.warning(f'gitleaks produced no report at {report}')
+	except Exception as e:
+		logger.exception(e)
+	count = 0
+	for fnd in findings:
+		data = {
+			'source': GITLEAKS,
+			'rule_id': fnd.get('RuleID'),
+			'repo_url': scan_path,
+			'file_path': fnd.get('File'),
+			'commit': fnd.get('Commit') or None,
+			'line': fnd.get('StartLine'),
+			'secret_redacted': redact_secret(fnd.get('Secret') or fnd.get('Match')),
+			'description': fnd.get('Description'),
+			'severity': SECRET_DEFAULT_SEVERITY,
+			'discovered_date': timezone.now(),
+		}
+		if save_leaked_secret(data, scan_history=self.scan, domain=self.domain):
+			count += 1
+	logger.info(f'gitleaks: stored {count} new secret(s)')
+	return count
+
+
+def run_ggshield_scan(self, scan_path):
+	"""Run ggshield (GitGuardian) secret scan over a path. Requires
+	GITGUARDIAN_API_KEY in the worker environment and network access."""
+	if not os.environ.get('GITGUARDIAN_API_KEY'):
+		logger.warning('ggshield: GITGUARDIAN_API_KEY not set, skipping ggshield scan')
+		return 0
+	report = f'{self.results_dir}/ggshield.json'
+	cmd = (
+		f'ggshield secret scan path --recursive --json --exit-zero '
+		f'{scan_path} > {report}'
+	)
+	run_command(
+		cmd,
+		shell=True,
+		history_file=self.history_file,
+		scan_id=self.scan_id,
+		activity_id=self.activity_id)
+	try:
+		with open(report) as f:
+			data = json.load(f)
+	except Exception as e:
+		logger.exception(e)
+		return 0
+	count = 0
+	scans = data.get('scans')
+	if not scans:
+		scans = [data] if data.get('entities_with_incidents') else []
+	for scan_entry in scans:
+		for entity in scan_entry.get('entities_with_incidents', []):
+			filename = entity.get('filename')
+			for incident in entity.get('incidents', []):
+				for occ in (incident.get('occurrences') or [{}]):
+					rec = {
+						'source': GGSHIELD,
+						'rule_id': incident.get('type') or incident.get('policy'),
+						'repo_url': scan_path,
+						'file_path': filename,
+						'commit': None,
+						'line': occ.get('line_start'),
+						'secret_redacted': redact_secret(occ.get('match')),
+						'description': incident.get('policy'),
+						'severity': SECRET_DEFAULT_SEVERITY,
+						'discovered_date': timezone.now(),
+					}
+					if save_leaked_secret(rec, scan_history=self.scan, domain=self.domain):
+						count += 1
+	logger.info(f'ggshield: stored {count} new secret(s)')
+	return count
+
+
+@app.task(name='secret_scan', queue='main_scan_queue', base=SuricatoosTask, bind=True)
+def secret_scan(self, ctx={}, description=None):
+	"""Scan collected scan artifacts (the results dir) for leaked secrets using
+	gitleaks (local) and/or ggshield (GitGuardian API). Findings are stored as
+	LeakedSecret. Configured via the `secret_scan` engine section.
+	"""
+	config = self.yaml_configuration.get(SECRET_SCAN) or {}
+	scan_path = config.get(SCAN_PATH) or self.results_dir
+	if not os.path.exists(scan_path):
+		logger.warning(f'secret_scan: path {scan_path} does not exist, skipping')
+		return None
+	if config.get(RUN_GITLEAKS, DEFAULT_RUN_GITLEAKS):
+		run_gitleaks_scan(self, scan_path)
+	if config.get(RUN_GGSHIELD, DEFAULT_RUN_GGSHIELD):
+		run_ggshield_scan(self, scan_path)
+	return None
+
 
 @app.task(name='nuclei_scan', queue='main_scan_queue', base=SuricatoosTask, bind=True)
 def nuclei_scan(self, urls=[], ctx={}, description=None):
