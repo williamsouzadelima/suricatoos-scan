@@ -113,6 +113,13 @@ class ScanHistory(models.Model):
 			.count()
 		)
 
+	def get_leaked_secret_count(self):
+		return (
+			LeakedSecret.objects
+			.filter(scan_history__id=self.id)
+			.count()
+		)
+
 	def get_unknown_vulnerability_count(self):
 		return (
 			Vulnerability.objects

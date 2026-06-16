@@ -2899,6 +2899,28 @@ class DirectoryViewSet(viewsets.ModelViewSet):
 		return self.queryset
 
 
+class LeakedSecretViewSet(viewsets.ModelViewSet):
+	queryset = LeakedSecret.objects.none()
+	serializer_class = LeakedSecretSerializer
+
+	def get_queryset(self):
+		req = self.request
+		scan_id = req.query_params.get('scan_history')
+		target_id = req.query_params.get('target_id')
+		slug = req.GET.get('project', None)
+		if slug:
+			secrets = LeakedSecret.objects.filter(scan_history__domain__project__slug=slug)
+		else:
+			secrets = LeakedSecret.objects.all()
+		if scan_id:
+			qs = secrets.filter(scan_history__id=scan_id).distinct()
+		elif target_id:
+			qs = secrets.filter(target_domain__id=target_id).distinct()
+		else:
+			qs = secrets.distinct()
+		return qs
+
+
 class VulnerabilityViewSet(viewsets.ModelViewSet):
 	queryset = Vulnerability.objects.none()
 	serializer_class = VulnerabilitySerializer
