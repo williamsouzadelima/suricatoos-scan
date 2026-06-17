@@ -5,6 +5,7 @@
     <nav class="navbar navbar-light navbar-expand-lg topnav-menu">
       <div class="collapse navbar-collapse" id="topnav-menu-content">
         <ul class="navbar-nav">
+          <!-- ====== Grupo: Trabalho ====== -->
           <li class="nav-item dropdown {{target_data_active}}">
             <a class="nav-link arrow-none" href="{% url 'dashboardIndex' current_project.slug %}">
               <i class="fe-home me-1"></i> Dashboard
@@ -15,22 +16,32 @@
               <i class="fe-folder me-1"></i> Projects
             </a>
           </li>
+
+          <li class="nav-item sx-nav-sep-item d-none d-lg-flex"><span class="sx-nav-sep"></span></li>
+
           <li class="nav-item dropdown {{target_data_active}}">
             <a class="nav-link arrow-none" href="{% url 'list_target' current_project.slug %}">
               <i class="fe-crosshair me-1"></i> Targets
             </a>
           </li>
+          <li class="nav-item dropdown {{organization_active}}">
+            <a class="nav-link arrow-none" href="{% url 'list_organization' current_project.slug %}">
+              <i class="fe-briefcase me-1"></i> Organizations
+            </a>
+          </li>
           <li class="nav-item dropdown {{scan_history_active}} {{scheduled_scan_active}}">
             <a class="nav-link dropdown-toggle arrow-none" href="#" id="topnav-history" role="button"
               data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-              <i class="fe-activity me-1"></i> Scan History
+              <i class="fe-activity me-1"></i> Scans
               <div class="arrow-down"></div>
             </a>
             <div class="dropdown-menu" aria-labelledby="topnav-history">
+              <h6 class="dropdown-header">Activity</h6>
               <a href="{% url 'scan_history' current_project.slug %}" class="dropdown-item">Scan History</a>
               <a href="{% url 'subscan_history' current_project.slug %}" class="dropdown-item">Sub Scan History</a>
-              <a href="{% url 'scheduled_scan_view' current_project.slug %}" class="dropdown-item">Scheduled Scan</a>
+              <a href="{% url 'scheduled_scan_view' current_project.slug %}" class="dropdown-item">Scheduled Scans</a>
               <div class="dropdown-divider"></div>
+              <h6 class="dropdown-header">Results</h6>
               <a href="{% url 'all_subdomains' current_project.slug %}" class="dropdown-item">All Subdomains</a>
               <a href="{% url 'all_endpoints' current_project.slug %}" class="dropdown-item">All Endpoints</a>
             </div>
@@ -45,11 +56,10 @@
               <i class="fe-check-square me-1"></i> Todo
             </a>
           </li>
-          <li class="nav-item dropdown {{organization_active}}">
-            <a class="nav-link arrow-none" href="{% url 'list_organization' current_project.slug %}">
-              <i class="fe-briefcase me-1"></i> Organization
-            </a>
-          </li>
+
+          <li class="nav-item sx-nav-sep-item d-none d-lg-flex"><span class="sx-nav-sep"></span></li>
+
+          <!-- ====== Grupo: Configurar ====== -->
           <li class="nav-item dropdown {{scan_engine_nav_active}}">
             <a class="nav-link dropdown-toggle arrow-none" href="#" id="topnav-scanengine" role="button"
               data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
@@ -97,23 +107,28 @@
               <i class="fe-settings me-1"></i> Settings
               <div class="arrow-down"></div>
             </a>
-            <div class="dropdown-menu" aria-labelledby="topnav-settings">
+            <div class="dropdown-menu dropdown-menu-end" aria-labelledby="topnav-settings">
               {% if user|can:'modify_scan_configurations' %}
+              <h6 class="dropdown-header">Scan Configuration</h6>
               <a href="{% url 'proxy_settings' current_project.slug %}" class="dropdown-item">Proxies</a>
               <a href="{% url 'tool_settings' current_project.slug %}" class="dropdown-item">Tool Settings</a>
               {% endif %}
               {% if user|can:'modify_system_configurations' %}
+              <div class="dropdown-divider"></div>
+              <h6 class="dropdown-header">System</h6>
               <a href="{% url 'api_vault' current_project.slug %}" class="dropdown-item">API Vault</a>
               <a href="{% url 'llm_toolkit' current_project.slug %}" class="dropdown-item">LLM Toolkit</a>
               <a href="{% url 'tool_arsenal' current_project.slug %}" class="dropdown-item">Tools Arsenal</a>
-              {% endif %}
-              {% if user|can:'modify_scan_report' %}
-              <a href="{% url 'report_settings' current_project.slug %}" class="dropdown-item">Report Settings</a>
-              {% endif %}
-              {% if user|can:'modify_system_configurations' %}
               <a href="{% url 'suricatoos_settings' current_project.slug %}" class="dropdown-item">Suricatoos Settings</a>
               {% endif %}
+              {% if user|can:'modify_scan_report' %}
+              <div class="dropdown-divider"></div>
+              <h6 class="dropdown-header">Reporting</h6>
+              <a href="{% url 'report_settings' current_project.slug %}" class="dropdown-item">Report Settings</a>
+              {% endif %}
               {% if user|can:'modify_scan_configurations' %}
+              <div class="dropdown-divider"></div>
+              <h6 class="dropdown-header">Notifications</h6>
                 {% if user_preferences.bug_bounty_mode %}
                   <a href="{% url 'hackerone_settings' current_project.slug %}" class="dropdown-item">Hackerone Settings</a>
                 {% endif %}

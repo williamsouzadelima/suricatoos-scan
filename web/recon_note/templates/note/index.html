@@ -6,6 +6,11 @@
 Recon Todo
 {% endblock title %}
 
+{% block breadcrumb_title %}
+<li class="breadcrumb-item"><a href="{% url 'dashboardIndex' current_project.slug %}">Dashboard</a></li>
+<li class="breadcrumb-item active">Todo</li>
+{% endblock breadcrumb_title %}
+
 {% block custom_js_css_link %}
 <link rel="stylesheet" type="text/css" href="{% static 'plugins/todo/todolist.css' %}">
 <link rel="stylesheet" type="text/css" href="{% static 'plugins/select2/select2.min.css' %}">

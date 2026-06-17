@@ -21,6 +21,32 @@ Dashboard
 {% endblock breadcrumb_title %}
 
 {% block main_content %}
+{% if domain_count == 0 %}
+<div class="row">
+	<div class="col-12">
+		<div class="card" style="border-left:3px solid var(--sx-primary)!important;">
+			<div class="card-body">
+				<div class="row align-items-center">
+					<div class="col-md-8">
+						<span class="badge bg-soft-primary mb-2" style="letter-spacing:.08em;">GETTING STARTED</span>
+						<h4 class="mt-0">Welcome! Let's run your first scan</h4>
+						<p class="text-muted mb-3">This project has no targets yet &mdash; three quick steps to your first results:</p>
+						<ol class="mb-0 ps-3">
+							<li class="mb-1"><strong>Add a target</strong> <span class="text-muted">&mdash; a domain you're authorized to test.</span></li>
+							<li class="mb-1"><strong>Pick a scan engine</strong> <span class="text-muted">&mdash; a sensible default is ready to use.</span></li>
+							<li><strong>Start the scan</strong> <span class="text-muted">&mdash; results stream in as they're found.</span></li>
+						</ol>
+					</div>
+					<div class="col-md-4 text-md-end mt-3 mt-md-0">
+						<a href="{% url 'add_target' current_project.slug %}" class="btn btn-primary"><i class="fe-plus me-1"></i> Add your first target</a>
+						<div class="mt-2"><a href="{% url 'scan_engine_index' current_project.slug %}" class="text-muted">or review scan engines</a></div>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+</div>
+{% endif %}
 <div class="row">
 	<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
 		<div class="card" id="tooltip-container">

@@ -12,6 +12,14 @@
     <link href="{% static 'assets/css/authentication/form-2.css' %}" rel="stylesheet" type="text/css" />
     <link rel="stylesheet" type="text/css" href="{% static 'assets/css/forms/theme-checkbox-radio.css' %}">
     <link rel="stylesheet" type="text/css" href="{% static 'assets/css/forms/switches.css' %}">
+    <link rel="icon" type="image/svg+xml" href="/staticfiles/img/favicon.svg">
+    <link href="{% static 'custom/premium-theme.css' %}" rel="stylesheet" type="text/css" />
+    <script>
+      (function () { try {
+        var t = localStorage.getItem('suricatoos-theme');
+        document.documentElement.setAttribute('data-sx-theme', (t === null || t === 'dark') ? 'dark' : 'light');
+      } catch (e) {} })();
+    </script>
 </head>
 <body class="form" style="background: #212121">
     <div class="form-container outer">
