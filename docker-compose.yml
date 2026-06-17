@@ -144,6 +144,10 @@ services:
   ollama:
     image: ollama/ollama
     container_name: ollama
+    # VM pequena (3.8GB): ollama ocioso e leve, mas carregar um modelo em CPU
+    # pode consumir toda a RAM e travar o host. O limite contem o ollama (ele
+    # sofre OOM-kill em vez de derrubar a maquina inteira).
+    mem_limit: 1g
     volumes:
       - ollama_data:/root/.ollama
     ports:
