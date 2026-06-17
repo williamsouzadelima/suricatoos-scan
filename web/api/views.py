@@ -2899,7 +2899,9 @@ class DirectoryViewSet(viewsets.ModelViewSet):
 		return self.queryset
 
 
-class LeakedSecretViewSet(viewsets.ModelViewSet):
+class LeakedSecretViewSet(viewsets.ReadOnlyModelViewSet):
+	# Read-only: leaked-credential findings must never be created, edited or
+	# deleted through the API (a full ModelViewSet would expose POST/PUT/DELETE).
 	queryset = LeakedSecret.objects.none()
 	serializer_class = LeakedSecretSerializer
 

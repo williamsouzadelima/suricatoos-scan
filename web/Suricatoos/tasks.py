@@ -2,6 +2,7 @@ import csv
 import json
 import os
 import pprint
+import shlex
 import subprocess
 import time
 import validators
@@ -2397,6 +2398,22 @@ def add_gpt_description_db(title, path, description, impact, remediation, refere
 		gpt_report.references.add(ref)
 		gpt_report.save()
 
+# Allowlists for user-editable OSINT / secret-scan config values that get
+# interpolated into shell commands. Anything outside these sets is rejected and
+# the safe default is used, so a malicious engine YAML cannot inject commands.
+SPIDERFOOT_PRESETS = {'passive', 'footprint', 'investigate', 'all'}
+GITLEAKS_MODES = {'dir', 'git'}
+
+
+def _safe_remove(path):
+	"""Best-effort delete of a file that may contain raw secrets."""
+	try:
+		if path and os.path.exists(path):
+			os.remove(path)
+	except OSError as e:
+		logger.warning(f'could not remove {path}: {e}')
+
+
 @app.task(name='spiderfoot_scan', queue='spiderfoot_queue', bind=False)
 def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx={}):
 	"""Run SpiderFoot OSINT headless (no web UI) and map discovered events to
@@ -2404,11 +2421,19 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 	osint.enable_spiderfoot config flag.
 	"""
 	scan_history = ScanHistory.objects.get(pk=scan_history_id)
-	preset = config.get(SPIDERFOOT_PRESET, 'passive')
+	# str() so a list/dict YAML value fails the allowlist safely instead of raising.
+	preset = str(config.get(SPIDERFOOT_PRESET, 'passive'))
+	if preset not in SPIDERFOOT_PRESETS:
+		logger.warning(f'spiderfoot: unknown preset {preset!r}, falling back to passive')
+		preset = 'passive'
 	out = f'{results_dir}/spiderfoot.json'
 	history_file = f'{results_dir}/commands.txt'
-	# -q keeps stdout as pure JSON; redirect to file (shell=True because of '>')
-	cmd = f'python3 {SPIDERFOOT_EXEC_PATH} -s {host} -u {preset} -o json -q > {out}'
+	# -q keeps stdout as pure JSON; redirect to file (shell=True because of '>').
+	# host/out are quoted so a crafted target or path can't inject shell commands.
+	cmd = (
+		f'python3 {SPIDERFOOT_EXEC_PATH} -s {shlex.quote(str(host))} '
+		f'-u {preset} -o json -q > {shlex.quote(out)}'
+	)
 	run_command(
 		cmd,
 		shell=True,
@@ -2451,7 +2476,9 @@ def redact_secret(value):
 	if not value:
 		return value
 	value = str(value)
-	if len(value) <= 8:
+	# Fully mask anything short enough that a 3+2 char reveal would expose a large
+	# fraction of it; only reveal a prefix/suffix for comfortably long secrets.
+	if len(value) < 16:
 		return '*' * len(value)
 	return f'{value[:3]}{"*" * 8}{value[-2:]}'
 
@@ -2463,10 +2490,12 @@ def save_leaked_secret(data, scan_history=None, domain=None):
 	data = dict(data)
 	data['scan_history'] = scan_history
 	data['target_domain'] = domain
+	# secret_redacted IS part of the identity: two distinct secrets at the same
+	# rule/file/line must produce two rows. Only noise fields are excluded.
 	if record_exists(
 			LeakedSecret,
 			data=data,
-			exclude_keys=['secret_redacted', 'description', 'discovered_date']):
+			exclude_keys=['description', 'discovered_date']):
 		return None
 	leaked_secret, created = LeakedSecret.objects.get_or_create(**data)
 	return leaked_secret if created else None
@@ -2476,28 +2505,39 @@ def run_gitleaks_scan(self, scan_path):
 	"""Run gitleaks over a filesystem path / git repo and store findings as
 	LeakedSecret. Fully local, no network. Returns count of new findings."""
 	config = self.yaml_configuration.get(SECRET_SCAN) or {}
-	mode = config.get(GITLEAKS_MODE, 'dir')  # 'dir' (filesystem) or 'git' (history)
+	# str() so a list/dict YAML value fails the allowlist safely instead of raising.
+	mode = str(config.get(GITLEAKS_MODE, 'dir'))  # 'dir' (filesystem) or 'git' (history)
+	if mode not in GITLEAKS_MODES:
+		logger.warning(f'gitleaks: unknown mode {mode!r}, falling back to dir')
+		mode = 'dir'
 	report = f'{self.results_dir}/gitleaks.json'
+	# scan_path/report are quoted so a crafted path can't inject shell commands.
 	cmd = (
-		f'gitleaks {mode} {scan_path} --report-format json '
-		f'--report-path {report} --no-banner --exit-code 0'
+		f'gitleaks {mode} {shlex.quote(str(scan_path))} --report-format json '
+		f'--report-path {shlex.quote(report)} --no-banner --exit-code 0'
 	)
 	if mode == 'git':
 		cmd += ' --log-opts="--all"'
-	run_command(
-		cmd,
-		shell=True,
-		history_file=self.history_file,
-		scan_id=self.scan_id,
-		activity_id=self.activity_id)
 	findings = []
 	try:
+		# run_command MUST be inside the try: gitleaks writes the raw-secret report
+		# before it returns, so any later error (DB/history-file write) must still
+		# hit the finally that deletes the report.
+		run_command(
+			cmd,
+			shell=True,
+			history_file=self.history_file,
+			scan_id=self.scan_id,
+			activity_id=self.activity_id)
 		with open(report) as f:
 			findings = json.load(f) or []
 	except FileNotFoundError:
 		logger.warning(f'gitleaks produced no report at {report}')
 	except Exception as e:
 		logger.exception(e)
+	finally:
+		# the report holds RAW secret values — never leave it on disk
+		_safe_remove(report)
 	count = 0
 	for fnd in findings:
 		data = {
@@ -2530,25 +2570,39 @@ def run_ggshield_scan(self, scan_path):
 	if not gg_key:
 		logger.warning('ggshield: no GitGuardian API key (set it in Settings -> API or the GITGUARDIAN_API_KEY env var), skipping ggshield scan')
 		return 0
-	# ggshield reads the key from the environment; set it here (not on the command
-	# line) so the key is never written to the command history/logs.
+	# ggshield reads the key from the environment (never the command line, so it
+	# can't end up in command history/logs). Set it only for the duration of this
+	# scan and restore the previous value afterwards so the key does not linger in
+	# the long-lived worker process and leak to sibling tasks/subprocesses.
+	prev_key = os.environ.get('GITGUARDIAN_API_KEY')
 	os.environ['GITGUARDIAN_API_KEY'] = gg_key
 	report = f'{self.results_dir}/ggshield.json'
+	# scan_path/report are quoted so a crafted path can't inject shell commands.
 	cmd = (
 		f'ggshield secret scan path --recursive --json --exit-zero '
-		f'{scan_path} > {report}'
+		f'{shlex.quote(str(scan_path))} > {shlex.quote(report)}'
 	)
-	run_command(
-		cmd,
-		shell=True,
-		history_file=self.history_file,
-		scan_id=self.scan_id,
-		activity_id=self.activity_id)
+	data = None
 	try:
+		run_command(
+			cmd,
+			shell=True,
+			history_file=self.history_file,
+			scan_id=self.scan_id,
+			activity_id=self.activity_id)
 		with open(report) as f:
 			data = json.load(f)
 	except Exception as e:
 		logger.exception(e)
+	finally:
+		# restore env so the key doesn't outlive this scan
+		if prev_key is None:
+			os.environ.pop('GITGUARDIAN_API_KEY', None)
+		else:
+			os.environ['GITGUARDIAN_API_KEY'] = prev_key
+		# the report holds RAW secret values — never leave it on disk
+		_safe_remove(report)
+	if data is None:
 		return 0
 	count = 0
 	scans = data.get('scans')
@@ -2584,7 +2638,8 @@ def secret_scan(self, ctx={}, description=None):
 	LeakedSecret. Configured via the `secret_scan` engine section.
 	"""
 	config = self.yaml_configuration.get(SECRET_SCAN) or {}
-	scan_path = config.get(SCAN_PATH) or self.results_dir
+	# str() so a list/dict YAML value can't raise inside os.path.exists / downstream.
+	scan_path = str(config.get(SCAN_PATH) or self.results_dir)
 	if not os.path.exists(scan_path):
 		logger.warning(f'secret_scan: path {scan_path} does not exist, skipping')
 		return None

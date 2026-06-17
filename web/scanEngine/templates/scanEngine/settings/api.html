@@ -61,7 +61,8 @@ API Vault
                 <p class="text-muted">GitGuardian keys are used by the ggshield secret scanner (secret_scan engine) to detect leaked secrets in scan artifacts.</p>
                 <div class="flex-grow-1 position-relative">
                 {% if gitguardian_key %}
-                  <input class="form-control" type="password" id="key_gitguardian" name="key_gitguardian" placeholder="Enter GitGuardian Key" value="{{gitguardian_key}}">
+                  {# A key is configured: never render it into the DOM. Leaving the field blank preserves the stored key (the POST handler only updates on a non-empty value). #}
+                  <input class="form-control" type="password" id="key_gitguardian" name="key_gitguardian" placeholder="•••••••••••• (a key is configured — type to replace)">
                 {% else %}
                   <input class="form-control" type="text" id="key_gitguardian" name="key_gitguardian" placeholder="Enter GitGuardian Key">
                 {% endif %}
