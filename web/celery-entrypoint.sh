@@ -253,7 +253,14 @@ queues=(
     "send_scan_notif_queue"
 )
 all_queues=$(IFS=,; echo "${queues[*]}")
-shared_concurrency=${SHARED_CONCURRENCY:-50}
+# Concorrencia do worker gevent compartilhado. Greenlets sao baratos (o custo de
+# RAM e o unico import do Django, NAO por-greenlet), entao da pra subir bastante
+# em hosts maiores. Validado como inteiro porque entra no comando montado via
+# eval logo abaixo; valor invalido/vazio cai no default seguro 50.
+case "${SHARED_CONCURRENCY:-}" in
+    ''|*[!0-9]*) shared_concurrency=50 ;;
+    *)           shared_concurrency=$SHARED_CONCURRENCY ;;
+esac
 
 if [ "$DEBUG" == "1" ]; then
     commands+="watchmedo auto-restart --recursive --pattern=\"*.py\" --directory=\"/usr/src/app/Suricatoos/\" -- celery -A Suricatoos.tasks worker --pool=gevent --optimization=fair --concurrency=$shared_concurrency --loglevel=$loglevel -Q $all_queues -n shared_worker &"$'\n'
