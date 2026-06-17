@@ -22,7 +22,7 @@ from rest_framework.test import APIRequestFactory
 
 from Suricatoos.tasks import (redact_secret, save_leaked_secret,
                               run_gitleaks_scan, run_ggshield_scan,
-                              spiderfoot_scan)
+                              spiderfoot_scan, secret_scan)
 from api.serializers import LeakedSecretSerializer
 from api.views import LeakedSecretViewSet
 from dashboard.models import GitGuardianAPIKey
@@ -410,6 +410,66 @@ class TestLeakedSecretAPI(TestCase):
 
         self.assertEqual(qs.count(), 1)
         self.assertEqual(qs.first().rule_id, 'aws-key')
+
+
+class TestSecretScanEntryPoint(TestCase):
+    """The secret_scan Celery task (bind=True, SuricatoosTask base): config gating,
+    SCAN_PATH override and the nonexistent-path skip. Driven through the task's
+    __call__ via ctx (track=False bypasses scan-activity/DB side effects); the
+    gitleaks/ggshield workers are mocked."""
+
+    def setUp(self):
+        self.domain = Domain.objects.create(name='example.com')
+        self.engine = EngineType.objects.create(
+            engine_name='t', yaml_configuration='secret_scan: {}')
+        self.scan = ScanHistory.objects.create(
+            domain=self.domain, scan_type=self.engine,
+            start_scan_date=timezone.now())
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def _ctx(self, secret_cfg, results_dir=None):
+        return {
+            'track': False,  # skip scan-activity / notification side effects
+            'yaml_configuration': {'secret_scan': secret_cfg},
+            'results_dir': results_dir or self.tmp,
+            'scan_history_id': self.scan.id,
+        }
+
+    @patch('Suricatoos.tasks.run_ggshield_scan')
+    @patch('Suricatoos.tasks.run_gitleaks_scan')
+    def test_runs_gitleaks_by_default_not_ggshield(self, mock_gl, mock_gg):
+        secret_scan(ctx=self._ctx({}))
+        mock_gl.assert_called_once()
+        mock_gg.assert_not_called()
+
+    @patch('Suricatoos.tasks.run_ggshield_scan')
+    @patch('Suricatoos.tasks.run_gitleaks_scan')
+    def test_skips_when_path_missing(self, mock_gl, mock_gg):
+        secret_scan(ctx=self._ctx(
+            {'scan_path': '/no/such/path/xyz'}, results_dir='/no/such/path/xyz'))
+        mock_gl.assert_not_called()
+        mock_gg.assert_not_called()
+
+    @patch('Suricatoos.tasks.run_ggshield_scan')
+    @patch('Suricatoos.tasks.run_gitleaks_scan')
+    def test_scan_path_override_and_ggshield_opt_in(self, mock_gl, mock_gg):
+        override = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, override, ignore_errors=True)
+        secret_scan(ctx=self._ctx(
+            {'scan_path': override, 'run_ggshield': True}))
+        mock_gl.assert_called_once()
+        mock_gg.assert_called_once()
+        # both scanners get the overridden path, not the results_dir
+        self.assertEqual(mock_gl.call_args.args[1], override)
+        self.assertEqual(mock_gg.call_args.args[1], override)
+
+    @patch('Suricatoos.tasks.run_ggshield_scan')
+    @patch('Suricatoos.tasks.run_gitleaks_scan')
+    def test_run_gitleaks_false_disables_gitleaks(self, mock_gl, mock_gg):
+        secret_scan(ctx=self._ctx({'run_gitleaks': False}))
+        mock_gl.assert_not_called()
+        mock_gg.assert_not_called()
 
 
 if __name__ == '__main__':

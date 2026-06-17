@@ -113,11 +113,11 @@ then
 fi
 python3 -m pip install -r /usr/src/github/theHarvester/requirements/base.txt
 
-# clone spiderfoot
+# clone spiderfoot (pinned to a fixed release for reproducible OSINT parsing)
 if [ ! -d "/usr/src/github/spiderfoot" ]
 then
-  echo "Cloning SpiderFoot"
-  git clone https://github.com/smicallef/spiderfoot /usr/src/github/spiderfoot
+  echo "Cloning SpiderFoot v4.0"
+  git clone --branch v4.0 --depth 1 https://github.com/smicallef/spiderfoot /usr/src/github/spiderfoot
 fi
 python3 -m pip install -r /usr/src/github/spiderfoot/requirements.txt
 
