@@ -2732,11 +2732,11 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	config = self.yaml_configuration.get(VULNERABILITY_SCAN) or {}
 	input_path = f'{self.results_dir}/input_endpoints_vulnerability_scan.txt'
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
-	concurrency = config.get(NUCLEI_CONCURRENCY) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
+	concurrency = _safe_int(config.get(NUCLEI_CONCURRENCY) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	intensity = config.get(INTENSITY) or self.yaml_configuration.get(INTENSITY, DEFAULT_SCAN_INTENSITY)
-	rate_limit = config.get(RATE_LIMIT) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT)
-	retries = config.get(RETRIES) or self.yaml_configuration.get(RETRIES, DEFAULT_RETRIES)
-	timeout = config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT)
+	rate_limit = _safe_int(config.get(RATE_LIMIT) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT), DEFAULT_RATE_LIMIT)
+	retries = _safe_int(config.get(RETRIES) or self.yaml_configuration.get(RETRIES, DEFAULT_RETRIES), DEFAULT_RETRIES)
+	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
 	custom_headers = self.yaml_configuration.get(CUSTOM_HEADERS, [])
 	'''
 	# TODO: Remove custom_header in next major release
@@ -2748,14 +2748,16 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	if custom_header:
 		custom_headers.append(custom_header)
 	should_fetch_gpt_report = config.get(FETCH_GPT_REPORT, DEFAULT_GET_GPT_REPORT)
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 	nuclei_specific_config = config.get('nuclei', {})
 	use_nuclei_conf = nuclei_specific_config.get(USE_NUCLEI_CONFIG, False)
-	severities = nuclei_specific_config.get(NUCLEI_SEVERITY, NUCLEI_DEFAULT_SEVERITIES)
-	tags = nuclei_specific_config.get(NUCLEI_TAGS, [])
-	tags = ','.join(tags)
-	nuclei_templates = nuclei_specific_config.get(NUCLEI_TEMPLATE)
-	custom_nuclei_templates = nuclei_specific_config.get(NUCLEI_CUSTOM_TEMPLATE)
+	# nuclei runs shell=False (cmd.split()), so the risk here is argv/flag smuggling
+	# via whitespace or leading '-'. Filter the user-editable lists to safe tokens.
+	NUCLEI_VALID_SEVERITIES = re.compile(r'^(info|low|medium|high|critical|unknown)$')
+	severities = _filter_list(nuclei_specific_config.get(NUCLEI_SEVERITY, NUCLEI_DEFAULT_SEVERITIES), NUCLEI_VALID_SEVERITIES) or list(NUCLEI_DEFAULT_SEVERITIES)
+	tags = ','.join(_filter_list(nuclei_specific_config.get(NUCLEI_TAGS, []), SAFE_TOKEN_RE))
+	nuclei_templates = _filter_list(nuclei_specific_config.get(NUCLEI_TEMPLATE) or [], SAFE_PATH_RE)
+	custom_nuclei_templates = _filter_list(nuclei_specific_config.get(NUCLEI_CUSTOM_TEMPLATE) or [], SAFE_PATH_RE)
 	# severities_str = ','.join(severities)
 
 	# Get alive endpoints
@@ -2813,9 +2815,12 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	cmd = 'nuclei -j'
 	cmd += ' -config /root/.config/nuclei/config.yaml' if use_nuclei_conf else ''
 	cmd += f' -irr'
-	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
-	if formatted_headers:
-		cmd += formatted_headers
+	# shell=False here, so do NOT shell-quote (cmd.split() would keep the quotes).
+	# Keep only no-whitespace header-shaped values so they stay a single argv token
+	# and cannot smuggle an extra nuclei flag.
+	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[^\s]*$', str(h))]
+	if safe_headers:
+		cmd += ' ' + ' '.join(f'-H {h}' for h in safe_headers)
 	cmd += f' -l {input_path}'
 	cmd += f' -c {str(concurrency)}' if concurrency > 0 else ''
 	cmd += f' -proxy {proxy} ' if proxy else ''
@@ -2875,7 +2880,7 @@ def dalfox_xss_scan(self, urls=[], ctx={}, description=None):
 	custom_header = self.yaml_configuration.get(CUSTOM_HEADER)
 	if custom_header:
 		custom_headers.append(custom_header)
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 	is_waf_evasion = dalfox_config.get(WAF_EVASION, False)
 	blind_xss_server = dalfox_config.get(BLIND_XSS_SERVER)
 	user_agent = dalfox_config.get(USER_AGENT) or self.yaml_configuration.get(USER_AGENT)
@@ -2906,13 +2911,15 @@ def dalfox_xss_scan(self, urls=[], ctx={}, description=None):
 	cmd += f' file {input_path}'
 	cmd += f' --proxy {proxy}' if proxy else ''
 	cmd += f' --waf-evasion' if is_waf_evasion else ''
-	cmd += f' -b {blind_xss_server}' if blind_xss_server else ''
+	cmd += f' -b {blind_xss_server}' if blind_xss_server and _allow(blind_xss_server, PROXY_RE) else ''
 	cmd += f' --delay {delay}' if delay else ''
 	cmd += f' --timeout {timeout}' if timeout else ''
-	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
-	if formatted_headers:
-		cmd += formatted_headers
-	cmd += f' --user-agent {user_agent}' if user_agent else ''
+	# shell=False (stream_command): keep only no-whitespace header-shaped values so
+	# each is a single, flag-safe argv token.
+	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[^\s]*$', str(h))]
+	if safe_headers:
+		cmd += ' ' + ' '.join(f'-H {h}' for h in safe_headers)
+	cmd += f' --user-agent {user_agent}' if user_agent and not re.search(r'\s|^-', str(user_agent)) else ''
 	cmd += f' --worker {threads}' if threads else ''
 	cmd += f' --format json'
 
@@ -3011,7 +3018,7 @@ def crlfuzz_scan(self, urls=[], ctx={}, description=None):
 	custom_header = self.yaml_configuration.get(CUSTOM_HEADER)
 	if custom_header:
 		custom_headers.append(custom_header)
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 	user_agent = vuln_config.get(USER_AGENT) or self.yaml_configuration.get(USER_AGENT)
 	threads = vuln_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
 	input_path = f'{self.results_dir}/input_endpoints_crlf.txt'
@@ -3035,9 +3042,10 @@ def crlfuzz_scan(self, urls=[], ctx={}, description=None):
 	cmd = 'crlfuzz -s'
 	cmd += f' -l {input_path}'
 	cmd += f' -x {proxy}' if proxy else ''
-	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
-	if formatted_headers:
-		cmd += formatted_headers
+	# shell=False: keep only no-whitespace header-shaped values (single argv token).
+	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[^\s]*$', str(h))]
+	if safe_headers:
+		cmd += ' ' + ' '.join(f'-H {h}' for h in safe_headers)
 	cmd += f' -o {output_path}'
 
 	run_command(
@@ -3197,7 +3205,7 @@ def http_crawl(
 	custom_header = self.yaml_configuration.get(CUSTOM_HEADER)
 	if custom_header:
 		custom_headers.append(custom_header)
-	threads = cfg.get(THREADS, DEFAULT_THREADS)
+	threads = _safe_int(cfg.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	follow_redirect = cfg.get(FOLLOW_REDIRECT, True)
 	self.output_path = None
 	input_path = f'{self.results_dir}/httpx_input.txt'
@@ -3229,19 +3237,22 @@ def http_crawl(
 	if len(urls) < threads:
 		threads = len(urls)
 
-	# Get random proxy
-	proxy = get_random_proxy()
+	# Get random proxy (allowlisted: httpx runs shell=False, so the value must be a
+	# single, flag-safe argv token).
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
 	# Run command
 	cmd += f' -cl -ct -rt -location -td -websocket -cname -asn -cdn -probe -random-agent'
 	cmd += f' -t {threads}' if threads > 0 else ''
 	cmd += f' --http-proxy {proxy}' if proxy else ''
-	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
-	if formatted_headers:
-		cmd += formatted_headers
+	# shell=False: keep only no-whitespace header-shaped values (no quotes), so each
+	# stays one argv token and cannot smuggle an httpx flag.
+	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[^\s]*$', str(h))]
+	if safe_headers:
+		cmd += ' ' + ' '.join(f'-H {h}' for h in safe_headers)
 	cmd += f' -json'
 	cmd += f' -u {urls[0]}' if len(urls) == 1 else f' -l {input_path}'
-	cmd += f' -x {method}' if method else ''
+	cmd += f' -x {method}' if method and re.match(r'^[A-Z]+$', str(method)) else ''
 	cmd += f' -silent'
 	if follow_redirect:
 		cmd += ' -fr'
@@ -4579,7 +4590,7 @@ def get_and_save_dork_results(lookup_target, results_dir, type, lookup_keywords=
 	"""
 	results = []
 	gofuzz_command = f'{GOFUZZ_EXEC_PATH} -t {lookup_target} -d {delay} -p {page_count}'
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
 	if lookup_extensions:
 		gofuzz_command += f' -e {lookup_extensions}'

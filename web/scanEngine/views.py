@@ -501,12 +501,15 @@ def llm_toolkit_section(request, slug):
 def api_vault(request, slug):
     context = {}
     if request.method == "POST":
-        key_openai = request.POST.get('key_openai')
-        key_netlas = request.POST.get('key_netlas')
-        key_chaos = request.POST.get('key_chaos')
-        key_gitguardian = request.POST.get('key_gitguardian')
-        key_hackerone = request.POST.get('key_hackerone')
-        username_hackerone = request.POST.get('username_hackerone')
+        # strip() the keys at intake: netlas/chaos keys are interpolated into recon
+        # shell commands, so trailing whitespace must never reach the command line
+        # (the tasks layer additionally allowlists them before use).
+        key_openai = (request.POST.get('key_openai') or '').strip()
+        key_netlas = (request.POST.get('key_netlas') or '').strip()
+        key_chaos = (request.POST.get('key_chaos') or '').strip()
+        key_gitguardian = (request.POST.get('key_gitguardian') or '').strip()
+        key_hackerone = (request.POST.get('key_hackerone') or '').strip()
+        username_hackerone = (request.POST.get('username_hackerone') or '').strip()
 
 
         if key_openai:
