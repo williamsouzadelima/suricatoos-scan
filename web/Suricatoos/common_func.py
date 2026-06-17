@@ -3,6 +3,7 @@ import socket
 import json
 import os
 import pickle
+import re
 import random
 import shutil
 import traceback
@@ -934,7 +935,13 @@ def get_nmap_cmd(
 		return None
 
 	if not input_file:
-		cmd += f" {host}" if host else ""
+		# host is appended AFTER is_valid_nmap_command, so it bypasses that guard.
+		# Validate it here and fail closed (the target host reaches a shell=True nmap).
+		if host:
+			if not re.match(r'^[A-Za-z0-9._:-]+$', str(host)):
+				logger.error(f'Invalid/unsafe nmap host: {host!r}')
+				return None
+			cmd += f" {host}"
 	else:
 		cmd += f" -iL {input_file}"
 

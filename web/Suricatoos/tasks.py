@@ -2,6 +2,7 @@ import csv
 import json
 import os
 import pprint
+import re
 import shlex
 import subprocess
 import time
@@ -422,8 +423,13 @@ def subdomain_discovery(
 	# Config
 	config = self.yaml_configuration.get(SUBDOMAIN_DISCOVERY) or {}
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL) or self.yaml_configuration.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
-	threads = config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
-	timeout = config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT)
+	threads = _safe_int(config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
+	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
+	# Defense in depth: host is interpolated into many shell=True commands below
+	# (Region A already sanitizes it at storage). Refuse anything unsafe outright.
+	if not _allow(host, SAFE_HOST_RE):
+		logger.error(f'subdomain_discovery: refusing unsafe host {host!r}')
+		return
 	tools = config.get(USES_TOOLS, SUBDOMAIN_SCAN_DEFAULT_TOOLS)
 	default_subdomain_tools = [tool.name.lower() for tool in InstalledExternalTool.objects.filter(is_default=True).filter(is_subdomain_gathering=True)]
 	custom_subdomain_tools = [tool.name.lower() for tool in InstalledExternalTool.objects.filter(is_default=False).filter(is_subdomain_gathering=True)]
@@ -447,67 +453,72 @@ def subdomain_discovery(
 	for tool in tools:
 		cmd = None
 		logger.info(f'Scanning subdomains for {host} with {tool}')
-		proxy = get_random_proxy()
+		# proxy comes from the unvalidated Proxy textarea; allowlist it to a URL.
+		proxy = _allow(get_random_proxy(), PROXY_RE, '')
 		if tool in default_subdomain_tools:
 			if tool == 'amass-passive':
 				use_amass_config = config.get(USE_AMASS_CONFIG, False)
-				cmd = f'amass enum -passive -d {host} -o {self.results_dir}/subdomains_amass.txt'
+				cmd = f'amass enum -passive -d {shlex.quote(host)} -o {self.results_dir}/subdomains_amass.txt'
 				cmd += ' -config /root/.config/amass.ini' if use_amass_config else ''
 
 			elif tool == 'amass-active':
 				use_amass_config = config.get(USE_AMASS_CONFIG, False)
-				amass_wordlist_name = config.get(AMASS_WORDLIST, 'deepmagic.com-prefixes-top50000')
+				# wordlist name is user-editable: allowlist it (blocks injection and ../ traversal).
+				amass_wordlist_name = _allow(config.get(AMASS_WORDLIST, 'deepmagic.com-prefixes-top50000'), SAFE_TOKEN_RE, 'deepmagic.com-prefixes-top50000')
 				wordlist_path = f'/usr/src/wordlist/{amass_wordlist_name}.txt'
-				cmd = f'amass enum -active -d {host} -o {self.results_dir}/subdomains_amass_active.txt'
+				cmd = f'amass enum -active -d {shlex.quote(host)} -o {self.results_dir}/subdomains_amass_active.txt'
 				cmd += ' -config /root/.config/amass.ini' if use_amass_config else ''
-				cmd += f' -brute -w {wordlist_path}'
+				cmd += f' -brute -w {shlex.quote(wordlist_path)}'
 
 			elif tool == 'sublist3r':
-				cmd = f'python3 /usr/src/github/Sublist3r/sublist3r.py -d {host} -t {threads} -o {self.results_dir}/subdomains_sublister.txt'
+				cmd = f'python3 /usr/src/github/Sublist3r/sublist3r.py -d {shlex.quote(host)} -t {threads} -o {self.results_dir}/subdomains_sublister.txt'
 
 			elif tool == 'subfinder':
-				cmd = f'subfinder -d {host} -o {self.results_dir}/subdomains_subfinder.txt'
+				cmd = f'subfinder -d {shlex.quote(host)} -o {self.results_dir}/subdomains_subfinder.txt'
 				use_subfinder_config = config.get(USE_SUBFINDER_CONFIG, False)
 				cmd += ' -config /root/.config/subfinder/config.yaml' if use_subfinder_config else ''
-				cmd += f' -proxy {proxy}' if proxy else ''
+				cmd += f' -proxy {shlex.quote(proxy)}' if proxy else ''
 				cmd += f' -timeout {timeout}' if timeout else ''
 				cmd += f' -t {threads}' if threads else ''
 				cmd += f' -silent'
 
 			elif tool == 'oneforall':
-				cmd = f'python3 /usr/src/github/OneForAll/oneforall.py --target {host} run'
-				cmd_extract = f'cut -d\',\' -f6 /usr/src/github/OneForAll/results/{host}.csv | tail -n +2 > {self.results_dir}/subdomains_oneforall.txt'
-				cmd_rm = f'rm -rf /usr/src/github/OneForAll/results/{host}.csv'
+				csv_path = f'/usr/src/github/OneForAll/results/{host}.csv'
+				cmd = f'python3 /usr/src/github/OneForAll/oneforall.py --target {shlex.quote(host)} run'
+				cmd_extract = f'cut -d\',\' -f6 {shlex.quote(csv_path)} | tail -n +2 > {self.results_dir}/subdomains_oneforall.txt'
+				cmd_rm = f'rm -rf {shlex.quote(csv_path)}'
 				cmd += f' && {cmd_extract} && {cmd_rm}'
 
 			elif tool == 'ctfr':
 				results_file = self.results_dir + '/subdomains_ctfr.txt'
-				cmd = f'python3 /usr/src/github/ctfr/ctfr.py -d {host} -o {results_file}'
-				cmd_extract = f"cat {results_file} | sed 's/\*.//g' | tail -n +12 | uniq | sort > {results_file}"
+				cmd = f'python3 /usr/src/github/ctfr/ctfr.py -d {shlex.quote(host)} -o {shlex.quote(results_file)}'
+				cmd_extract = f"cat {shlex.quote(results_file)} | sed 's/\*.//g' | tail -n +12 | uniq | sort > {shlex.quote(results_file)}"
 				cmd += f' && {cmd_extract}'
 
 			elif tool == 'tlsx':
 				results_file = self.results_dir + '/subdomains_tlsx.txt'
-				cmd = f'tlsx -san -cn -silent -ro -host {host}'
+				cmd = f'tlsx -san -cn -silent -ro -host {shlex.quote(host)}'
+				# host is validated SAFE_HOST_RE above, so it is safe inside this sed regex.
 				cmd += f" | sed -n '/^\([a-zA-Z0-9]\([-a-zA-Z0-9]*[a-zA-Z0-9]\)\?\.\)\+{host}$/p' | uniq | sort"
-				cmd += f' > {results_file}'
+				cmd += f' > {shlex.quote(results_file)}'
 
 			elif tool == 'netlas':
 				results_file = self.results_dir + '/subdomains_netlas.txt'
 				cmd = f'netlas search -d domain -i domain domain:"*.{host}" -f json'
-				netlas_key = get_netlas_key()
-				cmd += f' -a {netlas_key}' if netlas_key else ''
+				# API key comes from the vault unvalidated; allowlist before it hits the shell.
+				netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
+				cmd += f' -a {shlex.quote(netlas_key)}' if netlas_key else ''
 				cmd_extract = f"grep -oE '([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+{host}'"
-				cmd += f' | {cmd_extract} > {results_file}'
+				cmd += f' | {cmd_extract} > {shlex.quote(results_file)}'
 
 			elif tool == 'chaos':
 				# we need to find api key if not ignore
-				chaos_key = get_chaos_key()
+				chaos_key = _allow(get_chaos_key(), SAFE_TOKEN_RE, '')
 				if not chaos_key:
 					logger.error('Chaos API key not found. Skipping.')
 					continue
 				results_file = self.results_dir + '/subdomains_chaos.txt'
-				cmd = f'chaos -d {host} -silent -key {chaos_key} -o {results_file}'
+				cmd = f'chaos -d {shlex.quote(host)} -silent -key {shlex.quote(chaos_key)} -o {shlex.quote(results_file)}'
 
 		elif tool in custom_subdomain_tools:
 			tool_query = InstalledExternalTool.objects.filter(name__icontains=tool.lower())
@@ -524,9 +535,12 @@ def subdomain_discovery(
 				continue
 
 			
+			# host is SAFE_HOST_RE-validated above, so {TARGET} can't carry metachars.
 			cmd = cmd.replace('{TARGET}', host)
 			cmd = cmd.replace('{OUTPUT}', f'{self.results_dir}/subdomains_{tool}.txt')
-			cmd = cmd.replace('{PATH}', custom_tool.github_clone_path) if '{PATH}' in cmd else cmd
+			if '{PATH}' in cmd:
+				clone_path = _allow(custom_tool.github_clone_path, SAFE_PATH_RE, '')
+				cmd = cmd.replace('{PATH}', clone_path)
 		else:
 			logger.warning(
 				f'Subdomain discovery tool "{tool}" is not supported by Suricatoos. Skipping.')
@@ -2412,6 +2426,41 @@ def _safe_remove(path):
 			os.remove(path)
 	except OSError as e:
 		logger.warning(f'could not remove {path}: {e}')
+
+
+# --- Command-injection guards -------------------------------------------------
+# Recon commands are built as f-strings and frequently run with shell=True, so a
+# tainted value (target host, engine-YAML config, API key, wordlist name) must be
+# allowlisted/quoted before it reaches the shell. These mirror the secret-scan
+# pattern: str()-coerce, validate against a strict allowlist, fall back safely.
+SAFE_HOST_RE = re.compile(r'^[A-Za-z0-9._:-]+$')   # domains, IPv4/IPv6, optional :port
+SAFE_TOKEN_RE = re.compile(r'^[A-Za-z0-9._-]+$')   # wordlist/tool names, API keys
+SAFE_PATH_RE = re.compile(r'^[A-Za-z0-9._/-]+$')   # filesystem paths (no metachars, no ..)
+PROXY_RE = re.compile(r'^(https?|socks[45]?)://[A-Za-z0-9._:@/-]+$')
+
+
+def _safe_int(value, default):
+	"""Coerce a YAML-supplied numeric to int, falling back to default on junk."""
+	try:
+		return int(value)
+	except (TypeError, ValueError):
+		return default
+
+
+def _allow(value, regex, default=None):
+	"""Return str(value) only if it fully matches regex (and has no '..'); else default.
+	Lets a crafted/list/dict config value fail safe instead of reaching the shell."""
+	v = str(value) if value is not None else ''
+	if v and '..' not in v and regex.match(v):
+		return v
+	return default
+
+
+def _filter_list(values, regex):
+	"""Keep only the items that match regex (dropping anything tainted)."""
+	if not isinstance(values, (list, tuple, set)):
+		values = [values]
+	return [str(v) for v in values if v is not None and regex.match(str(v))]
 
 
 @app.task(name='spiderfoot_scan', queue='spiderfoot_queue', bind=False)
