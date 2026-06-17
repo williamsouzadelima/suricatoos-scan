@@ -17,7 +17,7 @@ from django.utils import timezone
 
 from Suricatoos.tasks import (subdomain_discovery, _safe_int, _allow,
                               _filter_list, SAFE_HOST_RE, SAFE_TOKEN_RE,
-                              SAFE_PATH_RE, PROXY_RE)
+                              SAFE_PATH_RE, SAFE_PORT_RE, SAFE_EXT_RE, PROXY_RE)
 from Suricatoos.database_utils import store_url, store_domain, store_ip
 from Suricatoos.common_func import get_nmap_cmd
 from dashboard.models import Project
@@ -56,6 +56,16 @@ class TestInjectionHelpers(unittest.TestCase):
         self.assertEqual(_filter_list(['a', 'b;c', 'd'], SAFE_TOKEN_RE), ['a', 'd'])
         self.assertEqual(_filter_list('solo', SAFE_TOKEN_RE), ['solo'])
         self.assertEqual(_filter_list(['$(id)'], SAFE_TOKEN_RE), [])
+
+    def test_port_filter(self):
+        self.assertEqual(
+            _filter_list(['80', '$(id)', '443', '1-1000', '8080;rm'], SAFE_PORT_RE),
+            ['80', '443', '1-1000'])
+
+    def test_extension_filter(self):
+        self.assertEqual(
+            _filter_list(['php', 'js;id', '.html', 'a b'], SAFE_EXT_RE),
+            ['php', '.html'])
 
 
 class TestStoreTargetRevalidation(TestCase):

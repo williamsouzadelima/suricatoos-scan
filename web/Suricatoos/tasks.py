@@ -1336,21 +1336,24 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 		list: List of open ports (dict).
 	"""
 	input_file = f'{self.results_dir}/input_subdomains_port_scan.txt'
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
 	# Config
 	config = self.yaml_configuration.get(PORT_SCAN) or {}
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
-	timeout = config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT)
+	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
 	exclude_ports = config.get(NAABU_EXCLUDE_PORTS, [])
 	exclude_subdomains = config.get(NAABU_EXCLUDE_SUBDOMAINS, False)
 	ports = config.get(PORTS, NAABU_DEFAULT_PORTS)
-	ports = [str(port) for port in ports]
-	rate_limit = config.get(NAABU_RATE) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT)
-	threads = config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
+	# ports/exclude-ports are user-editable and go onto the naabu cmd line: keep the
+	# 'full'/'all'/'top-*' keywords (handled below) but drop any non port/range token.
+	PORT_KEYWORDS = {'full', 'all', 'top-100', 'top-1000'}
+	ports = [str(p) for p in ports if str(p) in PORT_KEYWORDS or SAFE_PORT_RE.match(str(p))]
+	rate_limit = _safe_int(config.get(NAABU_RATE) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT), DEFAULT_RATE_LIMIT)
+	threads = _safe_int(config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	passive = config.get(NAABU_PASSIVE, False)
 	use_naabu_config = config.get(USE_NAABU_CONFIG, False)
-	exclude_ports_str = ','.join(return_iterable(exclude_ports))
+	exclude_ports_str = ','.join(_filter_list(exclude_ports, SAFE_PORT_RE))
 	# nmap args
 	nmap_enabled = config.get(ENABLE_NMAP, False)
 	nmap_cmd = config.get(NMAP_COMMAND, '')
@@ -1369,7 +1372,7 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 
 	# Build cmd
 	cmd = 'naabu -json -exclude-cdn'
-	cmd += f' -list {input_file}' if len(hosts) > 0 else f' -host {hosts[0]}'
+	cmd += f' -list {shlex.quote(input_file)}' if len(hosts) > 0 else f' -host {shlex.quote(str(hosts[0]))}'
 	if 'full' in ports or 'all' in ports:
 		ports_str = ' -p "-"'
 	elif 'top-100' in ports:
@@ -1381,7 +1384,7 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 		ports_str = f' -p {ports_str}'
 	cmd += ports_str
 	cmd += ' -config /root/.config/naabu/config.yaml' if use_naabu_config else ''
-	cmd += f' -proxy "{proxy}"' if proxy else ''
+	cmd += f' -proxy {shlex.quote(proxy)}' if proxy else ''
 	cmd += f' -c {threads}' if threads else ''
 	cmd += f' -rate {rate_limit}' if rate_limit > 0 else ''
 	cmd += f' -timeout {timeout}s' if timeout > 0 else ''
@@ -1676,20 +1679,21 @@ def dir_file_fuzz(self, ctx={}, description=None):
 		custom_headers.append(custom_header)
 	auto_calibration = config.get(AUTO_CALIBRATION, True)
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
-	rate_limit = config.get(RATE_LIMIT) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT)
+	rate_limit = _safe_int(config.get(RATE_LIMIT) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT), DEFAULT_RATE_LIMIT)
 	extensions = config.get(EXTENSIONS, DEFAULT_DIR_FILE_FUZZ_EXTENSIONS)
-	# prepend . on extensions
-	extensions = [ext if ext.startswith('.') else '.' + ext for ext in extensions]
-	extensions_str = ','.join(map(str, extensions))
+	# prepend . on extensions, then allowlist (config-supplied, goes onto the cmd line)
+	extensions = ['.' + e.lstrip('.') for e in _filter_list(extensions, SAFE_EXT_RE)]
+	extensions_str = ','.join(extensions)
 	follow_redirect = config.get(FOLLOW_REDIRECT, FFUF_DEFAULT_FOLLOW_REDIRECT)
-	max_time = config.get(MAX_TIME, 0)
+	max_time = _safe_int(config.get(MAX_TIME, 0), 0)
 	match_http_status = config.get(MATCH_HTTP_STATUS, FFUF_DEFAULT_MATCH_HTTP_STATUS)
-	mc = ','.join([str(c) for c in match_http_status])
-	recursive_level = config.get(RECURSIVE_LEVEL, FFUF_DEFAULT_RECURSIVE_LEVEL)
+	mc = ','.join(_filter_list(match_http_status, re.compile(r'^\d{1,3}$')))
+	recursive_level = _safe_int(config.get(RECURSIVE_LEVEL, FFUF_DEFAULT_RECURSIVE_LEVEL), FFUF_DEFAULT_RECURSIVE_LEVEL)
 	stop_on_error = config.get(STOP_ON_ERROR, False)
-	timeout = config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT)
-	threads = config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
-	wordlist_name = config.get(WORDLIST, 'dicc')
+	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
+	threads = _safe_int(config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
+	# wordlist name is user-editable: allowlist it (blocks injection and ../ traversal).
+	wordlist_name = _allow(config.get(WORDLIST, 'dicc'), SAFE_TOKEN_RE, 'dicc')
 	delay = rate_limit / (threads * 100) # calculate request pause delay from rate_limit and number of threads
 	input_path = f'{self.results_dir}/input_dir_file_fuzz.txt'
 
@@ -1698,8 +1702,8 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	wordlist_path = f'/usr/src/wordlist/{wordlist_name}.txt'
 
 	# Build command
-	cmd += f' -w {wordlist_path}'
-	cmd += f' -e {extensions_str}' if extensions else ''
+	cmd += f' -w {shlex.quote(wordlist_path)}'
+	cmd += f' -e {shlex.quote(extensions_str)}' if extensions else ''
 	cmd += f' -maxtime {max_time}' if max_time > 0 else ''
 	cmd += f' -p {delay}' if delay > 0 else ''
 	cmd += f' -recursion -recursion-depth {recursive_level} ' if recursive_level > 0 else ''
@@ -1709,9 +1713,12 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	cmd += ' -fr' if follow_redirect else ''
 	cmd += ' -ac' if auto_calibration else ''
 	cmd += f' -mc {mc}' if mc else ''
-	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
+	# custom headers are user-editable: keep only header-shaped values (no newline /
+	# control chars -> blocks header & flag injection) and shell-quote each.
+	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[\x20-\x7E]*$', str(h))]
+	formatted_headers = ' '.join('-H ' + shlex.quote(h) for h in safe_headers)
 	if formatted_headers:
-		cmd += formatted_headers
+		cmd += ' ' + formatted_headers
 
 	# Grab URLs to fuzz
 	urls = get_http_urls(
@@ -1737,12 +1744,12 @@ def dir_file_fuzz(self, ctx={}, description=None):
 		url_parse = urlparse(url)
 		url = url_parse.scheme + '://' + url_parse.netloc
 		url += '/FUZZ' # TODO: fuzz not only URL but also POST / PUT / headers
-		proxy = get_random_proxy()
+		proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
 		# Build final cmd
 		fcmd = cmd
-		fcmd += f' -x {proxy}' if proxy else ''
-		fcmd += f' -u {url} -json'
+		fcmd += f' -x {shlex.quote(proxy)}' if proxy else ''
+		fcmd += f' -u {shlex.quote(url)} -json'
 
 		# Initialize DirectoryScan object
 		dirscan = DirectoryScan()
@@ -1847,17 +1854,19 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		description (str, optional): Task description shown in UI.
 	"""
 	input_path = f'{self.results_dir}/input_endpoints_fetch_url.txt'
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
 	# Config
 	config = self.yaml_configuration.get(FETCH_URL) or {}
 	should_remove_duplicate_endpoints = config.get(REMOVE_DUPLICATE_ENDPOINTS, True)
 	duplicate_removal_fields = config.get(DUPLICATE_REMOVAL_FIELDS, ENDPOINT_SCAN_DEFAULT_DUPLICATE_FIELDS)
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
-	gf_patterns = config.get(GF_PATTERNS, DEFAULT_GF_PATTERNS)
+	# gf pattern names are user-editable identifiers and reach the shell (gf <name>)
+	# and a results filename: keep only safe identifier-shaped values.
+	gf_patterns = _filter_list(config.get(GF_PATTERNS, DEFAULT_GF_PATTERNS), SAFE_TOKEN_RE)
 	ignore_file_extension = config.get(IGNORE_FILE_EXTENSION, DEFAULT_IGNORE_FILE_EXTENSIONS)
 	tools = config.get(USES_TOOLS, ENDPOINT_SCAN_DEFAULT_TOOLS)
-	threads = config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
+	threads = _safe_int(config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	# domain_request_headers = self.domain.request_headers if self.domain else None
 	custom_headers = self.yaml_configuration.get(CUSTOM_HEADERS, [])
 	'''
@@ -1884,8 +1893,9 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 			ctx=ctx
 		)
 
-	# Domain regex
-	host = self.domain.name if self.domain else urlparse(urls[0]).netloc
+	# Domain regex. host is allowlisted (Region A sanitizes it at storage); an unsafe
+	# value falls back to '' so the single-quoted grep pattern can't be broken out of.
+	host = _allow(self.domain.name if self.domain else urlparse(urls[0]).netloc, SAFE_HOST_RE, '')
 	host_regex = f"\'https?://([a-z0-9]+[.])*{host}.*\'"
 
 	# Tools cmds
@@ -1897,20 +1907,23 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		'katana': f'katana -list {input_path} -silent -jc -kf all -d 3 -fs rdn',
 	}
 	if proxy:
-		cmd_map['gau'] += f' --proxy "{proxy}"'
-		cmd_map['gospider'] += f' -p {proxy}'
-		cmd_map['hakrawler'] += f' -proxy {proxy}'
-		cmd_map['katana'] += f' -proxy {proxy}'
+		qproxy = shlex.quote(proxy)
+		cmd_map['gau'] += f' --proxy {qproxy}'
+		cmd_map['gospider'] += f' -p {qproxy}'
+		cmd_map['hakrawler'] += f' -proxy {qproxy}'
+		cmd_map['katana'] += f' -proxy {qproxy}'
 	if threads > 0:
 		cmd_map['gau'] += f' --threads {threads}'
 		cmd_map['gospider'] += f' -t {threads}'
 		cmd_map['katana'] += f' -c {threads}'
-	if custom_headers:
-		# gau, waybackurls does not support custom headers
-		formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
-		cmd_map['gospider'] += formatted_headers
-		cmd_map['hakrawler'] += ';;'.join(header for header in custom_headers)
-		cmd_map['katana'] += formatted_headers
+	# custom headers are user-editable: keep only header-shaped values (no newline /
+	# control chars) and shell-quote each before they hit the shell=True command.
+	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[\x20-\x7E]*$', str(h))]
+	if safe_headers:
+		formatted_headers = ' '.join('-H ' + shlex.quote(h) for h in safe_headers)
+		cmd_map['gospider'] += ' ' + formatted_headers
+		cmd_map['hakrawler'] += ' ' + ' '.join('-h ' + shlex.quote(h) for h in safe_headers)
+		cmd_map['katana'] += ' ' + formatted_headers
 	cat_input = f'cat {input_path}'
 	grep_output = f'grep -Eo {host_regex}'
 	cmd_map = {
@@ -1934,7 +1947,9 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		f'sort -u {self.output_path} -o {self.output_path}',
 	]
 	if ignore_file_extension:
-		ignore_exts = '|'.join(ignore_file_extension)
+		# extensions are user-editable and land inside a grep regex: keep only bare
+		# alphanumeric extensions so the pattern can't be broken out of.
+		ignore_exts = '|'.join(_filter_list(ignore_file_extension, re.compile(r'^[A-Za-z0-9]+$')))
 		grep_ext_filtered_output = [
 			f'cat {self.output_path} | grep -Eiv "\\.({ignore_exts}).*" > {self.results_dir}/urls_filtered.txt',
 			f'mv {self.results_dir}/urls_filtered.txt {self.output_path}'
@@ -2030,7 +2045,7 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		# Run gf on current pattern
 		logger.warning(f'Running gf on pattern "{gf_pattern}"')
 		gf_output_file = f'{self.results_dir}/gf_patterns_{gf_pattern}.txt'
-		cmd = f'cat {self.output_path} | gf {gf_pattern} | grep -Eo {host_regex} >> {gf_output_file}'
+		cmd = f'cat {shlex.quote(self.output_path)} | gf {shlex.quote(gf_pattern)} | grep -Eo {host_regex} >> {shlex.quote(gf_output_file)}'
 		run_command(
 			cmd,
 			shell=True,
@@ -2436,6 +2451,8 @@ def _safe_remove(path):
 SAFE_HOST_RE = re.compile(r'^[A-Za-z0-9._:-]+$')   # domains, IPv4/IPv6, optional :port
 SAFE_TOKEN_RE = re.compile(r'^[A-Za-z0-9._-]+$')   # wordlist/tool names, API keys
 SAFE_PATH_RE = re.compile(r'^[A-Za-z0-9._/-]+$')   # filesystem paths (no metachars, no ..)
+SAFE_PORT_RE = re.compile(r'^\d{1,5}(-\d{1,5})?$')  # a port or a port range
+SAFE_EXT_RE = re.compile(r'^\.?[A-Za-z0-9]+$')      # file extensions
 PROXY_RE = re.compile(r'^(https?|socks[45]?)://[A-Za-z0-9._:@/-]+$')
 
 
@@ -4210,7 +4227,7 @@ def fetch_related_tlds_and_domains(domain):
 	extracted = tldextract.extract(domain)
 	base_domain = f"{extracted.domain}.{extracted.suffix}"
 	
-	cmd = f'tlsx -san -cn -silent -ro -host {domain}'
+	cmd = f'tlsx -san -cn -silent -ro -host {shlex.quote(str(domain))}'
 	_, result = run_command(cmd, shell=True)
 
 	for line in result.splitlines():
