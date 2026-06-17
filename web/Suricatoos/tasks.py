@@ -1081,7 +1081,8 @@ def theHarvester(config, host, scan_history_id, activity_id, results_dir, ctx={}
 	output_path_json = f'{results_dir}/theHarvester.json'
 	theHarvester_dir = '/usr/src/github/theHarvester'
 	history_file = f'{results_dir}/commands.txt'
-	cmd  = f'python3 {theHarvester_dir}/theHarvester.py -d {host} -b all -f {output_path_json}'
+	# Defense in depth: host reaches the command line (shell=False); allowlist it.
+	cmd  = f'python3 {theHarvester_dir}/theHarvester.py -d {_allow(host, SAFE_HOST_RE, "")} -b all -f {output_path_json}'
 
 	# Update proxies.yaml
 	proxy_query = Proxy.objects.all()
@@ -2483,12 +2484,12 @@ def _filter_list(values, regex):
 def _shell_false_headers(headers):
 	"""Build ' -H Name:value' fragments for a shell=False command (run via cmd.split()).
 	Accepts the documented 'Name: value' form and normalizes away the space after the
-	colon so each header stays a single argv token; rejects control chars and values with
-	internal whitespace (which cmd.split() could not keep together) and leading-dash
-	flag smuggling."""
+	colon so each header stays a single argv token. The name must start alphanumeric (no
+	leading-dash flag smuggling); values with internal whitespace / control chars (which
+	cmd.split() could not keep together) are dropped."""
 	parts = []
 	for h in headers or []:
-		m = re.match(r'^([A-Za-z0-9-]+):[ \t]*([\x21-\x7E]+)$', str(h))
+		m = re.match(r'^([A-Za-z0-9][A-Za-z0-9-]*):[ \t]*([\x21-\x7E]+)$', str(h))
 		if m:
 			parts.append(f'-H {m.group(1)}:{m.group(2)}')
 	return (' ' + ' '.join(parts)) if parts else ''
@@ -4119,6 +4120,10 @@ def geo_localize(host, ip_id=None):
 	"""
 	if validators.ipv6(host):
 		logger.info(f'Ipv6 "{host}" is not supported by geoiplookup. Skipping.')
+		return None
+	# Defense in depth: host reaches the command line; reject anything unsafe.
+	if not _allow(host, SAFE_HOST_RE):
+		logger.warning(f'geo_localize: unsafe host {host!r}, skipping')
 		return None
 	cmd = f'geoiplookup {host}'
 	_, out = run_command(cmd)
