@@ -206,22 +206,6 @@ if [ "$DEBUG" == "1" ]; then
     loglevel='debug'
 fi
 
-generate_worker_command() {
-    local queue=$1
-    local concurrency=$2
-    local worker_name=$3
-    local app=${4:-"Suricatoos.tasks"}
-    local directory=${5:-"/usr/src/app/Suricatoos/"}
-
-    local base_command="celery -A $app worker --pool=gevent --optimization=fair --autoscale=$concurrency,1 --loglevel=$loglevel -Q $queue -n $worker_name"
-
-    if [ "$DEBUG" == "1" ]; then
-        echo "watchmedo auto-restart --recursive --pattern=\"*.py\" --directory=\"$directory\" -- $base_command &"
-    else
-        echo "$base_command &"
-    fi
-}
-
 echo "Starting Celery Workers..."
 
 commands=""
@@ -240,35 +224,49 @@ else
     commands+="celery -A api.shared_api_tasks worker --pool=gevent --concurrency=30 --optimization=fair --loglevel=$loglevel -Q api_queue -n api_worker &"$'\n'
 fi
 
-# worker format: "queue_name:concurrency:worker_name"
-workers=(
-    "initiate_scan_queue:30:initiate_scan_worker"
-    "subscan_queue:30:subscan_worker"
-    "report_queue:20:report_worker"
-    "send_notif_queue:10:send_notif_worker"
-    "send_task_notif_queue:10:send_task_notif_worker"
-    "send_file_to_discord_queue:5:send_file_to_discord_worker"
-    "send_hackerone_report_queue:5:send_hackerone_report_worker"
-    "parse_nmap_results_queue:10:parse_nmap_results_worker"
-    "geo_localize_queue:20:geo_localize_worker"
-    "query_whois_queue:10:query_whois_worker"
-    "remove_duplicate_endpoints_queue:30:remove_duplicate_endpoints_worker"
-    "run_command_queue:50:run_command_worker"
-    "query_reverse_whois_queue:10:query_reverse_whois_worker"
-    "query_ip_history_queue:10:query_ip_history_worker"
-    "llm_queue:30:llm_worker"
-    "dorking_queue:10:dorking_worker"
-    "osint_discovery_queue:10:osint_discovery_worker"
-    "h8mail_queue:10:h8mail_worker"
-    "theHarvester_queue:10:theHarvester_worker"
-    "spiderfoot_queue:10:spiderfoot_worker"
-    "send_scan_notif_queue:10:send_scan_notif_worker"
+# Todas as filas leves/IO-bound sao servidas por UM unico worker gevent.
+# Antes havia 1 processo por fila (21 processos), e cada worker Celery carrega
+# o Django inteiro (~140MB RSS). Numa VM de 3.8GB isso esgotava a RAM no boot e
+# causava swap thrashing -> load explodia e a maquina travava. Greenlets gevent
+# sao baratos, entao um unico processo serve todas essas filas tranquilamente.
+queues=(
+    "initiate_scan_queue"
+    "subscan_queue"
+    "report_queue"
+    "send_notif_queue"
+    "send_task_notif_queue"
+    "send_file_to_discord_queue"
+    "send_hackerone_report_queue"
+    "parse_nmap_results_queue"
+    "geo_localize_queue"
+    "query_whois_queue"
+    "remove_duplicate_endpoints_queue"
+    "run_command_queue"
+    "query_reverse_whois_queue"
+    "query_ip_history_queue"
+    "llm_queue"
+    "dorking_queue"
+    "osint_discovery_queue"
+    "h8mail_queue"
+    "theHarvester_queue"
+    "spiderfoot_queue"
+    "send_scan_notif_queue"
 )
+all_queues=$(IFS=,; echo "${queues[*]}")
+# Concorrencia do worker gevent compartilhado. Greenlets sao baratos (o custo de
+# RAM e o unico import do Django, NAO por-greenlet), entao da pra subir bastante
+# em hosts maiores. Validado como inteiro porque entra no comando montado via
+# eval logo abaixo; valor invalido/vazio cai no default seguro 50.
+case "${SHARED_CONCURRENCY:-}" in
+    ''|*[!0-9]*) shared_concurrency=50 ;;
+    *)           shared_concurrency=$SHARED_CONCURRENCY ;;
+esac
 
-for worker in "${workers[@]}"; do
-    IFS=':' read -r queue concurrency worker_name <<< "$worker"
-    commands+="$(generate_worker_command "$queue" "$concurrency" "$worker_name")"$'\n'
-done
+if [ "$DEBUG" == "1" ]; then
+    commands+="watchmedo auto-restart --recursive --pattern=\"*.py\" --directory=\"/usr/src/app/Suricatoos/\" -- celery -A Suricatoos.tasks worker --pool=gevent --optimization=fair --concurrency=$shared_concurrency --loglevel=$loglevel -Q $all_queues -n shared_worker &"$'\n'
+else
+    commands+="celery -A Suricatoos.tasks worker --pool=gevent --optimization=fair --concurrency=$shared_concurrency --loglevel=$loglevel -Q $all_queues -n shared_worker &"$'\n'
+fi
 commands="${commands%&}"
 
 eval "$commands"
