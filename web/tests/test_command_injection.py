@@ -15,12 +15,14 @@ os.environ.setdefault('SURICATOOS_SECRET_KEY', 'secret')
 from django.test import TestCase
 from django.utils import timezone
 
+import validators
 from Suricatoos.tasks import (subdomain_discovery, _safe_int, _allow,
                               _filter_list, _shell_false_headers, SAFE_HOST_RE,
-                              SAFE_TOKEN_RE, SAFE_PATH_RE, SAFE_PORT_RE,
-                              SAFE_EXT_RE, PROXY_RE)
+                              SAFE_HOST_ARG_RE, SAFE_TOKEN_RE, SAFE_PATH_RE,
+                              SAFE_PORT_RE, SAFE_EXT_RE, PROXY_RE,
+                              NMAP_CMD_RE, NMAP_SCRIPT_RE, NMAP_SCRIPT_ARGS_RE)
 from Suricatoos.database_utils import store_url, store_domain, store_ip
-from Suricatoos.common_func import get_nmap_cmd
+from Suricatoos.common_func import get_nmap_cmd, is_valid_nmap_command
 from dashboard.models import Project
 from targetApp.models import Domain
 from startScan.models import ScanHistory
@@ -176,6 +178,94 @@ class TestSubdomainDiscoveryHostGuard(TestCase):
     def test_unsafe_host_with_backticks_aborts(self, mock_run):
         subdomain_discovery(host='example.com`id`', ctx=self._ctx())
         mock_run.assert_not_called()
+
+
+class TestAuditResidualFixes(unittest.TestCase):
+    """Regression tests for the residual injection findings from the 2026-06-17
+    adversarial audit of the command-injection hardening."""
+
+    # --- F1: newline-injection RCE in the nmap command --------------------------
+    def test_nmap_command_rejects_newline_rce(self):
+        # str.split() hid the injected line from the old per-token allowlist.
+        self.assertFalse(is_valid_nmap_command('nmap\ntouch /tmp/pwned'))
+        self.assertFalse(is_valid_nmap_command('nmap -sV\nid'))
+        self.assertFalse(is_valid_nmap_command('nmap\ttouch x'))
+        # ...and get_nmap_cmd must fail closed on a newline-bearing base cmd.
+        self.assertIsNone(get_nmap_cmd(
+            input_file=None, cmd='nmap\ntouch /tmp/pwned',
+            host='ex.com', ports='80', output_file='/r/x.xml'))
+
+    # --- F2: nmap flag smuggling (arbitrary file write / NSE exec) ---------------
+    def test_nmap_command_blocks_output_and_datadir_flags(self):
+        for bad in ('nmap -oN /etc/cron.d/pwn', 'nmap -oG /tmp/owned',
+                    'nmap -oA /tmp/all', 'nmap --datadir /tmp/x',
+                    'nmap --stylesheet /tmp/x', 'nmap -iL /tmp/list',
+                    'nmap --resume /tmp/x', 'nmap --append-output -oN /tmp/x'):
+            self.assertFalse(is_valid_nmap_command(bad), bad)
+
+    def test_nmap_command_allows_expected_flags(self):
+        self.assertTrue(is_valid_nmap_command(
+            'nmap -sV -p 80,443 --max-rate 100 -oX /results/x.xml'))
+        self.assertTrue(is_valid_nmap_command(
+            'nmap -sV --script vulners --script-args mincvss=7.0 -oX /r/x.xml'))
+
+    def test_nmap_script_intake_blocks_paths_and_flags(self):
+        # NSE script names only: no path (-> /tmp/evil.nse), no leading-dash flag.
+        self.assertEqual(
+            _filter_list(['vulners', 'http-csrf', '/tmp/evil.nse', '--datadir', 'a/b'],
+                         NMAP_SCRIPT_RE),
+            ['vulners', 'http-csrf'])
+
+    def test_nmap_cmd_intake_regex(self):
+        self.assertIsNotNone(NMAP_CMD_RE.match('nmap'))
+        self.assertIsNotNone(NMAP_CMD_RE.match('nmap -sV -p 80'))
+        self.assertIsNone(NMAP_CMD_RE.match('nmap\ntouch /tmp/pwned'))
+        self.assertIsNone(NMAP_CMD_RE.match('nmap -oN /etc/cron.d/pwn'))  # has '/'
+        self.assertIsNone(NMAP_CMD_RE.match('nmap; id'))
+
+    def test_nmap_script_args_intake_regex(self):
+        self.assertIsNotNone(NMAP_SCRIPT_ARGS_RE.match('mincvss=7.0,mode=full'))
+        self.assertIsNone(NMAP_SCRIPT_ARGS_RE.match('x -oG /tmp/owned'))  # whitespace
+        self.assertIsNone(NMAP_SCRIPT_ARGS_RE.match('-oG'))               # leading dash
+
+    # --- contested: nmap host leading-dash smuggling ----------------------------
+    def test_nmap_host_rejects_leading_dash(self):
+        self.assertIsNone(get_nmap_cmd(input_file=None, host='-sV',
+                                       ports='80', output_file='/r/x.xml'))
+        cmd = get_nmap_cmd(input_file=None, host='1.2.3.4',
+                           ports='80', output_file='/r/x.xml')
+        self.assertIsNotNone(cmd)
+        self.assertTrue(cmd.strip().endswith('1.2.3.4'))  # shlex.quote is a no-op here
+
+    # --- F4: path traversal via _filter_list (SAFE_PATH_RE contract) ------------
+    def test_filter_list_blocks_path_traversal(self):
+        self.assertEqual(
+            _filter_list(['../../../../etc/passwd', 'cves/2021/x', '-flag'],
+                         SAFE_PATH_RE),
+            ['cves/2021/x'])  # drops '..' traversal AND leading-dash token
+
+    # --- F5: leading-dash host as a bare argv token -----------------------------
+    def test_safe_host_arg_re_forbids_leading_dash(self):
+        self.assertEqual(_allow('example.com', SAFE_HOST_ARG_RE, ''), 'example.com')
+        self.assertEqual(_allow('1.2.3.4:8080', SAFE_HOST_ARG_RE, ''), '1.2.3.4:8080')
+        self.assertEqual(_allow('-d', SAFE_HOST_ARG_RE, ''), '')
+        self.assertEqual(_allow('--proxy', SAFE_HOST_ARG_RE, ''), '')
+
+    # --- F6 / cross-cutting: trailing-newline ($ vs \Z) bypass ------------------
+    def test_helpers_reject_trailing_newline(self):
+        # $-anchored regexes used to accept "80\n" and return it verbatim.
+        self.assertIsNone(_allow('80\n', SAFE_PORT_RE))
+        self.assertIsNone(_allow('1.2.3.4\n', SAFE_HOST_RE))
+        self.assertEqual(_filter_list(['200\n', '301'], SAFE_PORT_RE), ['301'])
+        self.assertEqual(_filter_list(['a\nb', 'good'], SAFE_TOKEN_RE), ['good'])
+
+    # --- F3: httpx flag smuggling relies on validators.url rejecting the payload -
+    def test_validators_url_rejects_httpx_flag_smuggling(self):
+        # http_crawl now filters direct-pass urls through validators.url; lock that
+        # the smuggling payloads it depends on are indeed rejected.
+        self.assertFalse(validators.url('http://target.com/ -store-response-dir /tmp/pwn'))
+        self.assertFalse(validators.url('-config /tmp/attacker.yaml'))
+        self.assertTrue(bool(validators.url('http://target.com/path')))
 
 
 if __name__ == '__main__':

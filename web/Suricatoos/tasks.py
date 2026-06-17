@@ -1082,7 +1082,7 @@ def theHarvester(config, host, scan_history_id, activity_id, results_dir, ctx={}
 	theHarvester_dir = '/usr/src/github/theHarvester'
 	history_file = f'{results_dir}/commands.txt'
 	# Defense in depth: host reaches the command line (shell=False); allowlist it.
-	cmd  = f'python3 {theHarvester_dir}/theHarvester.py -d {_allow(host, SAFE_HOST_RE, "")} -b all -f {output_path_json}'
+	cmd  = f'python3 {theHarvester_dir}/theHarvester.py -d {_allow(host, SAFE_HOST_ARG_RE, "")} -b all -f {output_path_json}'
 
 	# Update proxies.yaml
 	proxy_query = Proxy.objects.all()
@@ -1357,10 +1357,13 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 	exclude_ports_str = ','.join(_filter_list(exclude_ports, SAFE_PORT_RE))
 	# nmap args
 	nmap_enabled = config.get(ENABLE_NMAP, False)
-	nmap_cmd = config.get(NMAP_COMMAND, '')
-	nmap_script = config.get(NMAP_SCRIPT, '')
-	nmap_script = ','.join(return_iterable(nmap_script))
-	nmap_script_args = config.get(NMAP_SCRIPT_ARGS)
+	# nmap_cmd/script/script_args are engine-YAML (user-editable) and flow into a
+	# shell=True nmap command; allowlist them at intake so they cannot carry a newline
+	# (-> RCE), an output-file flag (-oN/-oG -> arbitrary write) or an NSE script path
+	# (--script /tmp/evil.nse -> RCE). is_valid_nmap_command re-checks the full command.
+	nmap_cmd = _allow(config.get(NMAP_COMMAND, '') or 'nmap', NMAP_CMD_RE, 'nmap')
+	nmap_script = ','.join(_filter_list(return_iterable(config.get(NMAP_SCRIPT, '')), NMAP_SCRIPT_RE))
+	nmap_script_args = _allow(config.get(NMAP_SCRIPT_ARGS), NMAP_SCRIPT_ARGS_RE, '')
 
 	if hosts:
 		with open(input_file, 'w') as f:
@@ -1688,7 +1691,9 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	follow_redirect = config.get(FOLLOW_REDIRECT, FFUF_DEFAULT_FOLLOW_REDIRECT)
 	max_time = _safe_int(config.get(MAX_TIME, 0), 0)
 	match_http_status = config.get(MATCH_HTTP_STATUS, FFUF_DEFAULT_MATCH_HTTP_STATUS)
-	mc = ','.join(_filter_list(match_http_status, re.compile(r'^\d{1,3}$')))
+	# HTTP status match codes -> plain ints; drops any newline/space the prior
+	# ^\d{1,3}$ filter would pass verbatim (Python's trailing-newline $ quirk).
+	mc = ','.join(str(int(str(v).strip())) for v in (match_http_status or []) if str(v).strip().isdigit() and 0 <= int(str(v).strip()) <= 999)
 	recursive_level = _safe_int(config.get(RECURSIVE_LEVEL, FFUF_DEFAULT_RECURSIVE_LEVEL), FFUF_DEFAULT_RECURSIVE_LEVEL)
 	stop_on_error = config.get(STOP_ON_ERROR, False)
 	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
@@ -1713,7 +1718,7 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	cmd += ' -se' if stop_on_error else ''
 	cmd += ' -fr' if follow_redirect else ''
 	cmd += ' -ac' if auto_calibration else ''
-	cmd += f' -mc {mc}' if mc else ''
+	cmd += f' -mc {shlex.quote(mc)}' if mc else ''
 	# custom headers are user-editable: keep only header-shaped values (no newline /
 	# control chars -> blocks header & flag injection) and shell-quote each.
 	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[\x20-\x7E]*$', str(h))]
@@ -1998,6 +2003,7 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 
 		if not validators.url(url):
 			logger.warning(f'Invalid URL "{url}". Skipping.')
+			continue
 
 		if url not in all_urls:
 			all_urls.append(url)
@@ -2449,12 +2455,22 @@ def _safe_remove(path):
 # tainted value (target host, engine-YAML config, API key, wordlist name) must be
 # allowlisted/quoted before it reaches the shell. These mirror the secret-scan
 # pattern: str()-coerce, validate against a strict allowlist, fall back safely.
-SAFE_HOST_RE = re.compile(r'^[A-Za-z0-9._:-]+$')   # domains, IPv4/IPv6, optional :port
-SAFE_TOKEN_RE = re.compile(r'^[A-Za-z0-9._-]+$')   # wordlist/tool names, API keys
-SAFE_PATH_RE = re.compile(r'^[A-Za-z0-9._/-]+$')   # filesystem paths (no metachars, no ..)
-SAFE_PORT_RE = re.compile(r'^\d{1,5}(-\d{1,5})?$')  # a port or a port range
-SAFE_EXT_RE = re.compile(r'^\.?[A-Za-z0-9]+$')      # file extensions
-PROXY_RE = re.compile(r'^(https?|socks[45]?)://[A-Za-z0-9._:@/-]+$')
+# Anchored with \A...\Z, not ^...$: in Python $ also matches just before a trailing
+# newline, so ^...$ would accept a value ending in a newline and the helpers would return
+# it verbatim. \Z pins the true end of the string and closes that trailing-newline vector.
+SAFE_HOST_RE = re.compile(r'\A[A-Za-z0-9._:-]+\Z')   # domains, IPv4/IPv6, optional :port
+SAFE_HOST_ARG_RE = re.compile(r'\A[A-Za-z0-9._:][A-Za-z0-9._:-]*\Z')  # host as a bare argv token: no leading dash
+SAFE_TOKEN_RE = re.compile(r'\A[A-Za-z0-9._-]+\Z')   # wordlist/tool names, API keys
+SAFE_PATH_RE = re.compile(r'\A[A-Za-z0-9._/][A-Za-z0-9._/-]*\Z')   # filesystem paths: no metachars, no leading dash
+SAFE_PORT_RE = re.compile(r'\A\d{1,5}(-\d{1,5})?\Z')  # a port or a port range
+SAFE_EXT_RE = re.compile(r'\A\.?[A-Za-z0-9]+\Z')      # file extensions
+PROXY_RE = re.compile(r'\A(https?|socks[45]?)://[A-Za-z0-9._:@/-]+\Z')
+# nmap engine-YAML fields flow into a shell=True nmap command; sanitize at intake so they
+# cannot carry a newline (RCE), an output-file/datadir flag, or an NSE script path. The
+# assembled command is re-validated by is_valid_nmap_command (defense in depth).
+NMAP_CMD_RE = re.compile(r'\Anmap(?:[ \t][A-Za-z0-9._,=:+-]+)*\Z')  # nmap + safe tokens; no slash or control chars
+NMAP_SCRIPT_RE = re.compile(r'\A[A-Za-z][A-Za-z0-9._-]*\Z')  # NSE script/category name: no slash, no leading dash
+NMAP_SCRIPT_ARGS_RE = re.compile(r'\A[A-Za-z0-9][A-Za-z0-9._,=:+-]*\Z')  # script-args: no slash, no whitespace, no leading dash
 
 
 def _safe_int(value, default):
@@ -2466,19 +2482,29 @@ def _safe_int(value, default):
 
 
 def _allow(value, regex, default=None):
-	"""Return str(value) only if it fully matches regex (and has no '..'); else default.
-	Lets a crafted/list/dict config value fail safe instead of reaching the shell."""
+	"""Return str(value) only if it fully matches regex (no '..', no control chars); else
+	default. Lets a crafted/list/dict config value fail safe instead of reaching the shell."""
 	v = str(value) if value is not None else ''
-	if v and '..' not in v and regex.match(v):
+	if v and '..' not in v and not any(ord(c) < 0x20 for c in v) and regex.match(v):
 		return v
 	return default
 
 
 def _filter_list(values, regex):
-	"""Keep only the items that match regex (dropping anything tainted)."""
+	"""Keep only items that fully match regex, dropping anything tainted. Applies the same
+	'..'/control-char guard as _allow so SAFE_PATH_RE's no-traversal contract holds at every
+	call site (a bare regex.match would otherwise pass '../../etc/passwd')."""
 	if not isinstance(values, (list, tuple, set)):
 		values = [values]
-	return [str(v) for v in values if v is not None and regex.match(str(v))]
+	out = []
+	for v in values:
+		if v is None:
+			continue
+		s = str(v)
+		if '..' in s or any(ord(c) < 0x20 for c in s) or not regex.match(s):
+			continue
+		out.append(s)
+	return out
 
 
 def _shell_false_headers(headers):
@@ -3224,6 +3250,11 @@ def http_crawl(
 	input_path = f'{self.results_dir}/httpx_input.txt'
 	history_file = f'{self.results_dir}/commands.txt'
 	if urls: # direct passing URLs to check
+		# urls here are tool/target-derived and one gets interpolated unquoted into a
+		# shell=False httpx command (cmd.split()); an embedded space or leading dash would
+		# smuggle an httpx flag. Keep only well-formed http(s) URLs (validators.url drops
+		# whitespace and bare flags).
+		urls = [u for u in urls if isinstance(u, str) and validators.url(u)]
 		if self.starting_point_path:
 			urls = [u for u in urls if self.starting_point_path in u]
 
@@ -4287,7 +4318,7 @@ def fetch_whois_data_using_netlas(target):
 			dict: WHOIS information.
 	"""
 	logger.info(f'Fetching WHOIS data for {target} using Netlas...')
-	command = f'netlas host {_allow(target, SAFE_HOST_RE, "")} -f json'
+	command = f'netlas host {_allow(target, SAFE_HOST_ARG_RE, "")} -f json'
 	# shell=False: allowlist the vault key so it can't smuggle an argv flag.
 	netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
 	if netlas_key:

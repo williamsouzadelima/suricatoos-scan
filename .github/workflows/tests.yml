@@ -1,0 +1,52 @@
+name: 🔬 Security tests
+
+# Runs the command-injection and secret-scan regression suites so a regression of
+# the hardening (e.g. the nmap newline RCE) is caught before merge. Gated on PRs
+# into the default branch — the suite was previously not executed by any workflow.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  security-tests:
+    name: Command-injection & secret-scan suites
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:12.3-alpine
+        env:
+          POSTGRES_DB: suricatoos
+          POSTGRES_USER: suricatoos
+          POSTGRES_PASSWORD: suricatoos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U suricatoos"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: 📥 Checkout the git repo
+        uses: actions/checkout@v4
+
+      - name: 🐳 Build the web image
+        run: docker build -t suricatoos/web:ci web/
+
+      - name: 🔬 Run the security test suites
+        run: |
+          docker run --rm --network host \
+            -e POSTGRES_DB=suricatoos \
+            -e POSTGRES_USER=suricatoos \
+            -e POSTGRES_PASSWORD=suricatoos \
+            -e POSTGRES_HOST=127.0.0.1 \
+            -e POSTGRES_PORT=5432 \
+            -e DEBUG=1 \
+            -e DOMAIN_NAME=localhost:8000 \
+            -e CELERY_BROKER=redis://localhost:6379/0 \
+            -e CELERY_BACKEND=redis://localhost:6379/0 \
+            -v "${{ github.workspace }}/web:/usr/src/app" \
+            -w /usr/src/app \
+            --entrypoint python3 suricatoos/web:ci \
+            manage.py test tests.test_command_injection tests.test_secret_scan tests.test_nmap -v 2

@@ -2,8 +2,8 @@ name: 🏗️ Build Docker image for pull request
 
 on:
   pull_request:
-    branches: 
-      - master
+    branches:
+      - main
       - release/*
 
 jobs:
