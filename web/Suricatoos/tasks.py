@@ -2,6 +2,8 @@ import csv
 import json
 import os
 import pprint
+import re
+import shlex
 import subprocess
 import time
 import validators
@@ -199,7 +201,8 @@ def initiate_scan(
 				dir_file_fuzz.si(ctx=ctx, description='Directories & files fuzz'),
 				vulnerability_scan.si(ctx=ctx, description='Vulnerability scan'),
 				screenshot.si(ctx=ctx, description='Screenshot'),
-				waf_detection.si(ctx=ctx, description='WAF detection')
+				waf_detection.si(ctx=ctx, description='WAF detection'),
+				secret_scan.si(ctx=ctx, description='Secret scan')
 			)
 		)
 
@@ -420,8 +423,13 @@ def subdomain_discovery(
 	# Config
 	config = self.yaml_configuration.get(SUBDOMAIN_DISCOVERY) or {}
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL) or self.yaml_configuration.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
-	threads = config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
-	timeout = config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT)
+	threads = _safe_int(config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
+	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
+	# Defense in depth: host is interpolated into many shell=True commands below
+	# (Region A already sanitizes it at storage). Refuse anything unsafe outright.
+	if not _allow(host, SAFE_HOST_RE):
+		logger.error(f'subdomain_discovery: refusing unsafe host {host!r}')
+		return
 	tools = config.get(USES_TOOLS, SUBDOMAIN_SCAN_DEFAULT_TOOLS)
 	default_subdomain_tools = [tool.name.lower() for tool in InstalledExternalTool.objects.filter(is_default=True).filter(is_subdomain_gathering=True)]
 	custom_subdomain_tools = [tool.name.lower() for tool in InstalledExternalTool.objects.filter(is_default=False).filter(is_subdomain_gathering=True)]
@@ -445,67 +453,72 @@ def subdomain_discovery(
 	for tool in tools:
 		cmd = None
 		logger.info(f'Scanning subdomains for {host} with {tool}')
-		proxy = get_random_proxy()
+		# proxy comes from the unvalidated Proxy textarea; allowlist it to a URL.
+		proxy = _allow(get_random_proxy(), PROXY_RE, '')
 		if tool in default_subdomain_tools:
 			if tool == 'amass-passive':
 				use_amass_config = config.get(USE_AMASS_CONFIG, False)
-				cmd = f'amass enum -passive -d {host} -o {self.results_dir}/subdomains_amass.txt'
+				cmd = f'amass enum -passive -d {shlex.quote(host)} -o {self.results_dir}/subdomains_amass.txt'
 				cmd += ' -config /root/.config/amass.ini' if use_amass_config else ''
 
 			elif tool == 'amass-active':
 				use_amass_config = config.get(USE_AMASS_CONFIG, False)
-				amass_wordlist_name = config.get(AMASS_WORDLIST, 'deepmagic.com-prefixes-top50000')
+				# wordlist name is user-editable: allowlist it (blocks injection and ../ traversal).
+				amass_wordlist_name = _allow(config.get(AMASS_WORDLIST, 'deepmagic.com-prefixes-top50000'), SAFE_TOKEN_RE, 'deepmagic.com-prefixes-top50000')
 				wordlist_path = f'/usr/src/wordlist/{amass_wordlist_name}.txt'
-				cmd = f'amass enum -active -d {host} -o {self.results_dir}/subdomains_amass_active.txt'
+				cmd = f'amass enum -active -d {shlex.quote(host)} -o {self.results_dir}/subdomains_amass_active.txt'
 				cmd += ' -config /root/.config/amass.ini' if use_amass_config else ''
-				cmd += f' -brute -w {wordlist_path}'
+				cmd += f' -brute -w {shlex.quote(wordlist_path)}'
 
 			elif tool == 'sublist3r':
-				cmd = f'python3 /usr/src/github/Sublist3r/sublist3r.py -d {host} -t {threads} -o {self.results_dir}/subdomains_sublister.txt'
+				cmd = f'python3 /usr/src/github/Sublist3r/sublist3r.py -d {shlex.quote(host)} -t {threads} -o {self.results_dir}/subdomains_sublister.txt'
 
 			elif tool == 'subfinder':
-				cmd = f'subfinder -d {host} -o {self.results_dir}/subdomains_subfinder.txt'
+				cmd = f'subfinder -d {shlex.quote(host)} -o {self.results_dir}/subdomains_subfinder.txt'
 				use_subfinder_config = config.get(USE_SUBFINDER_CONFIG, False)
 				cmd += ' -config /root/.config/subfinder/config.yaml' if use_subfinder_config else ''
-				cmd += f' -proxy {proxy}' if proxy else ''
+				cmd += f' -proxy {shlex.quote(proxy)}' if proxy else ''
 				cmd += f' -timeout {timeout}' if timeout else ''
 				cmd += f' -t {threads}' if threads else ''
 				cmd += f' -silent'
 
 			elif tool == 'oneforall':
-				cmd = f'python3 /usr/src/github/OneForAll/oneforall.py --target {host} run'
-				cmd_extract = f'cut -d\',\' -f6 /usr/src/github/OneForAll/results/{host}.csv | tail -n +2 > {self.results_dir}/subdomains_oneforall.txt'
-				cmd_rm = f'rm -rf /usr/src/github/OneForAll/results/{host}.csv'
+				csv_path = f'/usr/src/github/OneForAll/results/{host}.csv'
+				cmd = f'python3 /usr/src/github/OneForAll/oneforall.py --target {shlex.quote(host)} run'
+				cmd_extract = f'cut -d\',\' -f6 {shlex.quote(csv_path)} | tail -n +2 > {self.results_dir}/subdomains_oneforall.txt'
+				cmd_rm = f'rm -rf {shlex.quote(csv_path)}'
 				cmd += f' && {cmd_extract} && {cmd_rm}'
 
 			elif tool == 'ctfr':
 				results_file = self.results_dir + '/subdomains_ctfr.txt'
-				cmd = f'python3 /usr/src/github/ctfr/ctfr.py -d {host} -o {results_file}'
-				cmd_extract = f"cat {results_file} | sed 's/\*.//g' | tail -n +12 | uniq | sort > {results_file}"
+				cmd = f'python3 /usr/src/github/ctfr/ctfr.py -d {shlex.quote(host)} -o {shlex.quote(results_file)}'
+				cmd_extract = f"cat {shlex.quote(results_file)} | sed 's/\*.//g' | tail -n +12 | uniq | sort > {shlex.quote(results_file)}"
 				cmd += f' && {cmd_extract}'
 
 			elif tool == 'tlsx':
 				results_file = self.results_dir + '/subdomains_tlsx.txt'
-				cmd = f'tlsx -san -cn -silent -ro -host {host}'
+				cmd = f'tlsx -san -cn -silent -ro -host {shlex.quote(host)}'
+				# host is validated SAFE_HOST_RE above, so it is safe inside this sed regex.
 				cmd += f" | sed -n '/^\([a-zA-Z0-9]\([-a-zA-Z0-9]*[a-zA-Z0-9]\)\?\.\)\+{host}$/p' | uniq | sort"
-				cmd += f' > {results_file}'
+				cmd += f' > {shlex.quote(results_file)}'
 
 			elif tool == 'netlas':
 				results_file = self.results_dir + '/subdomains_netlas.txt'
 				cmd = f'netlas search -d domain -i domain domain:"*.{host}" -f json'
-				netlas_key = get_netlas_key()
-				cmd += f' -a {netlas_key}' if netlas_key else ''
+				# API key comes from the vault unvalidated; allowlist before it hits the shell.
+				netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
+				cmd += f' -a {shlex.quote(netlas_key)}' if netlas_key else ''
 				cmd_extract = f"grep -oE '([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+{host}'"
-				cmd += f' | {cmd_extract} > {results_file}'
+				cmd += f' | {cmd_extract} > {shlex.quote(results_file)}'
 
 			elif tool == 'chaos':
 				# we need to find api key if not ignore
-				chaos_key = get_chaos_key()
+				chaos_key = _allow(get_chaos_key(), SAFE_TOKEN_RE, '')
 				if not chaos_key:
 					logger.error('Chaos API key not found. Skipping.')
 					continue
 				results_file = self.results_dir + '/subdomains_chaos.txt'
-				cmd = f'chaos -d {host} -silent -key {chaos_key} -o {results_file}'
+				cmd = f'chaos -d {shlex.quote(host)} -silent -key {shlex.quote(chaos_key)} -o {shlex.quote(results_file)}'
 
 		elif tool in custom_subdomain_tools:
 			tool_query = InstalledExternalTool.objects.filter(name__icontains=tool.lower())
@@ -522,9 +535,12 @@ def subdomain_discovery(
 				continue
 
 			
+			# host is SAFE_HOST_RE-validated above, so {TARGET} can't carry metachars.
 			cmd = cmd.replace('{TARGET}', host)
 			cmd = cmd.replace('{OUTPUT}', f'{self.results_dir}/subdomains_{tool}.txt')
-			cmd = cmd.replace('{PATH}', custom_tool.github_clone_path) if '{PATH}' in cmd else cmd
+			if '{PATH}' in cmd:
+				clone_path = _allow(custom_tool.github_clone_path, SAFE_PATH_RE, '')
+				cmd = cmd.replace('{PATH}', clone_path)
 		else:
 			logger.warning(
 				f'Subdomain discovery tool "{tool}" is not supported by Suricatoos. Skipping.')
@@ -743,6 +759,18 @@ def osint_discovery(config, host, scan_history_id, activity_id, results_dir, ctx
 	if 'employees' in osint_lookup:
 		ctx['track'] = False
 		_task = theHarvester.si(
+			config=config,
+			host=host,
+			scan_history_id=scan_history_id,
+			activity_id=activity_id,
+			results_dir=results_dir,
+			ctx=ctx
+		)
+		grouped_tasks.append(_task)
+
+	if config.get(ENABLE_SPIDERFOOT, DEFAULT_ENABLE_SPIDERFOOT):
+		ctx['track'] = False
+		_task = spiderfoot_scan.si(
 			config=config,
 			host=host,
 			scan_history_id=scan_history_id,
@@ -1053,7 +1081,8 @@ def theHarvester(config, host, scan_history_id, activity_id, results_dir, ctx={}
 	output_path_json = f'{results_dir}/theHarvester.json'
 	theHarvester_dir = '/usr/src/github/theHarvester'
 	history_file = f'{results_dir}/commands.txt'
-	cmd  = f'python3 {theHarvester_dir}/theHarvester.py -d {host} -b all -f {output_path_json}'
+	# Defense in depth: host reaches the command line (shell=False); allowlist it.
+	cmd  = f'python3 {theHarvester_dir}/theHarvester.py -d {_allow(host, SAFE_HOST_ARG_RE, "")} -b all -f {output_path_json}'
 
 	# Update proxies.yaml
 	proxy_query = Proxy.objects.all()
@@ -1187,7 +1216,7 @@ def h8mail(config, host, scan_history_id, activity_id, results_dir, ctx={}):
 		email_address = cred['target']
 		pwn_num = cred['pwn_num']
 		pwn_data = cred.get('data', [])
-		email, created = save_email(email_address, scan_history=scan)
+		email, created = save_email(email_address, scan_history=scan_history)
 		# if email:
 		# 	self.notify(fields={'Emails': f'• `{email.address}`'})
 	return creds
@@ -1308,27 +1337,33 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 		list: List of open ports (dict).
 	"""
 	input_file = f'{self.results_dir}/input_subdomains_port_scan.txt'
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
 	# Config
 	config = self.yaml_configuration.get(PORT_SCAN) or {}
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
-	timeout = config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT)
+	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
 	exclude_ports = config.get(NAABU_EXCLUDE_PORTS, [])
 	exclude_subdomains = config.get(NAABU_EXCLUDE_SUBDOMAINS, False)
 	ports = config.get(PORTS, NAABU_DEFAULT_PORTS)
-	ports = [str(port) for port in ports]
-	rate_limit = config.get(NAABU_RATE) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT)
-	threads = config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
+	# ports/exclude-ports are user-editable and go onto the naabu cmd line: keep the
+	# 'full'/'all'/'top-*' keywords (handled below) but drop any non port/range token.
+	PORT_KEYWORDS = {'full', 'all', 'top-100', 'top-1000'}
+	ports = [str(p) for p in ports if str(p) in PORT_KEYWORDS or SAFE_PORT_RE.match(str(p))]
+	rate_limit = _safe_int(config.get(NAABU_RATE) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT), DEFAULT_RATE_LIMIT)
+	threads = _safe_int(config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	passive = config.get(NAABU_PASSIVE, False)
 	use_naabu_config = config.get(USE_NAABU_CONFIG, False)
-	exclude_ports_str = ','.join(return_iterable(exclude_ports))
+	exclude_ports_str = ','.join(_filter_list(exclude_ports, SAFE_PORT_RE))
 	# nmap args
 	nmap_enabled = config.get(ENABLE_NMAP, False)
-	nmap_cmd = config.get(NMAP_COMMAND, '')
-	nmap_script = config.get(NMAP_SCRIPT, '')
-	nmap_script = ','.join(return_iterable(nmap_script))
-	nmap_script_args = config.get(NMAP_SCRIPT_ARGS)
+	# nmap_cmd/script/script_args are engine-YAML (user-editable) and flow into a
+	# shell=True nmap command; allowlist them at intake so they cannot carry a newline
+	# (-> RCE), an output-file flag (-oN/-oG -> arbitrary write) or an NSE script path
+	# (--script /tmp/evil.nse -> RCE). is_valid_nmap_command re-checks the full command.
+	nmap_cmd = _allow(config.get(NMAP_COMMAND, '') or 'nmap', NMAP_CMD_RE, 'nmap')
+	nmap_script = ','.join(_filter_list(return_iterable(config.get(NMAP_SCRIPT, '')), NMAP_SCRIPT_RE))
+	nmap_script_args = _allow(config.get(NMAP_SCRIPT_ARGS), NMAP_SCRIPT_ARGS_RE, '')
 
 	if hosts:
 		with open(input_file, 'w') as f:
@@ -1341,7 +1376,7 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 
 	# Build cmd
 	cmd = 'naabu -json -exclude-cdn'
-	cmd += f' -list {input_file}' if len(hosts) > 0 else f' -host {hosts[0]}'
+	cmd += f' -list {shlex.quote(input_file)}' if len(hosts) > 0 else f' -host {shlex.quote(str(hosts[0]))}'
 	if 'full' in ports or 'all' in ports:
 		ports_str = ' -p "-"'
 	elif 'top-100' in ports:
@@ -1353,7 +1388,7 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 		ports_str = f' -p {ports_str}'
 	cmd += ports_str
 	cmd += ' -config /root/.config/naabu/config.yaml' if use_naabu_config else ''
-	cmd += f' -proxy "{proxy}"' if proxy else ''
+	cmd += f' -proxy {shlex.quote(proxy)}' if proxy else ''
 	cmd += f' -c {threads}' if threads else ''
 	cmd += f' -rate {rate_limit}' if rate_limit > 0 else ''
 	cmd += f' -timeout {timeout}s' if timeout > 0 else ''
@@ -1648,20 +1683,23 @@ def dir_file_fuzz(self, ctx={}, description=None):
 		custom_headers.append(custom_header)
 	auto_calibration = config.get(AUTO_CALIBRATION, True)
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
-	rate_limit = config.get(RATE_LIMIT) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT)
+	rate_limit = _safe_int(config.get(RATE_LIMIT) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT), DEFAULT_RATE_LIMIT)
 	extensions = config.get(EXTENSIONS, DEFAULT_DIR_FILE_FUZZ_EXTENSIONS)
-	# prepend . on extensions
-	extensions = [ext if ext.startswith('.') else '.' + ext for ext in extensions]
-	extensions_str = ','.join(map(str, extensions))
+	# prepend . on extensions, then allowlist (config-supplied, goes onto the cmd line)
+	extensions = ['.' + e.lstrip('.') for e in _filter_list(extensions, SAFE_EXT_RE)]
+	extensions_str = ','.join(extensions)
 	follow_redirect = config.get(FOLLOW_REDIRECT, FFUF_DEFAULT_FOLLOW_REDIRECT)
-	max_time = config.get(MAX_TIME, 0)
+	max_time = _safe_int(config.get(MAX_TIME, 0), 0)
 	match_http_status = config.get(MATCH_HTTP_STATUS, FFUF_DEFAULT_MATCH_HTTP_STATUS)
-	mc = ','.join([str(c) for c in match_http_status])
-	recursive_level = config.get(RECURSIVE_LEVEL, FFUF_DEFAULT_RECURSIVE_LEVEL)
+	# HTTP status match codes -> plain ints; drops any newline/space the prior
+	# ^\d{1,3}$ filter would pass verbatim (Python's trailing-newline $ quirk).
+	mc = ','.join(str(int(str(v).strip())) for v in (match_http_status or []) if str(v).strip().isdigit() and 0 <= int(str(v).strip()) <= 999)
+	recursive_level = _safe_int(config.get(RECURSIVE_LEVEL, FFUF_DEFAULT_RECURSIVE_LEVEL), FFUF_DEFAULT_RECURSIVE_LEVEL)
 	stop_on_error = config.get(STOP_ON_ERROR, False)
-	timeout = config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT)
-	threads = config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
-	wordlist_name = config.get(WORDLIST, 'dicc')
+	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
+	threads = _safe_int(config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
+	# wordlist name is user-editable: allowlist it (blocks injection and ../ traversal).
+	wordlist_name = _allow(config.get(WORDLIST, 'dicc'), SAFE_TOKEN_RE, 'dicc')
 	delay = rate_limit / (threads * 100) # calculate request pause delay from rate_limit and number of threads
 	input_path = f'{self.results_dir}/input_dir_file_fuzz.txt'
 
@@ -1670,8 +1708,8 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	wordlist_path = f'/usr/src/wordlist/{wordlist_name}.txt'
 
 	# Build command
-	cmd += f' -w {wordlist_path}'
-	cmd += f' -e {extensions_str}' if extensions else ''
+	cmd += f' -w {shlex.quote(wordlist_path)}'
+	cmd += f' -e {shlex.quote(extensions_str)}' if extensions else ''
 	cmd += f' -maxtime {max_time}' if max_time > 0 else ''
 	cmd += f' -p {delay}' if delay > 0 else ''
 	cmd += f' -recursion -recursion-depth {recursive_level} ' if recursive_level > 0 else ''
@@ -1680,10 +1718,13 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	cmd += ' -se' if stop_on_error else ''
 	cmd += ' -fr' if follow_redirect else ''
 	cmd += ' -ac' if auto_calibration else ''
-	cmd += f' -mc {mc}' if mc else ''
-	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
+	cmd += f' -mc {shlex.quote(mc)}' if mc else ''
+	# custom headers are user-editable: keep only header-shaped values (no newline /
+	# control chars -> blocks header & flag injection) and shell-quote each.
+	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[\x20-\x7E]*$', str(h))]
+	formatted_headers = ' '.join('-H ' + shlex.quote(h) for h in safe_headers)
 	if formatted_headers:
-		cmd += formatted_headers
+		cmd += ' ' + formatted_headers
 
 	# Grab URLs to fuzz
 	urls = get_http_urls(
@@ -1709,12 +1750,12 @@ def dir_file_fuzz(self, ctx={}, description=None):
 		url_parse = urlparse(url)
 		url = url_parse.scheme + '://' + url_parse.netloc
 		url += '/FUZZ' # TODO: fuzz not only URL but also POST / PUT / headers
-		proxy = get_random_proxy()
+		proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
 		# Build final cmd
 		fcmd = cmd
-		fcmd += f' -x {proxy}' if proxy else ''
-		fcmd += f' -u {url} -json'
+		fcmd += f' -x {shlex.quote(proxy)}' if proxy else ''
+		fcmd += f' -u {shlex.quote(url)} -json'
 
 		# Initialize DirectoryScan object
 		dirscan = DirectoryScan()
@@ -1819,17 +1860,19 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		description (str, optional): Task description shown in UI.
 	"""
 	input_path = f'{self.results_dir}/input_endpoints_fetch_url.txt'
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
 	# Config
 	config = self.yaml_configuration.get(FETCH_URL) or {}
 	should_remove_duplicate_endpoints = config.get(REMOVE_DUPLICATE_ENDPOINTS, True)
 	duplicate_removal_fields = config.get(DUPLICATE_REMOVAL_FIELDS, ENDPOINT_SCAN_DEFAULT_DUPLICATE_FIELDS)
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
-	gf_patterns = config.get(GF_PATTERNS, DEFAULT_GF_PATTERNS)
+	# gf pattern names are user-editable identifiers and reach the shell (gf <name>)
+	# and a results filename: keep only safe identifier-shaped values.
+	gf_patterns = _filter_list(config.get(GF_PATTERNS, DEFAULT_GF_PATTERNS), SAFE_TOKEN_RE)
 	ignore_file_extension = config.get(IGNORE_FILE_EXTENSION, DEFAULT_IGNORE_FILE_EXTENSIONS)
 	tools = config.get(USES_TOOLS, ENDPOINT_SCAN_DEFAULT_TOOLS)
-	threads = config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
+	threads = _safe_int(config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	# domain_request_headers = self.domain.request_headers if self.domain else None
 	custom_headers = self.yaml_configuration.get(CUSTOM_HEADERS, [])
 	'''
@@ -1856,8 +1899,9 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 			ctx=ctx
 		)
 
-	# Domain regex
-	host = self.domain.name if self.domain else urlparse(urls[0]).netloc
+	# Domain regex. host is allowlisted (Region A sanitizes it at storage); an unsafe
+	# value falls back to '' so the single-quoted grep pattern can't be broken out of.
+	host = _allow(self.domain.name if self.domain else urlparse(urls[0]).netloc, SAFE_HOST_RE, '')
 	host_regex = f"\'https?://([a-z0-9]+[.])*{host}.*\'"
 
 	# Tools cmds
@@ -1869,20 +1913,23 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		'katana': f'katana -list {input_path} -silent -jc -kf all -d 3 -fs rdn',
 	}
 	if proxy:
-		cmd_map['gau'] += f' --proxy "{proxy}"'
-		cmd_map['gospider'] += f' -p {proxy}'
-		cmd_map['hakrawler'] += f' -proxy {proxy}'
-		cmd_map['katana'] += f' -proxy {proxy}'
+		qproxy = shlex.quote(proxy)
+		cmd_map['gau'] += f' --proxy {qproxy}'
+		cmd_map['gospider'] += f' -p {qproxy}'
+		cmd_map['hakrawler'] += f' -proxy {qproxy}'
+		cmd_map['katana'] += f' -proxy {qproxy}'
 	if threads > 0:
 		cmd_map['gau'] += f' --threads {threads}'
 		cmd_map['gospider'] += f' -t {threads}'
 		cmd_map['katana'] += f' -c {threads}'
-	if custom_headers:
-		# gau, waybackurls does not support custom headers
-		formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
-		cmd_map['gospider'] += formatted_headers
-		cmd_map['hakrawler'] += ';;'.join(header for header in custom_headers)
-		cmd_map['katana'] += formatted_headers
+	# custom headers are user-editable: keep only header-shaped values (no newline /
+	# control chars) and shell-quote each before they hit the shell=True command.
+	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[\x20-\x7E]*$', str(h))]
+	if safe_headers:
+		formatted_headers = ' '.join('-H ' + shlex.quote(h) for h in safe_headers)
+		cmd_map['gospider'] += ' ' + formatted_headers
+		cmd_map['hakrawler'] += ' ' + ' '.join('-h ' + shlex.quote(h) for h in safe_headers)
+		cmd_map['katana'] += ' ' + formatted_headers
 	cat_input = f'cat {input_path}'
 	grep_output = f'grep -Eo {host_regex}'
 	cmd_map = {
@@ -1906,7 +1953,9 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		f'sort -u {self.output_path} -o {self.output_path}',
 	]
 	if ignore_file_extension:
-		ignore_exts = '|'.join(ignore_file_extension)
+		# extensions are user-editable and land inside a grep regex: keep only bare
+		# alphanumeric extensions so the pattern can't be broken out of.
+		ignore_exts = '|'.join(_filter_list(ignore_file_extension, re.compile(r'^[A-Za-z0-9]+$')))
 		grep_ext_filtered_output = [
 			f'cat {self.output_path} | grep -Eiv "\\.({ignore_exts}).*" > {self.results_dir}/urls_filtered.txt',
 			f'mv {self.results_dir}/urls_filtered.txt {self.output_path}'
@@ -1954,6 +2003,7 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 
 		if not validators.url(url):
 			logger.warning(f'Invalid URL "{url}". Skipping.')
+			continue
 
 		if url not in all_urls:
 			all_urls.append(url)
@@ -2002,7 +2052,7 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		# Run gf on current pattern
 		logger.warning(f'Running gf on pattern "{gf_pattern}"')
 		gf_output_file = f'{self.results_dir}/gf_patterns_{gf_pattern}.txt'
-		cmd = f'cat {self.output_path} | gf {gf_pattern} | grep -Eo {host_regex} >> {gf_output_file}'
+		cmd = f'cat {shlex.quote(self.output_path)} | gf {shlex.quote(gf_pattern)} | grep -Eo {host_regex} >> {shlex.quote(gf_output_file)}'
 		run_command(
 			cmd,
 			shell=True,
@@ -2384,6 +2434,329 @@ def add_gpt_description_db(title, path, description, impact, remediation, refere
 		gpt_report.references.add(ref)
 		gpt_report.save()
 
+# Allowlists for user-editable OSINT / secret-scan config values that get
+# interpolated into shell commands. Anything outside these sets is rejected and
+# the safe default is used, so a malicious engine YAML cannot inject commands.
+SPIDERFOOT_PRESETS = {'passive', 'footprint', 'investigate', 'all'}
+GITLEAKS_MODES = {'dir', 'git'}
+
+
+def _safe_remove(path):
+	"""Best-effort delete of a file that may contain raw secrets."""
+	try:
+		if path and os.path.exists(path):
+			os.remove(path)
+	except OSError as e:
+		logger.warning(f'could not remove {path}: {e}')
+
+
+# --- Command-injection guards -------------------------------------------------
+# Recon commands are built as f-strings and frequently run with shell=True, so a
+# tainted value (target host, engine-YAML config, API key, wordlist name) must be
+# allowlisted/quoted before it reaches the shell. These mirror the secret-scan
+# pattern: str()-coerce, validate against a strict allowlist, fall back safely.
+# Anchored with \A...\Z, not ^...$: in Python $ also matches just before a trailing
+# newline, so ^...$ would accept a value ending in a newline and the helpers would return
+# it verbatim. \Z pins the true end of the string and closes that trailing-newline vector.
+SAFE_HOST_RE = re.compile(r'\A[A-Za-z0-9._:-]+\Z')   # domains, IPv4/IPv6, optional :port
+SAFE_HOST_ARG_RE = re.compile(r'\A[A-Za-z0-9._:][A-Za-z0-9._:-]*\Z')  # host as a bare argv token: no leading dash
+SAFE_TOKEN_RE = re.compile(r'\A[A-Za-z0-9._-]+\Z')   # wordlist/tool names, API keys
+SAFE_PATH_RE = re.compile(r'\A[A-Za-z0-9._/][A-Za-z0-9._/-]*\Z')   # filesystem paths: no metachars, no leading dash
+SAFE_PORT_RE = re.compile(r'\A\d{1,5}(-\d{1,5})?\Z')  # a port or a port range
+SAFE_EXT_RE = re.compile(r'\A\.?[A-Za-z0-9]+\Z')      # file extensions
+PROXY_RE = re.compile(r'\A(https?|socks[45]?)://[A-Za-z0-9._:@/-]+\Z')
+# nmap engine-YAML fields flow into a shell=True nmap command; sanitize at intake so they
+# cannot carry a newline (RCE), an output-file/datadir flag, or an NSE script path. The
+# assembled command is re-validated by is_valid_nmap_command (defense in depth).
+NMAP_CMD_RE = re.compile(r'\Anmap(?:[ \t][A-Za-z0-9._,=:+-]+)*\Z')  # nmap + safe tokens; no slash or control chars
+NMAP_SCRIPT_RE = re.compile(r'\A[A-Za-z][A-Za-z0-9._-]*\Z')  # NSE script/category name: no slash, no leading dash
+NMAP_SCRIPT_ARGS_RE = re.compile(r'\A[A-Za-z0-9][A-Za-z0-9._,=:+-]*\Z')  # script-args: no slash, no whitespace, no leading dash
+
+
+def _safe_int(value, default):
+	"""Coerce a YAML-supplied numeric to int, falling back to default on junk."""
+	try:
+		return int(value)
+	except (TypeError, ValueError):
+		return default
+
+
+def _allow(value, regex, default=None):
+	"""Return str(value) only if it fully matches regex (no '..', no control chars); else
+	default. Lets a crafted/list/dict config value fail safe instead of reaching the shell."""
+	v = str(value) if value is not None else ''
+	if v and '..' not in v and not any(ord(c) < 0x20 for c in v) and regex.match(v):
+		return v
+	return default
+
+
+def _filter_list(values, regex):
+	"""Keep only items that fully match regex, dropping anything tainted. Applies the same
+	'..'/control-char guard as _allow so SAFE_PATH_RE's no-traversal contract holds at every
+	call site (a bare regex.match would otherwise pass '../../etc/passwd')."""
+	if not isinstance(values, (list, tuple, set)):
+		values = [values]
+	out = []
+	for v in values:
+		if v is None:
+			continue
+		s = str(v)
+		if '..' in s or any(ord(c) < 0x20 for c in s) or not regex.match(s):
+			continue
+		out.append(s)
+	return out
+
+
+def _shell_false_headers(headers):
+	"""Build ' -H Name:value' fragments for a shell=False command (run via cmd.split()).
+	Accepts the documented 'Name: value' form and normalizes away the space after the
+	colon so each header stays a single argv token. The name must start alphanumeric (no
+	leading-dash flag smuggling); values with internal whitespace / control chars (which
+	cmd.split() could not keep together) are dropped."""
+	parts = []
+	for h in headers or []:
+		m = re.match(r'^([A-Za-z0-9][A-Za-z0-9-]*):[ \t]*([\x21-\x7E]+)$', str(h))
+		if m:
+			parts.append(f'-H {m.group(1)}:{m.group(2)}')
+	return (' ' + ' '.join(parts)) if parts else ''
+
+
+@app.task(name='spiderfoot_scan', queue='spiderfoot_queue', bind=False)
+def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx={}):
+	"""Run SpiderFoot OSINT headless (no web UI) and map discovered events to
+	existing models (emails, subdomains, IPs, employees). Opt-in via the
+	osint.enable_spiderfoot config flag.
+	"""
+	scan_history = ScanHistory.objects.get(pk=scan_history_id)
+	# str() so a list/dict YAML value fails the allowlist safely instead of raising.
+	preset = str(config.get(SPIDERFOOT_PRESET, 'passive'))
+	if preset not in SPIDERFOOT_PRESETS:
+		logger.warning(f'spiderfoot: unknown preset {preset!r}, falling back to passive')
+		preset = 'passive'
+	out = f'{results_dir}/spiderfoot.json'
+	history_file = f'{results_dir}/commands.txt'
+	# -q keeps stdout as pure JSON; redirect to file (shell=True because of '>').
+	# host/out are quoted so a crafted target or path can't inject shell commands.
+	cmd = (
+		f'python3 {SPIDERFOOT_EXEC_PATH} -s {shlex.quote(str(host))} '
+		f'-u {preset} -o json -q > {shlex.quote(out)}'
+	)
+	run_command(
+		cmd,
+		shell=True,
+		history_file=history_file,
+		scan_id=scan_history_id,
+		activity_id=activity_id)
+	try:
+		with open(out) as f:
+			events = json.load(f) or []
+	except Exception as e:
+		logger.exception(e)
+		return []
+	for ev in events:
+		etype = ev.get('type')
+		data = ev.get('data')
+		if not data:
+			continue
+		try:
+			if etype == 'EMAILADDR':
+				save_email(data, scan_history=scan_history)
+			elif etype in ('DOMAIN_NAME', 'INTERNET_NAME'):
+				save_subdomain(data, ctx=ctx)
+			elif etype == 'IP_ADDRESS':
+				save_ip_address(data)
+			elif etype == 'HUMAN_NAME':
+				save_employee(data, designation='spiderfoot', scan_history=scan_history)
+		except Exception as e:
+			logger.warning(f'spiderfoot: could not save {etype}={data}: {e}')
+	logger.info(f'spiderfoot: processed {len(events)} event(s) for {host}')
+	return events
+
+
+#-------------------#
+# SECRET SCAN       #
+#-------------------#
+
+def redact_secret(value):
+	"""Mask a secret so the raw value is never persisted. Keeps only a short
+	prefix/suffix for human triage."""
+	if not value:
+		return value
+	value = str(value)
+	# Fully mask anything short enough that a 3+2 char reveal would expose a large
+	# fraction of it; only reveal a prefix/suffix for comfortably long secrets.
+	if len(value) < 16:
+		return '*' * len(value)
+	return f'{value[:3]}{"*" * 8}{value[-2:]}'
+
+
+def save_leaked_secret(data, scan_history=None, domain=None):
+	"""Idempotently persist a LeakedSecret. `data['secret_redacted']` MUST already
+	be masked by the caller (see redact_secret). Returns the object if newly
+	created, else None."""
+	data = dict(data)
+	data['scan_history'] = scan_history
+	data['target_domain'] = domain
+	# secret_redacted IS part of the identity: two distinct secrets at the same
+	# rule/file/line must produce two rows. Only noise fields are excluded.
+	if record_exists(
+			LeakedSecret,
+			data=data,
+			exclude_keys=['description', 'discovered_date']):
+		return None
+	leaked_secret, created = LeakedSecret.objects.get_or_create(**data)
+	return leaked_secret if created else None
+
+
+def run_gitleaks_scan(self, scan_path):
+	"""Run gitleaks over a filesystem path / git repo and store findings as
+	LeakedSecret. Fully local, no network. Returns count of new findings."""
+	config = self.yaml_configuration.get(SECRET_SCAN) or {}
+	# str() so a list/dict YAML value fails the allowlist safely instead of raising.
+	mode = str(config.get(GITLEAKS_MODE, 'dir'))  # 'dir' (filesystem) or 'git' (history)
+	if mode not in GITLEAKS_MODES:
+		logger.warning(f'gitleaks: unknown mode {mode!r}, falling back to dir')
+		mode = 'dir'
+	report = f'{self.results_dir}/gitleaks.json'
+	# scan_path/report are quoted so a crafted path can't inject shell commands.
+	cmd = (
+		f'gitleaks {mode} {shlex.quote(str(scan_path))} --report-format json '
+		f'--report-path {shlex.quote(report)} --no-banner --exit-code 0'
+	)
+	if mode == 'git':
+		cmd += ' --log-opts="--all"'
+	findings = []
+	try:
+		# run_command MUST be inside the try: gitleaks writes the raw-secret report
+		# before it returns, so any later error (DB/history-file write) must still
+		# hit the finally that deletes the report.
+		run_command(
+			cmd,
+			shell=True,
+			history_file=self.history_file,
+			scan_id=self.scan_id,
+			activity_id=self.activity_id)
+		with open(report) as f:
+			findings = json.load(f) or []
+	except FileNotFoundError:
+		logger.warning(f'gitleaks produced no report at {report}')
+	except Exception as e:
+		logger.exception(e)
+	finally:
+		# the report holds RAW secret values — never leave it on disk
+		_safe_remove(report)
+	count = 0
+	for fnd in findings:
+		data = {
+			'source': GITLEAKS,
+			'rule_id': fnd.get('RuleID'),
+			'repo_url': scan_path,
+			'file_path': fnd.get('File'),
+			'commit': fnd.get('Commit') or None,
+			'line': fnd.get('StartLine'),
+			'secret_redacted': redact_secret(fnd.get('Secret') or fnd.get('Match')),
+			'description': fnd.get('Description'),
+			'severity': SECRET_DEFAULT_SEVERITY,
+			'discovered_date': timezone.now(),
+		}
+		if save_leaked_secret(data, scan_history=self.scan, domain=self.domain):
+			count += 1
+	logger.info(f'gitleaks: stored {count} new secret(s)')
+	return count
+
+
+def run_ggshield_scan(self, scan_path):
+	"""Run ggshield (GitGuardian) secret scan over a path. The GitGuardian API key
+	is read from the API vault (Settings -> API), falling back to the
+	GITGUARDIAN_API_KEY environment variable."""
+	gg_key = None
+	db_key = GitGuardianAPIKey.objects.first()
+	if db_key and db_key.key:
+		gg_key = db_key.key
+	gg_key = gg_key or os.environ.get('GITGUARDIAN_API_KEY')
+	if not gg_key:
+		logger.warning('ggshield: no GitGuardian API key (set it in Settings -> API or the GITGUARDIAN_API_KEY env var), skipping ggshield scan')
+		return 0
+	# ggshield reads the key from the environment (never the command line, so it
+	# can't end up in command history/logs). Set it only for the duration of this
+	# scan and restore the previous value afterwards so the key does not linger in
+	# the long-lived worker process and leak to sibling tasks/subprocesses.
+	prev_key = os.environ.get('GITGUARDIAN_API_KEY')
+	os.environ['GITGUARDIAN_API_KEY'] = gg_key
+	report = f'{self.results_dir}/ggshield.json'
+	# scan_path/report are quoted so a crafted path can't inject shell commands.
+	cmd = (
+		f'ggshield secret scan path --recursive --json --exit-zero '
+		f'{shlex.quote(str(scan_path))} > {shlex.quote(report)}'
+	)
+	data = None
+	try:
+		run_command(
+			cmd,
+			shell=True,
+			history_file=self.history_file,
+			scan_id=self.scan_id,
+			activity_id=self.activity_id)
+		with open(report) as f:
+			data = json.load(f)
+	except Exception as e:
+		logger.exception(e)
+	finally:
+		# restore env so the key doesn't outlive this scan
+		if prev_key is None:
+			os.environ.pop('GITGUARDIAN_API_KEY', None)
+		else:
+			os.environ['GITGUARDIAN_API_KEY'] = prev_key
+		# the report holds RAW secret values — never leave it on disk
+		_safe_remove(report)
+	if data is None:
+		return 0
+	count = 0
+	scans = data.get('scans')
+	if not scans:
+		scans = [data] if data.get('entities_with_incidents') else []
+	for scan_entry in scans:
+		for entity in scan_entry.get('entities_with_incidents', []):
+			filename = entity.get('filename')
+			for incident in entity.get('incidents', []):
+				for occ in (incident.get('occurrences') or [{}]):
+					rec = {
+						'source': GGSHIELD,
+						'rule_id': incident.get('type') or incident.get('policy'),
+						'repo_url': scan_path,
+						'file_path': filename,
+						'commit': None,
+						'line': occ.get('line_start'),
+						'secret_redacted': redact_secret(occ.get('match')),
+						'description': incident.get('policy'),
+						'severity': SECRET_DEFAULT_SEVERITY,
+						'discovered_date': timezone.now(),
+					}
+					if save_leaked_secret(rec, scan_history=self.scan, domain=self.domain):
+						count += 1
+	logger.info(f'ggshield: stored {count} new secret(s)')
+	return count
+
+
+@app.task(name='secret_scan', queue='main_scan_queue', base=SuricatoosTask, bind=True)
+def secret_scan(self, ctx={}, description=None):
+	"""Scan collected scan artifacts (the results dir) for leaked secrets using
+	gitleaks (local) and/or ggshield (GitGuardian API). Findings are stored as
+	LeakedSecret. Configured via the `secret_scan` engine section.
+	"""
+	config = self.yaml_configuration.get(SECRET_SCAN) or {}
+	# str() so a list/dict YAML value can't raise inside os.path.exists / downstream.
+	scan_path = str(config.get(SCAN_PATH) or self.results_dir)
+	if not os.path.exists(scan_path):
+		logger.warning(f'secret_scan: path {scan_path} does not exist, skipping')
+		return None
+	if config.get(RUN_GITLEAKS, DEFAULT_RUN_GITLEAKS):
+		run_gitleaks_scan(self, scan_path)
+	if config.get(RUN_GGSHIELD, DEFAULT_RUN_GGSHIELD):
+		run_ggshield_scan(self, scan_path)
+	return None
+
+
 @app.task(name='nuclei_scan', queue='main_scan_queue', base=SuricatoosTask, bind=True)
 def nuclei_scan(self, urls=[], ctx={}, description=None):
 	"""HTTP vulnerability scan using Nuclei
@@ -2400,11 +2773,11 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	config = self.yaml_configuration.get(VULNERABILITY_SCAN) or {}
 	input_path = f'{self.results_dir}/input_endpoints_vulnerability_scan.txt'
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
-	concurrency = config.get(NUCLEI_CONCURRENCY) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
+	concurrency = _safe_int(config.get(NUCLEI_CONCURRENCY) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	intensity = config.get(INTENSITY) or self.yaml_configuration.get(INTENSITY, DEFAULT_SCAN_INTENSITY)
-	rate_limit = config.get(RATE_LIMIT) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT)
-	retries = config.get(RETRIES) or self.yaml_configuration.get(RETRIES, DEFAULT_RETRIES)
-	timeout = config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT)
+	rate_limit = _safe_int(config.get(RATE_LIMIT) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT), DEFAULT_RATE_LIMIT)
+	retries = _safe_int(config.get(RETRIES) or self.yaml_configuration.get(RETRIES, DEFAULT_RETRIES), DEFAULT_RETRIES)
+	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
 	custom_headers = self.yaml_configuration.get(CUSTOM_HEADERS, [])
 	'''
 	# TODO: Remove custom_header in next major release
@@ -2416,14 +2789,16 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	if custom_header:
 		custom_headers.append(custom_header)
 	should_fetch_gpt_report = config.get(FETCH_GPT_REPORT, DEFAULT_GET_GPT_REPORT)
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 	nuclei_specific_config = config.get('nuclei', {})
 	use_nuclei_conf = nuclei_specific_config.get(USE_NUCLEI_CONFIG, False)
-	severities = nuclei_specific_config.get(NUCLEI_SEVERITY, NUCLEI_DEFAULT_SEVERITIES)
-	tags = nuclei_specific_config.get(NUCLEI_TAGS, [])
-	tags = ','.join(tags)
-	nuclei_templates = nuclei_specific_config.get(NUCLEI_TEMPLATE)
-	custom_nuclei_templates = nuclei_specific_config.get(NUCLEI_CUSTOM_TEMPLATE)
+	# nuclei runs shell=False (cmd.split()), so the risk here is argv/flag smuggling
+	# via whitespace or leading '-'. Filter the user-editable lists to safe tokens.
+	NUCLEI_VALID_SEVERITIES = re.compile(r'^(info|low|medium|high|critical|unknown)$')
+	severities = _filter_list(nuclei_specific_config.get(NUCLEI_SEVERITY, NUCLEI_DEFAULT_SEVERITIES), NUCLEI_VALID_SEVERITIES) or list(NUCLEI_DEFAULT_SEVERITIES)
+	tags = ','.join(_filter_list(nuclei_specific_config.get(NUCLEI_TAGS, []), SAFE_TOKEN_RE))
+	nuclei_templates = _filter_list(nuclei_specific_config.get(NUCLEI_TEMPLATE) or [], SAFE_PATH_RE)
+	custom_nuclei_templates = _filter_list(nuclei_specific_config.get(NUCLEI_CUSTOM_TEMPLATE) or [], SAFE_PATH_RE)
 	# severities_str = ','.join(severities)
 
 	# Get alive endpoints
@@ -2481,9 +2856,10 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	cmd = 'nuclei -j'
 	cmd += ' -config /root/.config/nuclei/config.yaml' if use_nuclei_conf else ''
 	cmd += f' -irr'
-	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
-	if formatted_headers:
-		cmd += formatted_headers
+	# shell=False here, so do NOT shell-quote (cmd.split() would keep the quotes).
+	# Keep only no-whitespace header-shaped values so they stay a single argv token
+	# and cannot smuggle an extra nuclei flag.
+	cmd += _shell_false_headers(custom_headers)
 	cmd += f' -l {input_path}'
 	cmd += f' -c {str(concurrency)}' if concurrency > 0 else ''
 	cmd += f' -proxy {proxy} ' if proxy else ''
@@ -2543,13 +2919,15 @@ def dalfox_xss_scan(self, urls=[], ctx={}, description=None):
 	custom_header = self.yaml_configuration.get(CUSTOM_HEADER)
 	if custom_header:
 		custom_headers.append(custom_header)
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 	is_waf_evasion = dalfox_config.get(WAF_EVASION, False)
 	blind_xss_server = dalfox_config.get(BLIND_XSS_SERVER)
 	user_agent = dalfox_config.get(USER_AGENT) or self.yaml_configuration.get(USER_AGENT)
-	timeout = dalfox_config.get(TIMEOUT)
-	delay = dalfox_config.get(DELAY)
-	threads = dalfox_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
+	# shell=False: int-coerce so a tainted YAML string can't smuggle extra argv/flags
+	# (the cmd gates are bare truthiness, so junk -> 0 also disables the flag).
+	timeout = _safe_int(dalfox_config.get(TIMEOUT), 0)
+	delay = _safe_int(dalfox_config.get(DELAY), 0)
+	threads = _safe_int(dalfox_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	input_path = f'{self.results_dir}/input_endpoints_dalfox_xss.txt'
 
 	if urls:
@@ -2574,13 +2952,13 @@ def dalfox_xss_scan(self, urls=[], ctx={}, description=None):
 	cmd += f' file {input_path}'
 	cmd += f' --proxy {proxy}' if proxy else ''
 	cmd += f' --waf-evasion' if is_waf_evasion else ''
-	cmd += f' -b {blind_xss_server}' if blind_xss_server else ''
+	cmd += f' -b {blind_xss_server}' if blind_xss_server and _allow(blind_xss_server, PROXY_RE) else ''
 	cmd += f' --delay {delay}' if delay else ''
 	cmd += f' --timeout {timeout}' if timeout else ''
-	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
-	if formatted_headers:
-		cmd += formatted_headers
-	cmd += f' --user-agent {user_agent}' if user_agent else ''
+	# shell=False (stream_command): keep only no-whitespace header-shaped values so
+	# each is a single, flag-safe argv token.
+	cmd += _shell_false_headers(custom_headers)
+	cmd += f' --user-agent {user_agent}' if user_agent and not re.search(r'\s|^-', str(user_agent)) else ''
 	cmd += f' --worker {threads}' if threads else ''
 	cmd += f' --format json'
 
@@ -2679,7 +3057,7 @@ def crlfuzz_scan(self, urls=[], ctx={}, description=None):
 	custom_header = self.yaml_configuration.get(CUSTOM_HEADER)
 	if custom_header:
 		custom_headers.append(custom_header)
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 	user_agent = vuln_config.get(USER_AGENT) or self.yaml_configuration.get(USER_AGENT)
 	threads = vuln_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
 	input_path = f'{self.results_dir}/input_endpoints_crlf.txt'
@@ -2703,9 +3081,8 @@ def crlfuzz_scan(self, urls=[], ctx={}, description=None):
 	cmd = 'crlfuzz -s'
 	cmd += f' -l {input_path}'
 	cmd += f' -x {proxy}' if proxy else ''
-	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
-	if formatted_headers:
-		cmd += formatted_headers
+	# shell=False: keep only no-whitespace header-shaped values (single argv token).
+	cmd += _shell_false_headers(custom_headers)
 	cmd += f' -o {output_path}'
 
 	run_command(
@@ -2802,8 +3179,10 @@ def s3scanner(self, ctx={}, description=None):
 	input_path = f'{self.results_dir}/#{self.scan_id}_subdomain_discovery.txt'
 	vuln_config = self.yaml_configuration.get(VULNERABILITY_SCAN) or {}
 	s3_config = vuln_config.get(S3SCANNER) or {}
-	threads = s3_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
-	providers = s3_config.get(PROVIDERS, S3SCANNER_DEFAULT_PROVIDERS)
+	# shell=False (stream_command): int-coerce threads and allowlist providers so a
+	# tainted engine-YAML value can't smuggle extra argv/flags into s3scanner.
+	threads = _safe_int(s3_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
+	providers = _filter_list(s3_config.get(PROVIDERS, S3SCANNER_DEFAULT_PROVIDERS), SAFE_TOKEN_RE)
 	scan_history = ScanHistory.objects.filter(pk=self.scan_id).first()
 	for provider in providers:
 		cmd = f's3scanner -bucket-file {input_path} -enumerate -provider {provider} -threads {threads} -json'
@@ -2865,12 +3244,17 @@ def http_crawl(
 	custom_header = self.yaml_configuration.get(CUSTOM_HEADER)
 	if custom_header:
 		custom_headers.append(custom_header)
-	threads = cfg.get(THREADS, DEFAULT_THREADS)
+	threads = _safe_int(cfg.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	follow_redirect = cfg.get(FOLLOW_REDIRECT, True)
 	self.output_path = None
 	input_path = f'{self.results_dir}/httpx_input.txt'
 	history_file = f'{self.results_dir}/commands.txt'
 	if urls: # direct passing URLs to check
+		# urls here are tool/target-derived and one gets interpolated unquoted into a
+		# shell=False httpx command (cmd.split()); an embedded space or leading dash would
+		# smuggle an httpx flag. Keep only well-formed http(s) URLs (validators.url drops
+		# whitespace and bare flags).
+		urls = [u for u in urls if isinstance(u, str) and validators.url(u)]
 		if self.starting_point_path:
 			urls = [u for u in urls if self.starting_point_path in u]
 
@@ -2897,19 +3281,20 @@ def http_crawl(
 	if len(urls) < threads:
 		threads = len(urls)
 
-	# Get random proxy
-	proxy = get_random_proxy()
+	# Get random proxy (allowlisted: httpx runs shell=False, so the value must be a
+	# single, flag-safe argv token).
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
 	# Run command
 	cmd += f' -cl -ct -rt -location -td -websocket -cname -asn -cdn -probe -random-agent'
 	cmd += f' -t {threads}' if threads > 0 else ''
 	cmd += f' --http-proxy {proxy}' if proxy else ''
-	formatted_headers = ' '.join(f'-H "{header}"' for header in custom_headers)
-	if formatted_headers:
-		cmd += formatted_headers
+	# shell=False: keep only no-whitespace header-shaped values (no quotes), so each
+	# stays one argv token and cannot smuggle an httpx flag.
+	cmd += _shell_false_headers(custom_headers)
 	cmd += f' -json'
 	cmd += f' -u {urls[0]}' if len(urls) == 1 else f' -l {input_path}'
-	cmd += f' -x {method}' if method else ''
+	cmd += f' -x {method}' if method and re.match(r'^[A-Z]+$', str(method)) else ''
 	cmd += f' -silent'
 	if follow_redirect:
 		cmd += ' -fr'
@@ -3767,6 +4152,10 @@ def geo_localize(host, ip_id=None):
 	if validators.ipv6(host):
 		logger.info(f'Ipv6 "{host}" is not supported by geoiplookup. Skipping.')
 		return None
+	# Defense in depth: host reaches the command line; reject anything unsafe.
+	if not _allow(host, SAFE_HOST_RE):
+		logger.warning(f'geo_localize: unsafe host {host!r}, skipping')
+		return None
 	cmd = f'geoiplookup {host}'
 	_, out = run_command(cmd)
 	if 'IP Address not found' not in out and "can't resolve hostname" not in out:
@@ -3895,7 +4284,7 @@ def fetch_related_tlds_and_domains(domain):
 	extracted = tldextract.extract(domain)
 	base_domain = f"{extracted.domain}.{extracted.suffix}"
 	
-	cmd = f'tlsx -san -cn -silent -ro -host {domain}'
+	cmd = f'tlsx -san -cn -silent -ro -host {shlex.quote(str(domain))}'
 	_, result = run_command(cmd, shell=True)
 
 	for line in result.splitlines():
@@ -3929,8 +4318,9 @@ def fetch_whois_data_using_netlas(target):
 			dict: WHOIS information.
 	"""
 	logger.info(f'Fetching WHOIS data for {target} using Netlas...')
-	command = f'netlas host {target} -f json'
-	netlas_key = get_netlas_key()
+	command = f'netlas host {_allow(target, SAFE_HOST_ARG_RE, "")} -f json'
+	# shell=False: allowlist the vault key so it can't smuggle an argv flag.
+	netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
 	if netlas_key:
 		command += f' -a {netlas_key}'
 
@@ -4246,12 +4636,21 @@ def get_and_save_dork_results(lookup_target, results_dir, type, lookup_keywords=
 			scan_history (startScan.ScanHistory): Scan History Object
 	"""
 	results = []
+	# shell=False (cmd.split()): allowlist the operator-supplied dork fields so none can
+	# smuggle an extra argv/flag token (no whitespace, no leading dash, no metachars).
+	DORK_ARG_RE = re.compile(r'^[A-Za-z0-9._,/][A-Za-z0-9._,/-]*$')
+	lookup_target = _allow(lookup_target, DORK_ARG_RE, '')
+	if not lookup_target:
+		logger.warning('dork: unsafe or empty lookup_target, skipping')
+		return results
+	delay = _safe_int(delay, 3)
+	page_count = _safe_int(page_count, 2)
 	gofuzz_command = f'{GOFUZZ_EXEC_PATH} -t {lookup_target} -d {delay} -p {page_count}'
-	proxy = get_random_proxy()
+	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
-	if lookup_extensions:
+	if _allow(lookup_extensions, DORK_ARG_RE):
 		gofuzz_command += f' -e {lookup_extensions}'
-	elif lookup_keywords:
+	elif _allow(lookup_keywords, DORK_ARG_RE):
 		gofuzz_command += f' -w {lookup_keywords}'
 
 	if proxy:

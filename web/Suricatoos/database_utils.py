@@ -107,6 +107,15 @@ def store_domain(domain_name, project, description, h1_team_handle):
 	"""
 		This function is used to store domain in Suricatoos
 	"""
+	# Defense in depth: never persist a name that isn't a clean domain/IP, since it
+	# flows unquoted into shell commands during scans.
+	domain_name = (domain_name or '').strip()
+	if not (validators.domain(domain_name)
+			or validators.ipv4(domain_name)
+			or validators.ipv6(domain_name)):
+		logger.warning(f'Refusing to store unsafe domain name {domain_name!r}')
+		return None
+
 	existing_domain = Domain.objects.filter(name=domain_name).first()
 
 	if existing_domain:
@@ -130,7 +139,16 @@ def store_domain(domain_name, project, description, h1_team_handle):
 def store_url(url, project, description, h1_team_handle):
 	parsed_url = urlparse(url)
 	http_url = parsed_url.geturl()
-	domain_name = parsed_url.netloc
+	# Use the bare hostname (strips userinfo and :port), NOT the raw netloc:
+	# validators.url() accepts URLs like http://user:$(id)@example.com/ whose netloc
+	# carries shell metacharacters, and Domain.name flows unquoted into shell commands
+	# downstream. Re-validate and refuse anything that is not a clean domain/IP.
+	domain_name = (parsed_url.hostname or '').strip()
+	if not (validators.domain(domain_name)
+			or validators.ipv4(domain_name)
+			or validators.ipv6(domain_name)):
+		logger.warning(f'Refusing to store target with unsafe host {domain_name!r} (from {url!r})')
+		return None
 
 	domain = Domain.objects.filter(name=domain_name).first()
 
@@ -155,6 +173,11 @@ def store_url(url, project, description, h1_team_handle):
 	return domain
 
 def store_ip(ip_address, project, description, h1_team_handle):
+	# Defense in depth: only persist genuine IPs (the name flows into shell commands).
+	ip_address = (ip_address or '').strip()
+	if not (validators.ipv4(ip_address) or validators.ipv6(ip_address)):
+		logger.warning(f'Refusing to store unsafe IP {ip_address!r}')
+		return None
 
 	domain = Domain.objects.filter(name=ip_address).first()
 	

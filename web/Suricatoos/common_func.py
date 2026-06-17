@@ -3,6 +3,8 @@ import socket
 import json
 import os
 import pickle
+import re
+import shlex
 import random
 import shutil
 import traceback
@@ -934,7 +936,15 @@ def get_nmap_cmd(
 		return None
 
 	if not input_file:
-		cmd += f" {host}" if host else ""
+		# host is appended AFTER is_valid_nmap_command, so it bypasses that guard.
+		# Validate it here and fail closed (the target host reaches a shell=True nmap).
+		if host:
+			# Reject a leading dash (a host cannot smuggle an nmap flag) and shell-quote it:
+			# the host is appended AFTER is_valid_nmap_command, so it must defend itself.
+			if not re.match(r'^[A-Za-z0-9._:][A-Za-z0-9._:-]*$', str(host)):
+				logger.error(f'Invalid/unsafe nmap host: {host!r}')
+				return None
+			cmd += f" {shlex.quote(str(host))}"
 	else:
 		cmd += f" -iL {input_file}"
 
@@ -1674,20 +1684,39 @@ def is_valid_nmap_command(cmd):
 	if not cmd.strip().startswith('nmap'):
 		return False
 	
+	# str.split() treats newline/tab/CR as whitespace, which would hide an injected
+	# command line from the per-token allowlist below; reject all control characters
+	# up front so a newline cannot smuggle a second command under shell=True.
+	if any(ord(c) < 0x20 for c in cmd):
+		return False
+
 	# check for dangerous chars
 	dangerous_chars = {';', '&', '|', '>', '<', '`', '$', '(', ')', '#', '\\'}
 	if any(char in cmd for char in dangerous_chars):
 		return False
 		
-	# but we also need to check for flags and options, for example - and -- are allowed
+	# Only an explicit allowlist of nmap flags may appear. This blocks output-file
+	# flags (-oN/-oG/-oA/--stylesheet/--append-output), input/resume flags
+	# (-iL/--resume) and --datadir, any of which would otherwise allow arbitrary file
+	# write or loading of attacker-controlled data from a tainted engine YAML.
+	ALLOWED_NMAP_FLAGS = {
+		'-sV', '-sS', '-sT', '-sU', '-sn', '-sC', '-sA', '-Pn', '-A', '-O',
+		'-p', '-F', '-r', '-n', '-v', '-vv', '-d', '-6',
+		'-T0', '-T1', '-T2', '-T3', '-T4', '-T5',
+		'--open', '--max-rate', '--min-rate', '--max-retries', '--host-timeout',
+		'--script', '--script-args', '-oX',
+	}
 	parts = cmd.split()
 	for part in parts[1:]: # ignoring nmap the first part of command
-		if part.startswith('-') or part.startswith('--'):
+		if part.startswith('-'):
+			# match on the flag name so --max-rate=100 is handled
+			if part.split('=', 1)[0] not in ALLOWED_NMAP_FLAGS:
+				return False
 			continue
-		
-		# check for valid characters, . - etc are allowed in valid nmap command
-		if all(c.isalnum() or c in '.,/-_' for c in part):
+
+		# non-flag tokens (option values / targets): allow only safe characters
+		if all(c.isalnum() or c in '.,/-_=' for c in part):
 			continue
 		return False
-		
+
 	return True

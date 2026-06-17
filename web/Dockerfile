@@ -4,9 +4,9 @@ FROM ubuntu:22.04
 ARG GECKOVERSION=0.33.0
 ARG GOVERSION=1.21.5
 
-RUN ARCH=$(dpkg --print-architecture) \ 
-    && if [ "${ARCH}" ! "arm64" ] || [ "${ARCH}" ! "amd64" ]; then \
-      echo "Suricatoos not supported, encountered unknown architecture: ${TARGETPLATFORM}" \
+RUN ARCH=$(dpkg --print-architecture) \
+    && if [ "${ARCH}" != "arm64" ] && [ "${ARCH}" != "amd64" ]; then \
+      echo "Suricatoos not supported, encountered unknown architecture: ${ARCH}" \
       && exit 1; \
     fi
 
@@ -55,10 +55,10 @@ RUN apt install -y --no-install-recommends \
 
 RUN add-apt-repository ppa:mozillateam/ppa
 
-RUN ARCH=$(dpkg --print-architecture) \ 
+RUN ARCH=$(dpkg --print-architecture) \
     && curl -L https://go.dev/dl/go${GOVERSION}.linux-${ARCH}.tar.gz | tar -xzC /usr/local
 
-RUN ARCH=$(dpkg --print-architecture) \ 
+RUN ARCH=$(dpkg --print-architecture) \
     && if [ "${ARCH}" = "arm64" ]; then \
       GECKOPATH="geckodriver-v${GECKOVERSION}-linux-aarch64.tar.gz"; \
     elif [ "${ARCH}" = "amd64" ]; then \
@@ -96,6 +96,7 @@ RUN printf "\
     github.com/hahwul/dalfox/v2@latest\n\
     github.com/projectdiscovery/katana/cmd/katana@latest\n\
     github.com/dwisiswant0/crlfuzz/cmd/crlfuzz@latest\n\
+    github.com/zricethezav/gitleaks/v8@v8.30.1\n\
     github.com/sa7mon/s3scanner@latest\n" | \
     xargs -L1 go install -ldflags="-s -w" -v && \
     rm -rf /go/pkg/* && rm -rf /root/.cache/go-build

@@ -47,7 +47,7 @@ def import_hackerone_programs_task(handles, project_slug, is_sync = False):
 		program_details = fetch_program_details_from_hackerone(handle)
 		if program_details:
 			# Thanks, some parts of this logics were originally written by @null-ref-0000
-			# via PR https://github.com/williamsouzadelima/suricatoos/pull/1410
+			# via PR https://github.com/williamsouzadelima/suricatoos-scan/pull/1410
 			try:
 				program_name = program_details['attributes']['name']
 

@@ -12,7 +12,8 @@ services:
     networks:
       - suricatoos_network
     ports:
-      - "5432:5432"
+      # Bind to loopback only — never expose Postgres on all interfaces.
+      - "127.0.0.1:5432:5432"
 
   redis:
     image: "redis:alpine"
@@ -46,6 +47,7 @@ services:
       - POSTGRES_HOST=${POSTGRES_HOST}
       - MAX_CONCURRENCY=${MAX_CONCURRENCY}
       - MIN_CONCURRENCY=${MIN_CONCURRENCY}
+      - GITGUARDIAN_API_KEY=${GITGUARDIAN_API_KEY}
     depends_on:
       - db
       - redis

@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/williamsouzadelima/suricatoos/releases"><img src="https://img.shields.io/badge/version-v1.0.0-informational" alt="Version" /></a>
+  <a href="https://github.com/williamsouzadelima/suricatoos-scan/releases"><img src="https://img.shields.io/badge/version-v2.2.0-informational" alt="Version" /></a>
   <a href="https://www.gnu.org/licenses/gpl-3.0"><img src="https://img.shields.io/badge/License-GPLv3-red.svg" alt="License" /></a>
 </p>
 
@@ -28,7 +28,8 @@ scheduling, scan engines, and exportable reports.
 - **Port scanning** and service detection
 - **Endpoint / directory enumeration** and screenshotting
 - **Vulnerability scanning** (template-based) with severity triage
-- **OSINT** gathering (emails, metadata, leaked credentials)
+- **Secret scanning** — detect hardcoded secrets & credentials (gitleaks + GitGuardian ggshield)
+- **OSINT** gathering (emails, metadata, leaked credentials, optional SpiderFoot integration)
 - **Scheduled & recurring scans**
 - **PDF/HTML reporting** with multiple templates
 - **Project-based** organization and role-based access
@@ -43,7 +44,7 @@ scheduling, scan engines, and exportable reports.
 ## Quick install
 
 ```bash
-git clone https://github.com/williamsouzadelima/suricatoos && cd suricatoos
+git clone https://github.com/williamsouzadelima/suricatoos-scan && cd suricatoos-scan
 sudo ./install.sh
 ```
 
@@ -66,7 +67,12 @@ Useful targets: `make down`, `make restart`, `make logs`, `make pull`.
 
 Application and infrastructure settings live in `.env` (database credentials,
 super-user, domain name, concurrency). Default scan-engine definitions are in
-`default_yaml_config.yaml` and editable in-app under **Scan Engines**.
+`default_yaml_config.yaml` and editable in-app under **Scan Engines**, including
+the `secret_scan` (gitleaks/ggshield) and `osint.enable_spiderfoot` sections.
+
+The GitGuardian API key used by the `ggshield` secret scanner can be set in-app
+under **Settings → API**, or via the optional `GITGUARDIAN_API_KEY` in `.env`
+(see `.env.example`); it is only required for ggshield.
 
 ## Updating
 
@@ -77,7 +83,7 @@ super-user, domain name, concurrency). Default scan-engine definitions are in
 ## Contributing
 
 Contributions are welcome — see `.github/CONTRIBUTING.md`. Pick an
-[open issue](https://github.com/williamsouzadelima/suricatoos/issues) or propose a new one.
+[open issue](https://github.com/williamsouzadelima/suricatoos-scan/issues) or propose a new one.
 
 ## Security
 

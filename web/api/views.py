@@ -1235,7 +1235,7 @@ class SuricatoosUpdateCheck(APIView):
 	def get(self, request):
 		req = self.request
 		github_api = \
-			'https://api.github.com/repos/williamsouzadelima/suricatoos/releases'
+			'https://api.github.com/repos/williamsouzadelima/suricatoos-scan/releases'
 		response = requests.get(github_api).json()
 		if 'message' in response:
 			return Response({'status': False, 'message': 'RateLimited'})
@@ -1274,7 +1274,7 @@ class SuricatoosUpdateCheck(APIView):
 			notification_type=SYSTEM_LEVEL_NOTIFICATION,
 			project_slug=None,
 			icon='mdi-update',
-			redirect_link='https://github.com/williamsouzadelima/suricatoos/releases',
+			redirect_link='https://github.com/williamsouzadelima/suricatoos-scan/releases',
 			open_in_new_tab=True
 		)
 
@@ -2897,6 +2897,30 @@ class DirectoryViewSet(viewsets.ModelViewSet):
 		)
 		self.queryset = qs
 		return self.queryset
+
+
+class LeakedSecretViewSet(viewsets.ReadOnlyModelViewSet):
+	# Read-only: leaked-credential findings must never be created, edited or
+	# deleted through the API (a full ModelViewSet would expose POST/PUT/DELETE).
+	queryset = LeakedSecret.objects.none()
+	serializer_class = LeakedSecretSerializer
+
+	def get_queryset(self):
+		req = self.request
+		scan_id = req.query_params.get('scan_history')
+		target_id = req.query_params.get('target_id')
+		slug = req.GET.get('project', None)
+		if slug:
+			secrets = LeakedSecret.objects.filter(scan_history__domain__project__slug=slug)
+		else:
+			secrets = LeakedSecret.objects.all()
+		if scan_id:
+			qs = secrets.filter(scan_history__id=scan_id).distinct()
+		elif target_id:
+			qs = secrets.filter(target_domain__id=target_id).distinct()
+		else:
+			qs = secrets.distinct()
+		return qs
 
 
 class VulnerabilityViewSet(viewsets.ModelViewSet):

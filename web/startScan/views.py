@@ -180,6 +180,7 @@ def detail_scan(request, id, slug):
         'critical_count': critical_count,
         'unknown_count': unknown_count,
         'total_vulnerability_count': total_count,
+        'total_leaked_secret_count': scan.get_leaked_secret_count(),
         'total_vul_ignore_info_count': total_count_ignore_info,
         'vulnerability_list': vulns.order_by('-severity').all(),
         'scan_history_active': 'active',

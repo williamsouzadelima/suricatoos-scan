@@ -113,6 +113,13 @@ class ScanHistory(models.Model):
 			.count()
 		)
 
+	def get_leaked_secret_count(self):
+		return (
+			LeakedSecret.objects
+			.filter(scan_history__id=self.id)
+			.count()
+		)
+
 	def get_unknown_vulnerability_count(self):
 		return (
 			Vulnerability.objects
@@ -679,3 +686,23 @@ class S3Bucket(models.Model):
 	perm_all_users_full_control = models.IntegerField(default=0)
 	num_objects = models.IntegerField(default=0)
 	size = models.IntegerField(default=0)
+
+
+class LeakedSecret(models.Model):
+	id = models.AutoField(primary_key=True)
+	scan_history = models.ForeignKey(ScanHistory, on_delete=models.CASCADE, null=True, blank=True)
+	target_domain = models.ForeignKey(Domain, on_delete=models.CASCADE, null=True, blank=True)
+	source = models.CharField(max_length=50, null=True, blank=True)
+	rule_id = models.CharField(max_length=200, null=True, blank=True)
+	repo_url = models.CharField(max_length=2000, null=True, blank=True)
+	file_path = models.CharField(max_length=2000, null=True, blank=True)
+	commit = models.CharField(max_length=100, null=True, blank=True)
+	line = models.IntegerField(null=True, blank=True)
+	# Always stored masked/truncated by save_leaked_secret() — never the raw secret.
+	secret_redacted = models.TextField(null=True, blank=True)
+	description = models.TextField(null=True, blank=True)
+	severity = models.IntegerField(default=4)
+	discovered_date = models.DateTimeField(null=True, blank=True)
+
+	def __str__(self):
+		return f'{self.source}:{self.rule_id}'

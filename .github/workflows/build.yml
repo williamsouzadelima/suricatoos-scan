@@ -2,7 +2,7 @@ name: 🚀 Build and Push Docker image
 
 on:
   push:
-    branches: [ master ]
+    branches: [ main ]
   release:
     types: [published]
   schedule:
@@ -37,7 +37,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: williamsouzadelima/suricatoos
+          images: williamsouzadelima/suricatoos-scan
           tags: |
             type=raw,value=${{ matrix.platform }}-latest,enable={{is_default_branch}}
             type=semver,pattern=${{ matrix.platform }}-{{version}}

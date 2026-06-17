@@ -55,7 +55,7 @@ Pin-Priority: -1
 apt update
 apt install firefox -y
 
-# Temporary fix for whatportis bug - See https://github.com/williamsouzadelima/suricatoos/issues/984
+# Temporary fix for whatportis bug - See https://github.com/williamsouzadelima/suricatoos-scan/issues/984
 sed -i 's/purge()/truncate()/g' /usr/local/lib/python3.10/dist-packages/whatportis/cli.py
 
 # update whatportis
@@ -112,6 +112,14 @@ then
   git clone https://github.com/laramies/theHarvester /usr/src/github/theHarvester
 fi
 python3 -m pip install -r /usr/src/github/theHarvester/requirements/base.txt
+
+# clone spiderfoot (pinned to a fixed release for reproducible OSINT parsing)
+if [ ! -d "/usr/src/github/spiderfoot" ]
+then
+  echo "Cloning SpiderFoot v4.0"
+  git clone --branch v4.0 --depth 1 https://github.com/smicallef/spiderfoot /usr/src/github/spiderfoot
+fi
+python3 -m pip install -r /usr/src/github/spiderfoot/requirements.txt
 
 # clone vulscan
 if [ ! -d "/usr/src/github/scipag_vulscan" ]
@@ -253,6 +261,7 @@ workers=(
     "osint_discovery_queue:10:osint_discovery_worker"
     "h8mail_queue:10:h8mail_worker"
     "theHarvester_queue:10:theHarvester_worker"
+    "spiderfoot_queue:10:spiderfoot_worker"
     "send_scan_notif_queue:10:send_scan_notif_worker"
 )
 

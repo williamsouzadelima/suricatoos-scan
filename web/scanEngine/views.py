@@ -501,11 +501,15 @@ def llm_toolkit_section(request, slug):
 def api_vault(request, slug):
     context = {}
     if request.method == "POST":
-        key_openai = request.POST.get('key_openai')
-        key_netlas = request.POST.get('key_netlas')
-        key_chaos = request.POST.get('key_chaos')
-        key_hackerone = request.POST.get('key_hackerone')
-        username_hackerone = request.POST.get('username_hackerone')
+        # strip() the keys at intake: netlas/chaos keys are interpolated into recon
+        # shell commands, so trailing whitespace must never reach the command line
+        # (the tasks layer additionally allowlists them before use).
+        key_openai = (request.POST.get('key_openai') or '').strip()
+        key_netlas = (request.POST.get('key_netlas') or '').strip()
+        key_chaos = (request.POST.get('key_chaos') or '').strip()
+        key_gitguardian = (request.POST.get('key_gitguardian') or '').strip()
+        key_hackerone = (request.POST.get('key_hackerone') or '').strip()
+        username_hackerone = (request.POST.get('username_hackerone') or '').strip()
 
 
         if key_openai:
@@ -532,6 +536,14 @@ def api_vault(request, slug):
             else:
                 ChaosAPIKey.objects.create(key=key_chaos)
 
+        if key_gitguardian:
+            gitguardian_api_key = GitGuardianAPIKey.objects.first()
+            if gitguardian_api_key:
+                gitguardian_api_key.key = key_gitguardian
+                gitguardian_api_key.save()
+            else:
+                GitGuardianAPIKey.objects.create(key=key_gitguardian)
+
         if key_hackerone and username_hackerone:
             hackerone_api_key = HackerOneAPIKey.objects.first()
             if hackerone_api_key:
@@ -547,6 +559,7 @@ def api_vault(request, slug):
     openai_key = OpenAiAPIKey.objects.first()
     netlas_key = NetlasAPIKey.objects.first()
     chaos_key = ChaosAPIKey.objects.first()
+    gitguardian_key = GitGuardianAPIKey.objects.first()
     h1_key = HackerOneAPIKey.objects.first()
     if h1_key:
         hackerone_key = h1_key.key
@@ -558,6 +571,7 @@ def api_vault(request, slug):
     context['openai_key'] = openai_key
     context['netlas_key'] = netlas_key
     context['chaos_key'] = chaos_key
+    context['gitguardian_key'] = gitguardian_key
     context['hackerone_key'] = hackerone_key
     context['hackerone_username'] = hackerone_username
     

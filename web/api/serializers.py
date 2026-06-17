@@ -776,6 +776,20 @@ class EmailSerializer(serializers.ModelSerializer):
 		fields = '__all__'
 
 
+class LeakedSecretSerializer(serializers.ModelSerializer):
+
+	class Meta:
+		model = LeakedSecret
+		# Explicit allowlist (never '__all__'): only the masked secret is exposed.
+		# If a raw-secret column is ever added to the model, it must NOT be added
+		# here, so the API can never leak a raw value by accident.
+		fields = [
+			'id', 'scan_history', 'target_domain', 'source', 'rule_id',
+			'repo_url', 'file_path', 'commit', 'line', 'secret_redacted',
+			'description', 'severity', 'discovered_date',
+		]
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:

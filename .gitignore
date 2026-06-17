@@ -2,6 +2,10 @@ web/custom_engines*
 Pipfile*
 resume.cfg
 *.txt
+# Keep source .txt files that MUST ship in the repo (build/runtime depend on them)
+!web/requirements.txt
+!web/fixtures/extensions.txt
+!web/art/Suricatoos.txt
 *.log
 *.pot
 *.pyc
@@ -62,3 +66,5 @@ get-docker.sh
 
 # Environment variables
 .env
+# Ignore .env backups (e.g. .env.bak.YYYYMMDD-*) but keep .env.example tracked
+.env.bak*

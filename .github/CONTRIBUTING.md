@@ -20,7 +20,7 @@ Your contributions are again highly appreciated!
 
 Please report [bugs here on GitHub Issues section][1].
 
-[1]: https://github.com/williamsouzadelima/suricatoos/issues/new
+[1]: https://github.com/williamsouzadelima/suricatoos-scan/issues/new
 
 
 ## Feature requests
@@ -40,7 +40,7 @@ If Suricatoos happens to be your first open-source project to contribute to, ple
 ```
 cd suricatoos
 # Assign upstream
-git remote add upstream https://github.com/williamsouzadelima/suricatoos.git
+git remote add upstream https://github.com/williamsouzadelima/suricatoos-scan.git
 ```
 4. If cloning was done a while ago, please get the latest changes from upstream
 ```

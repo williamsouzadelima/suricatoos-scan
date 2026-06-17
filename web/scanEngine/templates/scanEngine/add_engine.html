@@ -119,7 +119,8 @@ osint: {
     }
   ],
   'intensity': 'normal',
-  'documents_limit': 50
+  'documents_limit': 50,
+  'enable_spiderfoot': false
 }
 dir_file_fuzz: {
   'auto_calibration': true,
@@ -196,6 +197,11 @@ screenshot: {
   'intensity': 'normal',
   'timeout': 10,
   'threads': 40
+}
+secret_scan: {
+  'run_gitleaks': true,
+  'run_ggshield': false,
+  'gitleaks_mode': 'dir'
 }
 #custom_headers: ['Foo: Bar', 'X-Forwarded-For: 127.0.0.1']
 `;
