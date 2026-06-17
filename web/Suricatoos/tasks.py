@@ -2480,6 +2480,20 @@ def _filter_list(values, regex):
 	return [str(v) for v in values if v is not None and regex.match(str(v))]
 
 
+def _shell_false_headers(headers):
+	"""Build ' -H Name:value' fragments for a shell=False command (run via cmd.split()).
+	Accepts the documented 'Name: value' form and normalizes away the space after the
+	colon so each header stays a single argv token; rejects control chars and values with
+	internal whitespace (which cmd.split() could not keep together) and leading-dash
+	flag smuggling."""
+	parts = []
+	for h in headers or []:
+		m = re.match(r'^([A-Za-z0-9-]+):[ \t]*([\x21-\x7E]+)$', str(h))
+		if m:
+			parts.append(f'-H {m.group(1)}:{m.group(2)}')
+	return (' ' + ' '.join(parts)) if parts else ''
+
+
 @app.task(name='spiderfoot_scan', queue='spiderfoot_queue', bind=False)
 def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx={}):
 	"""Run SpiderFoot OSINT headless (no web UI) and map discovered events to
@@ -2818,9 +2832,7 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	# shell=False here, so do NOT shell-quote (cmd.split() would keep the quotes).
 	# Keep only no-whitespace header-shaped values so they stay a single argv token
 	# and cannot smuggle an extra nuclei flag.
-	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[^\s]*$', str(h))]
-	if safe_headers:
-		cmd += ' ' + ' '.join(f'-H {h}' for h in safe_headers)
+	cmd += _shell_false_headers(custom_headers)
 	cmd += f' -l {input_path}'
 	cmd += f' -c {str(concurrency)}' if concurrency > 0 else ''
 	cmd += f' -proxy {proxy} ' if proxy else ''
@@ -2884,9 +2896,11 @@ def dalfox_xss_scan(self, urls=[], ctx={}, description=None):
 	is_waf_evasion = dalfox_config.get(WAF_EVASION, False)
 	blind_xss_server = dalfox_config.get(BLIND_XSS_SERVER)
 	user_agent = dalfox_config.get(USER_AGENT) or self.yaml_configuration.get(USER_AGENT)
-	timeout = dalfox_config.get(TIMEOUT)
-	delay = dalfox_config.get(DELAY)
-	threads = dalfox_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
+	# shell=False: int-coerce so a tainted YAML string can't smuggle extra argv/flags
+	# (the cmd gates are bare truthiness, so junk -> 0 also disables the flag).
+	timeout = _safe_int(dalfox_config.get(TIMEOUT), 0)
+	delay = _safe_int(dalfox_config.get(DELAY), 0)
+	threads = _safe_int(dalfox_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	input_path = f'{self.results_dir}/input_endpoints_dalfox_xss.txt'
 
 	if urls:
@@ -2916,9 +2930,7 @@ def dalfox_xss_scan(self, urls=[], ctx={}, description=None):
 	cmd += f' --timeout {timeout}' if timeout else ''
 	# shell=False (stream_command): keep only no-whitespace header-shaped values so
 	# each is a single, flag-safe argv token.
-	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[^\s]*$', str(h))]
-	if safe_headers:
-		cmd += ' ' + ' '.join(f'-H {h}' for h in safe_headers)
+	cmd += _shell_false_headers(custom_headers)
 	cmd += f' --user-agent {user_agent}' if user_agent and not re.search(r'\s|^-', str(user_agent)) else ''
 	cmd += f' --worker {threads}' if threads else ''
 	cmd += f' --format json'
@@ -3043,9 +3055,7 @@ def crlfuzz_scan(self, urls=[], ctx={}, description=None):
 	cmd += f' -l {input_path}'
 	cmd += f' -x {proxy}' if proxy else ''
 	# shell=False: keep only no-whitespace header-shaped values (single argv token).
-	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[^\s]*$', str(h))]
-	if safe_headers:
-		cmd += ' ' + ' '.join(f'-H {h}' for h in safe_headers)
+	cmd += _shell_false_headers(custom_headers)
 	cmd += f' -o {output_path}'
 
 	run_command(
@@ -3142,8 +3152,10 @@ def s3scanner(self, ctx={}, description=None):
 	input_path = f'{self.results_dir}/#{self.scan_id}_subdomain_discovery.txt'
 	vuln_config = self.yaml_configuration.get(VULNERABILITY_SCAN) or {}
 	s3_config = vuln_config.get(S3SCANNER) or {}
-	threads = s3_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
-	providers = s3_config.get(PROVIDERS, S3SCANNER_DEFAULT_PROVIDERS)
+	# shell=False (stream_command): int-coerce threads and allowlist providers so a
+	# tainted engine-YAML value can't smuggle extra argv/flags into s3scanner.
+	threads = _safe_int(s3_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
+	providers = _filter_list(s3_config.get(PROVIDERS, S3SCANNER_DEFAULT_PROVIDERS), SAFE_TOKEN_RE)
 	scan_history = ScanHistory.objects.filter(pk=self.scan_id).first()
 	for provider in providers:
 		cmd = f's3scanner -bucket-file {input_path} -enumerate -provider {provider} -threads {threads} -json'
@@ -3247,9 +3259,7 @@ def http_crawl(
 	cmd += f' --http-proxy {proxy}' if proxy else ''
 	# shell=False: keep only no-whitespace header-shaped values (no quotes), so each
 	# stays one argv token and cannot smuggle an httpx flag.
-	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[^\s]*$', str(h))]
-	if safe_headers:
-		cmd += ' ' + ' '.join(f'-H {h}' for h in safe_headers)
+	cmd += _shell_false_headers(custom_headers)
 	cmd += f' -json'
 	cmd += f' -u {urls[0]}' if len(urls) == 1 else f' -l {input_path}'
 	cmd += f' -x {method}' if method and re.match(r'^[A-Z]+$', str(method)) else ''
@@ -4272,8 +4282,9 @@ def fetch_whois_data_using_netlas(target):
 			dict: WHOIS information.
 	"""
 	logger.info(f'Fetching WHOIS data for {target} using Netlas...')
-	command = f'netlas host {target} -f json'
-	netlas_key = get_netlas_key()
+	command = f'netlas host {_allow(target, SAFE_HOST_RE, "")} -f json'
+	# shell=False: allowlist the vault key so it can't smuggle an argv flag.
+	netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
 	if netlas_key:
 		command += f' -a {netlas_key}'
 
@@ -4589,12 +4600,21 @@ def get_and_save_dork_results(lookup_target, results_dir, type, lookup_keywords=
 			scan_history (startScan.ScanHistory): Scan History Object
 	"""
 	results = []
+	# shell=False (cmd.split()): allowlist the operator-supplied dork fields so none can
+	# smuggle an extra argv/flag token (no whitespace, no leading dash, no metachars).
+	DORK_ARG_RE = re.compile(r'^[A-Za-z0-9._,/][A-Za-z0-9._,/-]*$')
+	lookup_target = _allow(lookup_target, DORK_ARG_RE, '')
+	if not lookup_target:
+		logger.warning('dork: unsafe or empty lookup_target, skipping')
+		return results
+	delay = _safe_int(delay, 3)
+	page_count = _safe_int(page_count, 2)
 	gofuzz_command = f'{GOFUZZ_EXEC_PATH} -t {lookup_target} -d {delay} -p {page_count}'
 	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
-	if lookup_extensions:
+	if _allow(lookup_extensions, DORK_ARG_RE):
 		gofuzz_command += f' -e {lookup_extensions}'
-	elif lookup_keywords:
+	elif _allow(lookup_keywords, DORK_ARG_RE):
 		gofuzz_command += f' -w {lookup_keywords}'
 
 	if proxy:

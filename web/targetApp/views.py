@@ -78,14 +78,13 @@ def add_target(request, slug):
                         url = urlparse(target)
                         http_url = url.geturl()
                         http_urls.append(http_url)
-                        split = url.netloc.split(':')
-                        if len(split) == 1:
-                            domain = split[0]
-                            domains.append(domain)
-                        if len(split) == 2:
-                            domain, port_number = tuple(split)
-                            domains.append(domain)
-                            ports.append(port_number)
+                        # Use hostname (strips userinfo and :port), NOT the raw netloc:
+                        # a URL like http://user:$(id)@example.com/ would otherwise store a
+                        # Domain.name with shell metacharacters.
+                        domain = url.hostname or ''
+                        domains.append(domain)
+                        if url.port:
+                            ports.append(str(url.port))
 
                     elif is_ip:
                         ips.append(target)
@@ -108,6 +107,13 @@ def add_target(request, slug):
                     logger.info(f'IPs: {ips} | Domains: {domains} | URLs: {http_urls} | Ports: {ports}')
 
                     for domain_name in domains:
+                        # Re-validate at the single creation chokepoint: Domain.name flows
+                        # unquoted into shell scan commands, so only persist clean domains/IPs.
+                        if not (validators.domain(domain_name)
+                                or validators.ipv4(domain_name)
+                                or validators.ipv6(domain_name)):
+                            logger.warning(f'Skipping unsafe target name {domain_name!r}')
+                            continue
                         if not Domain.objects.filter(name=domain_name).exists():
                             domain, created = Domain.objects.get_or_create(
                                 name=domain_name,
@@ -241,6 +247,11 @@ def add_target(request, slug):
                 for ip in resolved_ips:
                     is_domain = bool(validators.domain(ip))
                     is_ip = bool(validators.ipv4(ip)) or bool(validators.ipv6(ip))
+                    # Enforce the validation that was computed but never applied: never
+                    # persist an arbitrary string as Domain.name (it reaches shell commands).
+                    if not (is_domain or is_ip):
+                        logger.warning(f'Skipping unsafe resolved target {ip!r}')
+                        continue
                     description = request.POST.get('targetDescription', '')
                     h1_team_handle = request.POST.get('targetH1TeamHandle', '')
                     if not Domain.objects.filter(name=ip).exists():

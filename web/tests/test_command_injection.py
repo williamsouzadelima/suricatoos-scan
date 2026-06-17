@@ -16,8 +16,9 @@ from django.test import TestCase
 from django.utils import timezone
 
 from Suricatoos.tasks import (subdomain_discovery, _safe_int, _allow,
-                              _filter_list, SAFE_HOST_RE, SAFE_TOKEN_RE,
-                              SAFE_PATH_RE, SAFE_PORT_RE, SAFE_EXT_RE, PROXY_RE)
+                              _filter_list, _shell_false_headers, SAFE_HOST_RE,
+                              SAFE_TOKEN_RE, SAFE_PATH_RE, SAFE_PORT_RE,
+                              SAFE_EXT_RE, PROXY_RE)
 from Suricatoos.database_utils import store_url, store_domain, store_ip
 from Suricatoos.common_func import get_nmap_cmd
 from dashboard.models import Project
@@ -66,6 +67,21 @@ class TestInjectionHelpers(unittest.TestCase):
         self.assertEqual(
             _filter_list(['php', 'js;id', '.html', 'a b'], SAFE_EXT_RE),
             ['php', '.html'])
+
+    def test_shell_false_headers_keeps_documented_format(self):
+        # The documented 'Name: value' form (space after colon) must survive as a
+        # single argv token (normalized to Name:value), not be dropped.
+        self.assertEqual(_shell_false_headers(['Cookie: Test']), ' -H Cookie:Test')
+        self.assertEqual(
+            _shell_false_headers(['X-Forwarded-For: 127.0.0.1']),
+            ' -H X-Forwarded-For:127.0.0.1')
+        self.assertEqual(_shell_false_headers(['Name:value']), ' -H Name:value')
+
+    def test_shell_false_headers_blocks_smuggling(self):
+        # values with internal whitespace / newlines / flag smuggling are dropped
+        self.assertEqual(_shell_false_headers(['X: a -config /etc/x']), '')
+        self.assertEqual(_shell_false_headers(['X: a\nInjected: 1']), '')
+        self.assertEqual(_shell_false_headers([]), '')
 
 
 class TestStoreTargetRevalidation(TestCase):
