@@ -5,6 +5,12 @@
 Update Target
 {% endblock title %}
 
+{% block breadcrumb_title %}
+<li class="breadcrumb-item"><a href="{% url 'dashboardIndex' current_project.slug %}">Dashboard</a></li>
+<li class="breadcrumb-item"><a href="{% url 'list_target' current_project.slug %}">Targets</a></li>
+<li class="breadcrumb-item active">Edit Target</li>
+{% endblock breadcrumb_title %}
+
 
 {% block custom_js_css_link %}
 {% endblock custom_js_css_link %}

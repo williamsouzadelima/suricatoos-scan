@@ -7,6 +7,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="{% static 'bootstrap/bootstrap.min.css' %}" rel="stylesheet" type="text/css" id="bootstrap-stylesheet" />
     <link href="{% static 'assets/css/app.min.css' %}" rel="stylesheet" type="text/css" id="main-stylesheet" />
+    <link rel="icon" type="image/svg+xml" href="/staticfiles/img/favicon.svg">
+    <link href="{% static 'custom/premium-theme.css' %}" rel="stylesheet" type="text/css" />
+    <script>
+      (function(){ try { var t = localStorage.getItem('suricatoos-theme');
+        document.documentElement.setAttribute('data-sx-theme',
+        (t === null || t === 'dark') ? 'dark' : 'light'); } catch(e){} })();
+    </script>
     <style>
       .card {
         transition: all 0.3s ease;
@@ -45,8 +52,9 @@
           <div class="col-xl-10">
             <form method="POST" autocomplete="off"> {% csrf_token %}
               <div class="text-center mb-4">
-                <h3 class="text-white">Welcome to Suricatoos</h3>
-                <p class="text-muted">Let's set up your environment to get started with Suricatoos.</p>
+                <span class="badge bg-soft-primary mb-2" style="letter-spacing:.08em;">INITIAL SETUP</span>
+                <h3>Welcome to Suricatoos</h3>
+                <p class="text-muted">Let's set up your environment. Only the <strong>project name</strong> is required — everything else is optional and can be configured later.</p>
               </div>
               {% if error %}
               <div class="alert alert-danger">
@@ -58,14 +66,15 @@
                   <h5 class="card-title"><i class="fe-folder text-primary me-2"></i>Project</h5>
                   <p class="card-text text-muted">Create your first project to organize and manage your security assessments.</p>
                   <div class="mb-3">
-                    <label for="project_name" class="form-label">Project name</label>
-                    <input class="form-control" type="text" id="project_name" name="project_name" required value="Default">
+                    <label for="project_name" class="form-label">Project name <span class="text-danger">*</span></label>
+                    <input class="form-control" type="text" id="project_name" name="project_name" required value="Default" placeholder="e.g. Acme Pentest 2026">
+                    <small class="text-muted">Pick a name that identifies the client or engagement. You can rename it later.</small>
                   </div>
                 </div>
               </div>
               <div class="card mb-4">
                 <div class="card-body">
-                  <h5 class="card-title"><i class="fe-user-plus text-primary me-2"></i>Additional User</h5>
+                  <h5 class="card-title"><i class="fe-user-plus text-primary me-2"></i>Additional User <small class="text-muted fw-normal ms-1">— optional</small></h5>
                   <p class="card-text text-muted">Add an additional user and assign them a role. You can manage users and their roles anytime in the future.</p>
                   <div class="mb-3">
                     <label for="create_username" class="form-label">Username</label>
@@ -78,10 +87,11 @@
                   <div class="mb-3">
                     <label for="create_user_role" class="form-label">Role</label>
                     <select class="form-select" id="create_user_role" name="create_user_role">
-                      <option value='sys_admin'>Sys Admin</option>
-                      <option value='penetration_tester'>Penetration Tester</option>
-                      <option value='auditor'>Auditor</option>
+                      <option value='sys_admin'>Sys Admin — full access, manage users &amp; settings</option>
+                      <option value='penetration_tester'>Penetration Tester — run scans &amp; triage findings</option>
+                      <option value='auditor'>Auditor — read-only access to results &amp; reports</option>
                     </select>
+                    <small class="text-muted">Only needed if you want to add a second user now.</small>
                   </div>
                 </div>
               </div>
@@ -110,8 +120,8 @@
               </div>
               <div class="card mb-4">
                 <div class="card-body">
-                  <h5 class="card-title"><i class="fe-key text-primary me-2"></i>API Keys</h5>
-                  <p class="card-text text-muted">Enter your API keys for various services to enhance Suricatoos's capabilities.</p>
+                  <h5 class="card-title"><i class="fe-key text-primary me-2"></i>API Keys <small class="text-muted fw-normal ms-1">— optional</small></h5>
+                  <p class="card-text text-muted">These enhance Suricatoos but are not required to start. You can skip this now and add them anytime under <strong>Settings &rarr; API Vault</strong>.</p>
                   <div class="mb-3">
                     <label for="key_openai" class="form-label">OpenAI Key</label>
                     <input class="form-control" type="text" id="key_openai" name="key_openai" placeholder="Enter OpenAI Key" value="{{openai_key}}">

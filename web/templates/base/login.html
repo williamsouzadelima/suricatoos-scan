@@ -5,11 +5,27 @@
   <meta charset="utf-8" />
   <title>Login Suricatoos</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="/staticfiles/img/favicon.svg">
+  <link rel="shortcut icon" href="/staticfiles/img/favicon.png">
   <link href="{% static 'bootstrap/bootstrap.min.css' %}" rel="stylesheet" type="text/css" id="bootstrap-stylesheet" />
   <link href="{% static 'assets/css/app.min.css' %}" rel="stylesheet" type="text/css" id="main-stylesheet" />
   <link href="{% static 'bootstrap/bootstrap-dark.min.css' %}" rel="stylesheet" type="text/css" id="bootstrap-dark-stylesheet" />
   <link href="{% static 'assets/css/app-dark.min.css' %}" rel="stylesheet" type="text/css" id="main-dark-stylesheet" />
+  <script>
+    /* Tema escuro premium por padrão na tela de login (sem flash). */
+    (function () {
+      try {
+        var t = localStorage.getItem('suricatoos-theme');
+        var dark = (t === null || t === 'dark');
+        document.documentElement.setAttribute('data-sx-theme', dark ? 'dark' : 'light');
+        [['bootstrap-stylesheet', dark], ['main-stylesheet', dark],
+         ['bootstrap-dark-stylesheet', !dark], ['main-dark-stylesheet', !dark]]
+        .forEach(function (p) { var e = document.getElementById(p[0]); if (e) { if (p[1]) e.setAttribute('disabled', 'true'); else e.removeAttribute('disabled'); } });
+      } catch (e) {}
+    })();
+  </script>
   <link href="{% static 'assets/css/icons.min.css' %}" rel="stylesheet" type="text/css" />
+  <link href="{% static 'custom/premium-theme.css' %}" rel="stylesheet" type="text/css" />
   <style media="screen">
     @font-face {
       font-family: "Cerebri Sans,sans-serif";
@@ -53,7 +69,8 @@
                 <div class="auth-logo">
                   <a href="index.html" class="logo text-center">
                     <span class="logo-lg">
-                      <img src="/staticfiles/img/logo-lg.png" alt="" height="90">
+                      <img class="sx-logo-for-dark" src="/staticfiles/img/suricatoos-logo-light.svg" alt="Suricatoos" style="width: 230px; max-width: 100%; height: auto;">
+                      <img class="sx-logo-for-light" src="/staticfiles/img/suricatoos-logo-dark.svg" alt="Suricatoos" style="width: 230px; max-width: 100%; height: auto;">
                     </span>
                   </a>
                 </div>

@@ -7,11 +7,28 @@
     <title>{% block title %} {% endblock title %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <link rel="icon" type="image/svg+xml" href="/staticfiles/img/favicon.svg">
     <link rel="shortcut icon" href="/staticfiles/img/favicon.png">
     <link href="{% static 'bootstrap/bootstrap.min.css' %}" rel="stylesheet" type="text/css" id="bootstrap-stylesheet" />
     <link href="{% static 'assets/css/app.min.css' %}" rel="stylesheet" type="text/css" id="main-stylesheet" />
     <link href="{% static 'bootstrap/bootstrap-dark.min.css' %}" rel="stylesheet" type="text/css" id="bootstrap-dark-stylesheet" />
     <link href="{% static 'assets/css/app-dark.min.css' %}" rel="stylesheet" type="text/css" id="main-dark-stylesheet" />
+    <script>
+      /* Tema escuro premium por padrão (sem flash). Respeita preferência 'light' salva pelo usuário. */
+      (function () {
+        try {
+          var t = localStorage.getItem('suricatoos-theme');
+          var dark = (t === null || t === 'dark'); /* ausente ou 'dark' => escuro */
+          document.documentElement.setAttribute('data-sx-theme', dark ? 'dark' : 'light');
+          [['bootstrap-stylesheet', dark], ['main-stylesheet', dark],
+           ['bootstrap-dark-stylesheet', !dark], ['main-dark-stylesheet', !dark]]
+          .forEach(function (p) {
+            var e = document.getElementById(p[0]);
+            if (e) { if (p[1]) e.setAttribute('disabled', 'true'); else e.removeAttribute('disabled'); }
+          });
+        } catch (e) {}
+      })();
+    </script>
     <link href="{% static 'assets/css/icons.min.css' %}" rel="stylesheet" type="text/css" />
     <link href="{% static 'plugins/snackbar/snackbar.min.css' %}" rel="stylesheet" type="text/css" />
     <link href="{% static 'plugins/sweetalert2/sweetalert2.min.css' %}" rel="stylesheet" type="text/css" />
@@ -21,6 +38,7 @@
     <link rel="stylesheet" type="text/css" href="{% static 'plugins/datatable/global.css' %}">
     <!-- <link rel="stylesheet" type="text/css" href="{% static 'plugins/datatable/custom.css' %}"> -->
     <link href="https://cdn.datatables.net/rowgroup/1.4.0/css/rowGroup.dataTables.min.css" rel="stylesheet" type="text/css" />
+    <link href="{% static 'custom/premium-theme.css' %}" rel="stylesheet" type="text/css" />
     <style media="screen">
       @font-face {
         font-family: "Cerebri Sans,sans-serif";
@@ -58,6 +76,19 @@
   </head>
 
   <body class="loading" data-layout-mode="horizontal" data-suricatoos-version="{{ SURICATOOS_CURRENT_VERSION }}" data-current-project="{{ current_project.slug }}">
+    <script>
+      /* Sincroniza o config de tema do Adminto (lido de body[data-layout] pelo app.min.js)
+         com a preferencia salva, ANTES do App.init() rodar. Sem isso config.mode cai no
+         default "light" e o App.init chama changeMode("light"), que reativa os stylesheets
+         claros (desfazendo o <script> do <head>) e dispara o flash de 500ms a cada load. */
+      (function () {
+        try {
+          var t = localStorage.getItem('suricatoos-theme');
+          var mode = (t === null || t === 'dark') ? 'dark' : 'light';
+          document.body.setAttribute('data-layout', JSON.stringify({ mode: mode }));
+        } catch (e) {}
+      })();
+    </script>
     <!-- Topbar begins -->
     {% include 'base/_items/top_bar.html' %}
     {# topbar ends #}
@@ -99,6 +130,13 @@
     <script src="https://unpkg.com/tippy.js@6"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/2.3.8/purify.min.js"></script>
     <script src="{% static 'assets/js/app.min.js' %}"></script>
+    <script>
+      /* app.min.js -> App.init() -> changeMode() esconde o <body> por 500ms (anti-FOUC de
+         uma troca de stylesheet que, pra nos, ja aconteceu antes do primeiro paint via o
+         <script> do <head>). Restaura a visibilidade no mesmo tick para nao haver tela em
+         branco a cada load. */
+      try { document.body.style.visibility = 'visible'; document.body.style.opacity = '1'; } catch (e) {}
+    </script>
     <script src="{% static 'custom/custom.js' %}"></script>
     <script src="{% static 'custom/update.js' %}"></script>
     <script src="{% static 'custom/toolbox.js' %}"></script>
@@ -126,17 +164,22 @@
         checkDailyUpdate();
 
         getScanStatusSidebar(project='{{current_project.slug}}', reload=false);
+        // Feedback em tempo real: atualiza a sidebar de status de scan a cada 15s (silencioso).
+        setInterval(function(){ getScanStatusSidebar(project='{{current_project.slug}}', reload=false); }, 15000);
 
         // tippy for notification or scan acitivity
         tippy('.top-activity-counter', {
           content: 'Scan Activity',
         });
-        if (localStorage.getItem('suricatoos-theme') == "dark") {
-          $('#dark-mode-check').prop("checked", true).change();
-        }
-        else{
-          $('#dark-mode-check').prop("checked", false).change();
-        }
+        // Dark é o padrão premium. O <script> inline no <head> já aplicou os stylesheets
+        // sem flash; aqui só sincronizamos o estado visual do toggle (sem .change(), que
+        // re-dispararia changeMode() e seu setTimeout de 500ms = flash a cada load).
+        var sxTheme = localStorage.getItem('suricatoos-theme');
+        $('#dark-mode-check').prop("checked", sxTheme === null || sxTheme === "dark");
+        // Mantém o tema premium (data-sx-theme) sincronizado quando o usuário alterna.
+        $('#dark-mode-check').on('change', function () {
+          document.documentElement.setAttribute('data-sx-theme', this.checked ? 'dark' : 'light');
+        });
         handleHashInUrl();
       });
 
