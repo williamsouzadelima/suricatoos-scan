@@ -16,7 +16,23 @@ def serve_spa(request, path=''):
     if not os.path.isfile(index):
         raise Http404(_t("SPA build not found. Run the frontend build."))
     with open(index, 'r', encoding='utf-8') as f:
-        return HttpResponse(f.read())
+        response = HttpResponse(f.read())
+    # Defence-in-depth CSP for the SPA shell: the built bundle loads only
+    # same-origin hashed JS/CSS (no inline scripts), so 'self' for script-src
+    # is safe and blocks injected/3rd-party script if a future XSS sink appears.
+    # 'unsafe-inline' stays on style-src for React inline style attributes.
+    response['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self' data:; "
+        "connect-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'"
+    )
+    return response
 
 
 def serve_branding_asset(request, path):
@@ -27,8 +43,15 @@ def serve_branding_asset(request, path):
     (and as the favicon). Only a basename within branding/ is served, so this
     can't be used to read arbitrary files.
     """
-    name = os.path.basename(path)
-    file_path = os.path.join(settings.MEDIA_ROOT, 'branding', name)
+    branding_dir = os.path.realpath(
+        os.path.join(settings.MEDIA_ROOT, 'branding'))
+    # basename() strips any directory component; realpath()+containment is the
+    # belt-and-suspenders barrier so the resolved path can never escape
+    # branding/ (also satisfies CodeQL's path-injection sanitizer).
+    file_path = os.path.realpath(
+        os.path.join(branding_dir, os.path.basename(path)))
+    if os.path.commonpath([branding_dir, file_path]) != branding_dir:
+        raise Http404(_t("File not found"))
     if not os.path.isfile(file_path):
         raise Http404(_t("File not found"))
     content_type, _ = mimetypes.guess_type(file_path)

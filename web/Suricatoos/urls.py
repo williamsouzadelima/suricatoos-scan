@@ -9,7 +9,8 @@ from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 
 from Suricatoos.views import serve_protected_media, serve_branding_asset, serve_spa
-from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView, TokenRefreshView, TokenBlacklistView)
 
 schema_view = get_schema_view(
    openapi.Info(
@@ -35,6 +36,9 @@ urlpatterns = [
     path('api/', include('api.urls', 'api')),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # Logout: blacklist the refresh token server-side (the SPA calls this so a
+    # token is revoked, not just dropped from localStorage).
+    path('api/token/logout/', TokenBlacklistView.as_view(), name='token_blacklist'),
     path(
         '',
         include('dashboard.urls')),

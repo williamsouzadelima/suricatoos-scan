@@ -15,7 +15,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokenStore.set({ access: res.data.access, refresh: res.data.refresh })
     setAuth(true)
   }
-  function logout() { tokenStore.clear(); setAuth(false) }
+  function logout() {
+    // Best-effort: revoke the refresh token server-side (blacklist) so it can't
+    // be reused after logout; clear local state regardless of the call's outcome.
+    const refresh = tokenStore.refresh
+    if (refresh) api.post('/token/logout/', { refresh }).catch(() => {})
+    tokenStore.clear(); setAuth(false)
+  }
   return <Ctx.Provider value={{ isAuthenticated, login, logout }}>{children}</Ctx.Provider>
 }
 

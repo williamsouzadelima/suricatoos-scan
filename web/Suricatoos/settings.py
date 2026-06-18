@@ -85,6 +85,7 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     'rest_framework',
     'rest_framework_datatables',
+    'rest_framework_simplejwt.token_blacklist',
     'corsheaders',
     'dashboard.apps.DashboardConfig',
     'targetApp.apps.TargetappConfig',
@@ -163,13 +164,21 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
     'ROTATE_REFRESH_TOKENS': True,
+    # Blacklist the old refresh token on rotation and on explicit logout
+    # (token_blacklist app) so a leaked/rotated refresh token can be revoked
+    # server-side instead of staying valid for its full 7-day lifetime.
+    'BLACKLIST_AFTER_ROTATION': True,
 }
 # CORS: dev SPA runs on the Vite server (different origin); production serves the
 # built SPA same-origin. Origins are env-driven; default to the Vite dev server.
 CORS_ALLOWED_ORIGINS = env.list(
     'CORS_ALLOWED_ORIGINS',
     default=['http://localhost:5173', 'http://127.0.0.1:5173'])
-CORS_ALLOW_CREDENTIALS = True
+# The SPA authenticates with a Bearer header (not cookies), so credentialed CORS
+# is unnecessary. Keeping it False avoids arming cross-origin cookie exfiltration
+# if CORS_ALLOWED_ORIGINS is ever broadened. Override via env only if a future
+# cookie-based cross-origin client genuinely needs it.
+CORS_ALLOW_CREDENTIALS = env.bool('CORS_ALLOW_CREDENTIALS', default=False)
 
 WSGI_APPLICATION = 'Suricatoos.wsgi.application'
 
