@@ -1,2 +1,6 @@
 Dockerfile  eol=lf
 *.sh        eol=lf
+*.html      eol=lf
+*.py        eol=lf
+*.css       eol=lf
+*.js        eol=lf
