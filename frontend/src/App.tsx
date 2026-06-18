@@ -9,7 +9,7 @@ import { Osint } from './pages/Osint'
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
+      <BrowserRouter basename={import.meta.env.PROD ? "/app" : "/"}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>

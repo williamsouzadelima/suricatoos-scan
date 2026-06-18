@@ -3,12 +3,12 @@ from django.conf.urls import url
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from django.urls import include, path
+from django.urls import include, path, re_path
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 
-from Suricatoos.views import serve_protected_media, serve_branding_asset
+from Suricatoos.views import serve_protected_media, serve_branding_asset, serve_spa
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 schema_view = get_schema_view(
@@ -61,6 +61,8 @@ urlpatterns = [
     # JWT auth for the SPA / external clients (session auth still works too).
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    # SPA mounted at /app/* (client-side routing -> serve the shell for any subpath)
+    re_path(r'^app(?:/.*)?$', serve_spa, name='spa'),
     path(
         'media/<path:path>',
         serve_protected_media,

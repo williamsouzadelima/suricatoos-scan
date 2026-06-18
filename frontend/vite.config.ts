@@ -1,15 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
-// Dev: Vite serves the SPA on :5173 and proxies /api to the Django backend
-// (same-origin in the browser, so no CORS needed in dev). Prod build -> dist/.
-export default defineConfig({
+// Dev: Vite serves on :5173 at base '/', proxying /api to Django.
+// Prod: built into web/static/spa with base '/staticfiles/spa/' (served by
+// nginx via collectstatic); the SPA is mounted at /app/ by a Django catch-all.
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  base: mode === 'production' ? '/staticfiles/spa/' : '/',
   server: {
     port: 5173,
-    proxy: {
-      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
-    },
+    proxy: { '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true } },
   },
-  build: { outDir: 'dist', sourcemap: false },
-})
+  build: {
+    outDir: '../web/static/spa',
+    emptyOutDir: true,
+    sourcemap: false,
+  },
+}))

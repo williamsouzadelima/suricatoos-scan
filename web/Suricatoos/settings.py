@@ -235,6 +235,8 @@ LOGIN_REQUIRED_IGNORE_VIEW_NAMES = [
 # (IsAuthenticated) keeps these endpoints protected at the DRF layer.
 LOGIN_REQUIRED_IGNORE_PATHS = [
     r'^/api/.*$',
+    # SPA shell + its assets: the SPA handles its own JWT auth in the browser.
+    r'^/app(/.*)?$',
 ]
 
 LOGIN_URL = 'login'

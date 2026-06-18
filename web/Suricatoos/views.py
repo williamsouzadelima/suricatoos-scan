@@ -1,9 +1,22 @@
 import os
 import mimetypes
 from django.contrib.auth.decorators import login_required
+from django.contrib.staticfiles import finders
 from django.http import HttpResponse, Http404, FileResponse
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _t
+
+
+def serve_spa(request, path=''):
+    """Serve the built SPA shell for /app/* (React client-side routing -> all
+    sub-paths return index.html). Public: the SPA does its own JWT auth in the
+    browser. Assets are served by nginx from /staticfiles/spa/."""
+    index = finders.find('spa/index.html') or os.path.join(
+        settings.STATIC_ROOT, 'spa', 'index.html')
+    if not os.path.isfile(index):
+        raise Http404(_t("SPA build not found. Run the frontend build."))
+    with open(index, 'r', encoding='utf-8') as f:
+        return HttpResponse(f.read())
 
 
 def serve_branding_asset(request, path):
