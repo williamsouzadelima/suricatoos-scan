@@ -77,7 +77,11 @@ RUN pip3 install maturin
 # Make directory for app
 WORKDIR /usr/src/app
 
-ENV GO111MODULE=on 
+ENV GO111MODULE=on
+# gitleaks is installed separately (in the && chain below) with its version
+# embedded via the version.Version ldflag. Without -X, `gitleaks version` prints
+# "version is set by build process" (no number), which makes the Tool Arsenal
+# version lookup fail with "Invalid version lookup command".
 RUN printf "\
     github.com/jaeles-project/gospider@latest\n\
     github.com/tomnomnom/gf@latest\n\
@@ -96,9 +100,9 @@ RUN printf "\
     github.com/hahwul/dalfox/v2@latest\n\
     github.com/projectdiscovery/katana/cmd/katana@latest\n\
     github.com/dwisiswant0/crlfuzz/cmd/crlfuzz@latest\n\
-    github.com/zricethezav/gitleaks/v8@v8.30.1\n\
     github.com/sa7mon/s3scanner@latest\n" | \
     xargs -L1 go install -ldflags="-s -w" -v && \
+    go install -ldflags="-s -w -X github.com/zricethezav/gitleaks/v8/version.Version=v8.30.1" -v github.com/zricethezav/gitleaks/v8@v8.30.1 && \
     rm -rf /go/pkg/* && rm -rf /root/.cache/go-build
 
 
