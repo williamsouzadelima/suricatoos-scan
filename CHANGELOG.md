@@ -47,7 +47,7 @@ All notable changes to Suricatoos are documented in this file.
   non-default `master`, so PR builds and static analysis never ran), and a new
   `tests.yml` job runs the command-injection and secret-scan suites on every PR.
 
-## v2.2.0
+## v1.0.0
 
 - Initial public release of Suricatoos: a web-based automated reconnaissance
   platform with scan engines, subdomain discovery, port scanning, endpoint
