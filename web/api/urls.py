@@ -203,6 +203,10 @@ urlpatterns = [
         ValidateVulnerability.as_view(),
         name='validate_vulnerability'),
     path(
+        'dashboard/stats/',
+        DashboardStats.as_view(),
+        name='dashboard_stats'),
+    path(
         'action/rows/delete/',
         DeleteMultipleRows.as_view(),
         name='delete_rows'),

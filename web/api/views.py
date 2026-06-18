@@ -3262,3 +3262,40 @@ class VulnerabilityViewSet(viewsets.ModelViewSet):
 					print(e)
 
 		return qs
+
+
+class DashboardStats(APIView):
+	"""KPI counts for the SPA dashboard. Optional ?project=<slug> scopes the data;
+	without it, aggregates across all projects. Auth via the DRF default
+	(IsAuthenticated) — JWT or session."""
+
+	def get(self, request):
+		slug = request.query_params.get('project')
+		domains = Domain.objects.all()
+		subdomains = Subdomain.objects.all()
+		endpoints = EndPoint.objects.all()
+		scans = ScanHistory.objects.all()
+		vulns = Vulnerability.objects.all()
+		if slug:
+			domains = domains.filter(project__slug=slug)
+			subdomains = subdomains.filter(scan_history__domain__project__slug=slug)
+			endpoints = endpoints.filter(scan_history__domain__project__slug=slug)
+			scans = scans.filter(domain__project__slug=slug)
+			vulns = vulns.filter(scan_history__domain__project__slug=slug)
+
+		def sev(s):
+			return vulns.filter(severity=s).count()
+
+		return Response({
+			'targets': domains.count(),
+			'subdomains': subdomains.count(),
+			'subdomains_alive': subdomains.exclude(http_status__exact=0).count(),
+			'endpoints': endpoints.count(),
+			'endpoints_alive': endpoints.filter(http_status__exact=200).count(),
+			'scans': scans.count(),
+			'vulnerabilities': {
+				'total': vulns.count(),
+				'critical': sev(4), 'high': sev(3), 'medium': sev(2),
+				'low': sev(1), 'info': sev(0), 'unknown': sev(-1),
+			},
+		})
