@@ -6,6 +6,7 @@ guard. Run with:
     python3 manage.py test tests.test_command_injection
 """
 import os
+import shlex
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -71,17 +72,24 @@ class TestInjectionHelpers(unittest.TestCase):
             ['php', '.html'])
 
     def test_shell_false_headers_keeps_documented_format(self):
-        # The documented 'Name: value' form (space after colon) must survive as a
-        # single argv token (normalized to Name:value), not be dropped.
-        self.assertEqual(_shell_false_headers(['Cookie: Test']), ' -H Cookie:Test')
+        # The documented 'Name: value' form must survive as a single, shlex-safe argv
+        # token. Header values may legitimately contain spaces (e.g. Authorization:
+        # Bearer <token>); the value is preserved and shlex.quote'd so it stays one token
+        # when run_command/stream_command tokenize the command with shlex.split.
+        self.assertEqual(_shell_false_headers(['Cookie: Test']), " -H 'Cookie: Test'")
         self.assertEqual(
             _shell_false_headers(['X-Forwarded-For: 127.0.0.1']),
-            ' -H X-Forwarded-For:127.0.0.1')
-        self.assertEqual(_shell_false_headers(['Name:value']), ' -H Name:value')
+            " -H 'X-Forwarded-For: 127.0.0.1'")
+        self.assertEqual(_shell_false_headers(['Name:value']), " -H 'Name: value'")
 
     def test_shell_false_headers_blocks_smuggling(self):
-        # values with internal whitespace / newlines / flag smuggling are dropped
-        self.assertEqual(_shell_false_headers(['X: a -config /etc/x']), '')
+        # A space-containing value (even one that looks like a flag) is no longer dropped,
+        # but it MUST remain a single argv token under shlex.split so it cannot smuggle a
+        # separate flag into the shell=False command. This is the real security property.
+        out = _shell_false_headers(['X: a -config /etc/x'])
+        self.assertEqual(out, " -H 'X: a -config /etc/x'")
+        self.assertEqual(shlex.split(out), ['-H', 'X: a -config /etc/x'])
+        # Control chars / newlines are still rejected outright (cannot be made safe inline).
         self.assertEqual(_shell_false_headers(['X: a\nInjected: 1']), '')
         self.assertEqual(_shell_false_headers([]), '')
 
