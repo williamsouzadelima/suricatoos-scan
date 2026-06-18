@@ -3383,3 +3383,20 @@ class StartScan(APIView):
 		}
 		initiate_scan.apply_async(kwargs=kwargs)
 		return Response({'scan_history_id': scan_id}, status=status.HTTP_202_ACCEPTED)
+
+
+class SpaSubdomainViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Clean REST subdomain list for the SPA. Filter by ?project= / ?scan_history=."""
+	queryset = Subdomain.objects.none()
+	serializer_class = SubdomainSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		qs = Subdomain.objects.all()
+		slug = self.request.query_params.get('project')
+		scan_id = self.request.query_params.get('scan_history')
+		if slug:
+			qs = qs.filter(scan_history__domain__project__slug=slug)
+		if scan_id:
+			qs = qs.filter(scan_history__id=scan_id)
+		return qs.order_by('name').distinct()

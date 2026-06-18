@@ -813,6 +813,17 @@ class VulnSpaSerializer(serializers.ModelSerializer):
 		]
 
 
+class SubdomainSpaSerializer(serializers.ModelSerializer):
+	"""Lean subdomain shape for the SPA table."""
+
+	class Meta:
+		model = Subdomain
+		fields = [
+			'id', 'name', 'http_status', 'http_url', 'page_title', 'webserver',
+			'content_length', 'is_important', 'cdn_name', 'discovered_date',
+		]
+
+
 class ScanSpaSerializer(serializers.ModelSerializer):
 	"""Lean scan-history shape for the SPA scans list."""
 	domain_name = serializers.CharField(source='domain.name', read_only=True)
