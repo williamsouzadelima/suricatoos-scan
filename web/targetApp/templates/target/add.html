@@ -1,8 +1,9 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 
 {% block title %}
-Add targets
+{% trans "Add targets" %}
 {% endblock title %}
 
 
@@ -10,12 +11,12 @@ Add targets
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item"><a href="{% url 'list_target' current_project.slug %}">Targets</a></li>
-<li class="breadcrumb-item active">Add Target</li>
+<li class="breadcrumb-item"><a href="{% url 'list_target' current_project.slug %}">{% trans "Targets" %}</a></li>
+<li class="breadcrumb-item active">{% trans "Add Target" %}</li>
 {% endblock breadcrumb_title %}
 
 {% block page_title %}
-Add or Import Targets
+{% trans "Add or Import Targets" %}
 {% endblock page_title %}
 
 {% block main_content %}
@@ -31,23 +32,23 @@ Add or Import Targets
           </li> -->
           <li class="nav-item">
             <a href="#add-multiple-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link active">
-              Add Targets
+              {% trans "Add Targets" %}
             </a>
           </li>
           <li class="nav-item">
             <a href="#ip-address-tab" data-bs-toggle="tab" aria-expanded="true" class="nav-link">
-              Resolve and add IP Address
+              {% trans "Resolve and add IP Address" %}
             </a>
           </li>
           <li class="nav-item dropdown">
             <a class="nav-link dropdown-toggle arrow-none" href="#" id="import-dropdown" role="button"
             data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-            Import
+            {% trans "Import" %}
             <div class="arrow-down"></div>
           </a>
           <div class="dropdown-menu" aria-labelledby="import-dropdown">
-            <a class="dropdown-item" href="#import-text-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link">Import from Text File</a>
-            <a class="dropdown-item" href="#import-csv-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link">Import from CSV</a>
+            <a class="dropdown-item" href="#import-text-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link">{% trans "Import from Text File" %}</a>
+            <a class="dropdown-item" href="#import-csv-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link">{% trans "Import from CSV" %}</a>
           </div>
         </li>
       </ul>
@@ -58,17 +59,17 @@ Add or Import Targets
             <div class="row">
               <div class="col-12">
                 <div class="alert alert-primary border-0 mb-4" role="alert">
-                  Please enter your Target IP address, Suricatoos will look for the <b>A</b> records and resolve them to the domains.
+                  {% blocktrans %}Please enter your Target IP address, Suricatoos will look for the <b>A</b> records and resolve them to the domains.{% endblocktrans %}
                 </div>
-                <label for="ip_address" class="text-dark">IP Address or CIDR</br><span class="text-muted">Example: 192.168.1.1 or 192.168.1.1/24, both are supported</span></label>
+                <label for="ip_address" class="text-dark">{% trans "IP Address or CIDR" %}</br><span class="text-muted">{% trans "Example: 192.168.1.1 or 192.168.1.1/24, both are supported" %}</span></label>
                 <input type="text" name="ip_address" class="form-control form-control-lg" id="ip_address" placeholder="X.X.X.X">
-                <button class="btn btn-primary mt-2 float-end" disabled type="button" name="resolve_ip_button" id="resolve_ip_button"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-repeat"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg> Resolve IP Address</button>
+                <button class="btn btn-primary mt-2 float-end" disabled type="button" name="resolve_ip_button" id="resolve_ip_button"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-repeat"><polyline points="17 1 21 5 17 9"></polyline><path d="M3 11V9a4 4 0 0 1 4-4h14"></path><polyline points="7 23 3 19 7 15"></polyline><path d="M21 13v2a4 4 0 0 1-4 4H3"></path></svg> {% trans "Resolve IP Address" %}</button>
               </div>
               <div class="col-12">
                 <div id='all_domains_checkbox' class='mt-2 n-chk'>
                   <div class="form-check">
                     <input type="checkbox" class="form-check-input" id="select_all_ip_domains">
-                    <label class="form-check-label" for="select_all_ip_domains">Select All Domains</label>
+                    <label class="form-check-label" for="select_all_ip_domains">{% trans "Select All Domains" %}</label>
                   </div>
                 </div>
               </div>
@@ -77,17 +78,17 @@ Add or Import Targets
                 </div>
               </div>
               <div class="col-12 mt-3">
-                <label for="targetDescription" class="form-label">Target Description (Optional)</label>
-                <input type="text" class="form-control form-control-lg" id="targetDescription" placeholder="Interesting Target" name="targetDescription">
+                <label for="targetDescription" class="form-label">{% trans "Target Description (Optional)" %}</label>
+                <input type="text" class="form-control form-control-lg" id="targetDescription" placeholder="{% trans 'Interesting Target' %}" name="targetDescription">
               </div>
               {% if user_preferences.bug_bounty_mode %}
               <div class="col-12 mt-3">
-                <label for="domainDescription" class="form-label">HackerOne Target Team Handle
+                <label for="domainDescription" class="form-label">{% trans "HackerOne Target Team Handle" %}
                   <br>
-                  This is used to send vulnerability reports to the HackerOne Program automatically. Team handle can be found from the program URL, <a href="https://hackerone.com/team_handle">https://hackerone.com/team_handle</a>
+                  {% blocktrans %}This is used to send vulnerability reports to the HackerOne Program automatically. Team handle can be found from the program URL, <a href="https://hackerone.com/team_handle">https://hackerone.com/team_handle</a>{% endblocktrans %}
                 </label>
                 <input type="text" class="form-control form-control-lg" id="targetH1TeamHandle" placeholder="team_handle" name="targetH1TeamHandle">
-                <button class="btn btn-primary submit-fn mt-2 float-end" disabled type="submit" name="add-ip-target" id="add-ip-target" value="submit"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-plus"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> <span id="add_ip_target_btn">Add Target</span></button>
+                <button class="btn btn-primary submit-fn mt-2 float-end" disabled type="submit" name="add-ip-target" id="add-ip-target" value="submit"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-plus"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg> <span id="add_ip_target_btn">{% trans "Add Target" %}</span></button>
               </div>
               {% endif %}
             </form>
@@ -98,38 +99,38 @@ Add or Import Targets
             {% csrf_token %}
             <div class="row">
               <div class="col-12">
-                <label for="importSubdomainFormControlTextarea">You can add one or more targets. If you are adding multiple targets, separate them using new line. If the subdomain already exists, it will be skipped.</label>
+                <label for="importSubdomainFormControlTextarea">{% trans "You can add one or more targets. If you are adding multiple targets, separate them using new line. If the subdomain already exists, it will be skipped." %}</label>
                 <textarea class="form-control" id="addTargets" rows="8" spellcheck="false" name="addTargets" placeholder="example.com&#10;sub.example.com&#10;another-domain.com"></textarea>
-                <small id="addTargetsHint" class="text-muted d-block mt-1">Enter one or more domains (one per line) to enable.</small>
+                <small id="addTargetsHint" class="text-muted d-block mt-1">{% trans "Enter one or more domains (one per line) to enable." %}</small>
               </div>
               <div class="col-12 mt-3">
-                <label for="targetDescription">Target Description (Optional)</label>
-                <input type="text" class="form-control form-control-lg" id="targetDescription" placeholder="Interesting Target" name="targetDescription">
+                <label for="targetDescription">{% trans "Target Description (Optional)" %}</label>
+                <input type="text" class="form-control form-control-lg" id="targetDescription" placeholder="{% trans 'Interesting Target' %}" name="targetDescription">
               </div>
               {% if user_preferences.bug_bounty_mode %}
               <div class="col-12 mt-3">
-                <label for="domainDescription" class="form-label">HackerOne Target Team Handle
+                <label for="domainDescription" class="form-label">{% trans "HackerOne Target Team Handle" %}
                   <br>
-                  This is used to send vulnerability reports to the HackerOne Program automatically. Team handle can be found from the program URL, <a href="https://hackerone.com/team_handle">https://hackerone.com/team_handle</a>
+                  {% blocktrans %}This is used to send vulnerability reports to the HackerOne Program automatically. Team handle can be found from the program URL, <a href="https://hackerone.com/team_handle">https://hackerone.com/team_handle</a>{% endblocktrans %}
                 </label>
                 <input type="text" class="form-control form-control-lg" id="targetH1TeamHandle" placeholder="team_handle" name="targetH1TeamHandle">
               </div>
               {% endif %}
               <div class="col-12 mt-3">
-                <label for="targetDescription">Target Organization (Optional)</label>
-                <input type="text" class="form-control form-control-lg" id="targetOrganization" placeholder="Example Org" name="targetOrganization">
+                <label for="targetDescription">{% trans "Target Organization (Optional)" %}</label>
+                <input type="text" class="form-control form-control-lg" id="targetOrganization" placeholder="{% trans 'Example Org' %}" name="targetOrganization">
               </div>
             </div>
-            <button class="btn btn-primary submit-fn mt-2 float-end" type="submit" id="add-multiple-targets" name="add-multiple-targets" value="submit">Add 0 Target</button>
+            <button class="btn btn-primary submit-fn mt-2 float-end" type="submit" id="add-multiple-targets" name="add-multiple-targets" value="submit">{% trans "Add 0 Target" %}</button>
           </form>
         </div>
         <div class="tab-pane fade" id="import-text-tab" role="tabpanel" aria-labelledby="import-text-tab">
           <div class="row">
             <div class="col-12">
               <div class="alert alert-primary border-0 mb-4" role="alert">
-                Your txt file must have list of domains separated by a new line.
+                {% trans "Your txt file must have list of domains separated by a new line." %}
                 <br><br>
-                By default all domains imported from txt will have no description and no organization. If you choose to import multiple domains with description and/or organization, csv import is recommended.
+                {% trans "By default all domains imported from txt will have no description and no organization. If you choose to import multiple domains with description and/or organization, csv import is recommended." %}
               </div>
               <form method="post" enctype="multipart/form-data">
                 <div class="mb-3">
@@ -137,7 +138,7 @@ Add or Import Targets
                   <input type="file" class="form-control" id="txtFile" required accept=".txt" name="txtFile" onchange="showname(this, '#selectedTextFileName')">
                   <h6 id="selectedTextFileName" class="text-primary"></h6>
                 </div>
-                <input type="submit" class="btn btn-primary float-right mt-5 mb-2" value="Upload" name="import-txt-target">
+                <input type="submit" class="btn btn-primary float-right mt-5 mb-2" value="{% trans 'Upload' %}" name="import-txt-target">
               </form>
             </div>
           </div>
@@ -146,7 +147,7 @@ Add or Import Targets
           <div class="row">
             <div class="col-12">
               <div class="alert alert-warning border-0 mb-4" role="alert">
-                Your csv file must be in the format of <strong>domain, description, organization</strong> separated by a new line.
+                {% blocktrans %}Your csv file must be in the format of <strong>domain, description, organization</strong> separated by a new line.{% endblocktrans %}
               </div>
               <form method="post" enctype="multipart/form-data">
                 <div class="mb-3">
@@ -154,7 +155,7 @@ Add or Import Targets
                   <input type="file" class="form-control" id="csvFile" required accept=".csv" name="csvFile" onchange="showname(this, '#selectedCsvFileName')">
                   <h6 id="selectedCsvFileName" class="text-primary"></h6>
                 </div>
-                <input type="submit" class="btn btn-primary float-right mt-5 mb-2" value="Upload" name="import-csv-target">
+                <input type="submit" class="btn btn-primary float-right mt-5 mb-2" value="{% trans 'Upload' %}" name="import-csv-target">
               </form>
             </div>
           </div>

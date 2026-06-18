@@ -16,6 +16,7 @@ from django.shortcuts import redirect, render, get_object_or_404
 from django.utils import timezone
 from django.http import HttpResponseRedirect, JsonResponse
 from django.urls import reverse
+from django.utils.translation import gettext_lazy as _
 from rolepermissions.roles import assign_role, clear_roles
 from rolepermissions.decorators import has_permission_decorator
 from django.template.defaultfilters import slugify
@@ -181,10 +182,10 @@ def profile(request, slug):
             update_session_auth_hash(request, user)
             messages.success(
                 request,
-                'Your password was successfully changed!')
+                _('Your password was successfully changed!'))
             return redirect('profile')
         else:
-            messages.error(request, 'Please correct the error below.')
+            messages.error(request, _('Please correct the error below.'))
     else:
         form = PasswordChangeForm(request.user)
     return render(request, 'dashboard/profile.html', {
@@ -222,7 +223,7 @@ def admin_interface_update(request, slug):
                 messages.add_message(
                     request,
                     messages.INFO,
-                    f'User {user.username} successfully deleted.'
+                    _('User %(username)s successfully deleted.') % {'username': user.username}
                 )
                 messageData = {'status': True}
             except Exception as e:
@@ -246,7 +247,7 @@ def admin_interface_update(request, slug):
             try:
                 response = json.loads(request.body)
                 if not response.get('password'):
-                    messageData = {'status': False, 'error': 'Empty passwords are not allowed'}
+                    messageData = {'status': False, 'error': _('Empty passwords are not allowed')}
                     return JsonResponse(messageData)
                 UserModel = get_user_model()
                 user = UserModel.objects.create_user(
@@ -267,8 +268,8 @@ def on_user_logged_out(sender, request, **kwargs):
     messages.add_message(
         request,
         messages.INFO,
-        'You have been successfully logged out. Thank you ' +
-        'for using Suricatoos.')
+        _('You have been successfully logged out. Thank you '
+          'for using Suricatoos.'))
 
 
 @receiver(user_logged_in)
@@ -276,9 +277,7 @@ def on_user_logged_in(sender, request, **kwargs):
     messages.add_message(
         request,
         messages.INFO,
-        'Hi @' +
-        request.user.username +
-        ' welcome back!')
+        _('Hi @%(username)s welcome back!') % {'username': request.user.username})
 
 
 def search(request, slug):
@@ -306,13 +305,13 @@ def delete_project(request, id):
         messages.add_message(
             request,
             messages.INFO,
-            'Project successfully deleted!')
+            _('Project successfully deleted!'))
     else:
         responseData = {'status': 'false'}
         messages.add_message(
             request,
             messages.ERROR,
-            'Oops! Project could not be deleted!')
+            _('Oops! Project could not be deleted!'))
     return JsonResponse(responseData)
 
 

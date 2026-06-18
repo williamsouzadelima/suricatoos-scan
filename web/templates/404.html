@@ -1,4 +1,5 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load humanize %}
 {% load static %}
 
@@ -30,8 +31,8 @@
          </svg>
       </div>
       <div class="text-center">
-         <h3 class="mt-0 mb-2">Oops-a-Daisy! You've Found Our Top-Secret Interdimensional Rabbit Hole! </h3>
-         <a href="/" class="btn btn-success waves-effect waves-light">Back to Dashboard</a>
+         <h3 class="mt-0 mb-2">{% trans "Oops-a-Daisy! You've Found Our Top-Secret Interdimensional Rabbit Hole!" %} </h3>
+         <a href="/" class="btn btn-success waves-effect waves-light">{% trans "Back to Dashboard" %}</a>
       </div>
       <!-- end row -->
    </div>

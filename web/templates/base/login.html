@@ -1,9 +1,10 @@
 {% load static %}
+{% load i18n %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Login Suricatoos</title>
+  <title>{% trans "Login Suricatoos" %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" type="image/svg+xml" href="/staticfiles/img/favicon.svg">
   <link rel="shortcut icon" href="/staticfiles/img/favicon.png">
@@ -74,11 +75,11 @@
                     </span>
                   </a>
                 </div>
-                <h3 class="">Login to Suricatoos</h3>
-                <p>Current release: v{{ SURICATOOS_CURRENT_VERSION }}</p>
+                <h3 class="">{% trans "Login to Suricatoos" %}</h3>
+                <p>{% blocktrans with version=SURICATOOS_CURRENT_VERSION %}Current release: v{{ version }}{% endblocktrans %}</p>
               </div>
               <div class="alert alert-primary" role="alert">
-                <a href="https://suricatoos.wiki" target="_blank">Learn how to create Suricatoos account.</a>
+                <a href="https://suricatoos.wiki" target="_blank">{% trans "Learn how to create Suricatoos account." %}</a>
               </div>
               {% if messages %}
               <p class="">
@@ -87,22 +88,22 @@
                       {{message}}
                     </div>
                   {% endfor %}
-              <span>If you have any issues or feature request, feel free to <a href="https://github.com/williamsouzadelima/suricatoos-scan/issues" class="text-primary">raise issue on Github.</a></span>
+              <span>{% trans "If you have any issues or feature request, feel free to" %} <a href="https://github.com/williamsouzadelima/suricatoos-scan/issues" class="text-primary">{% trans "raise issue on Github." %}</a></span>
               </p>
               {% endif %}
               <form method="POST">
                 {% csrf_token %}
                 <div class="mb-3">
-                  <label for="username" class="form-label">Username</label>
+                  <label for="username" class="form-label">{% trans "Username" %}</label>
                   <div class="input-group">
                     <span class="input-group-text" id="basic-addon1">@</span>
-                    <input id="username" name="username" type="text" class="form-control {% if form.errors %}is-invalid{% endif %}" placeholder="username" required>
+                    <input id="username" name="username" type="text" class="form-control {% if form.errors %}is-invalid{% endif %}" placeholder="{% trans 'username' %}" required>
                   </div>
                 </div>
                 <div class="mb-3">
-                  <label for="password" class="form-label">Password</label>
+                  <label for="password" class="form-label">{% trans "Password" %}</label>
                   <div class="input-group input-group-merge">
-                    <input id="password" name="password" type="password" class="form-control {% if form.errors %}is-invalid{% endif %}" placeholder="Password" required>
+                    <input id="password" name="password" type="password" class="form-control {% if form.errors %}is-invalid{% endif %}" placeholder="{% trans 'Password' %}" required>
                     <div class="input-group-text" data-password="false">
                       <span class="password-eye"></span>
                     </div>
@@ -111,14 +112,14 @@
                 {% if form.errors %}
                 <div class="col-12 text-danger">
                     <p class="text-danger">
-                        <strong>Oops! Invalid username or password.</strong>
+                        <strong>{% trans "Oops! Invalid username or password." %}</strong>
                         <br>
-                        Please note, both password and username are case-sensitive.
+                        {% trans "Please note, both password and username are case-sensitive." %}
                     </p>
                 </div>
                 {% endif %}
                 <div class="text-center d-grid">
-                  <button class="btn btn-primary" type="submit"> Log In </button>
+                  <button class="btn btn-primary" type="submit"> {% trans "Log In" %} </button>
                 </div>
               </form>
             </div>

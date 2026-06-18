@@ -1,4 +1,5 @@
 from django import forms
+from django.utils.translation import gettext_lazy as _
 from Suricatoos.validators import validate_domain
 
 from .models import *
@@ -86,7 +87,7 @@ class AddOrganizationForm(forms.Form):
     def clean_name(self):
         data = self.cleaned_data['name']
         if Organization.objects.filter(name=data).count() > 0:
-            raise forms.ValidationError(f"{data} Organization already exists")
+            raise forms.ValidationError(_("%(data)s Organization already exists") % {"data": data})
         return data
 
 

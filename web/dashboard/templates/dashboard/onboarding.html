@@ -1,9 +1,10 @@
 {% load static %}
+{% load i18n %}
 <!DOCTYPE html>
 <html lang="en" data-layout="horizontal" data-topbar-color="dark">
   <head>
     <meta charset="utf-8" />
-    <title>Suricatoos Onboarding</title>
+    <title>{% trans "Suricatoos Onboarding" %}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link href="{% static 'bootstrap/bootstrap.min.css' %}" rel="stylesheet" type="text/css" id="bootstrap-stylesheet" />
     <link href="{% static 'assets/css/app.min.css' %}" rel="stylesheet" type="text/css" id="main-stylesheet" />
@@ -52,9 +53,9 @@
           <div class="col-xl-10">
             <form method="POST" autocomplete="off"> {% csrf_token %}
               <div class="text-center mb-4">
-                <span class="badge bg-soft-primary mb-2" style="letter-spacing:.08em;">INITIAL SETUP</span>
-                <h3>Welcome to Suricatoos</h3>
-                <p class="text-muted">Let's set up your environment. Only the <strong>project name</strong> is required — everything else is optional and can be configured later.</p>
+                <span class="badge bg-soft-primary mb-2" style="letter-spacing:.08em;">{% trans "INITIAL SETUP" %}</span>
+                <h3>{% trans "Welcome to Suricatoos" %}</h3>
+                <p class="text-muted">{% blocktrans %}Let's set up your environment. Only the <strong>project name</strong> is required — everything else is optional and can be configured later.{% endblocktrans %}</p>
               </div>
               {% if error %}
               <div class="alert alert-danger">
@@ -63,56 +64,56 @@
               {% endif %}
               <div class="card mb-4">
                 <div class="card-body">
-                  <h5 class="card-title"><i class="fe-folder text-primary me-2"></i>Project</h5>
-                  <p class="card-text text-muted">Create your first project to organize and manage your security assessments.</p>
+                  <h5 class="card-title"><i class="fe-folder text-primary me-2"></i>{% trans "Project" %}</h5>
+                  <p class="card-text text-muted">{% trans "Create your first project to organize and manage your security assessments." %}</p>
                   <div class="mb-3">
-                    <label for="project_name" class="form-label">Project name <span class="text-danger">*</span></label>
-                    <input class="form-control" type="text" id="project_name" name="project_name" required value="Default" placeholder="e.g. Acme Pentest 2026">
-                    <small class="text-muted">Pick a name that identifies the client or engagement. You can rename it later.</small>
+                    <label for="project_name" class="form-label">{% trans "Project name" %} <span class="text-danger">*</span></label>
+                    <input class="form-control" type="text" id="project_name" name="project_name" required value="Default" placeholder="{% trans 'e.g. Acme Pentest 2026' %}">
+                    <small class="text-muted">{% trans "Pick a name that identifies the client or engagement. You can rename it later." %}</small>
                   </div>
                 </div>
               </div>
               <div class="card mb-4">
                 <div class="card-body">
-                  <h5 class="card-title"><i class="fe-user-plus text-primary me-2"></i>Additional User <small class="text-muted fw-normal ms-1">— optional</small></h5>
-                  <p class="card-text text-muted">Add an additional user and assign them a role. You can manage users and their roles anytime in the future.</p>
+                  <h5 class="card-title"><i class="fe-user-plus text-primary me-2"></i>{% trans "Additional User" %} <small class="text-muted fw-normal ms-1">— {% trans "optional" %}</small></h5>
+                  <p class="card-text text-muted">{% trans "Add an additional user and assign them a role. You can manage users and their roles anytime in the future." %}</p>
                   <div class="mb-3">
-                    <label for="create_username" class="form-label">Username</label>
+                    <label for="create_username" class="form-label">{% trans "Username" %}</label>
                     <input class="form-control" type="text" id="create_username" name="create_username" autocomplete="off">
                   </div>
                   <div class="mb-3">
-                    <label for="create_password" class="form-label">Password</label>
+                    <label for="create_password" class="form-label">{% trans "Password" %}</label>
                     <input class="form-control" type="password" id="create_password" name="create_password" autocomplete="new-password">
                   </div>
                   <div class="mb-3">
-                    <label for="create_user_role" class="form-label">Role</label>
+                    <label for="create_user_role" class="form-label">{% trans "Role" %}</label>
                     <select class="form-select" id="create_user_role" name="create_user_role">
-                      <option value='sys_admin'>Sys Admin — full access, manage users &amp; settings</option>
-                      <option value='penetration_tester'>Penetration Tester — run scans &amp; triage findings</option>
-                      <option value='auditor'>Auditor — read-only access to results &amp; reports</option>
+                      <option value='sys_admin'>{% trans "Sys Admin — full access, manage users & settings" %}</option>
+                      <option value='penetration_tester'>{% trans "Penetration Tester — run scans & triage findings" %}</option>
+                      <option value='auditor'>{% trans "Auditor — read-only access to results & reports" %}</option>
                     </select>
-                    <small class="text-muted">Only needed if you want to add a second user now.</small>
+                    <small class="text-muted">{% trans "Only needed if you want to add a second user now." %}</small>
                   </div>
                 </div>
               </div>
               <div class="card mb-4">
                 <div class="card-body">
-                  <h5 class="card-title"><i class="fe-settings text-primary me-2"></i>User Preferences</h5>
-                  <p class="card-text text-muted">Customize your Suricatoos experience with these preferences.</p>
+                  <h5 class="card-title"><i class="fe-settings text-primary me-2"></i>{% trans "User Preferences" %}</h5>
+                  <p class="card-text text-muted">{% trans "Customize your Suricatoos experience with these preferences." %}</p>
                   <div class="mb-3">
                     <div class="form-check form-switch">
                       <label class="form-check-label" for="bug_bounty_mode">
                         <i class="fe-target text-primary me-2"></i>
-                        <span class="fw-bold">Bug Bounty Mode</span>
+                        <span class="fw-bold">{% trans "Bug Bounty Mode" %}</span>
                       </label>
                       <input class="form-check-input" type="checkbox" id="bug_bounty_mode" name="bug_bounty_mode" {% if user_preferences.bug_bounty_mode %}checked{% endif %}>
                     </div>
                     <small class="text-muted d-block mt-2">
-                      Enabling Bug Bounty Mode will:
+                      {% trans "Enabling Bug Bounty Mode will:" %}
                       <ul class="mt-1">
-                        <li>Activate automatic reporting to HackerOne</li>
-                        <li>Enable the Bounty Hub for importing HackerOne programs</li>
-                        <li>Provide bug bounty specific features and optimizations</li>
+                        <li>{% trans "Activate automatic reporting to HackerOne" %}</li>
+                        <li>{% trans "Enable the Bounty Hub for importing HackerOne programs" %}</li>
+                        <li>{% trans "Provide bug bounty specific features and optimizations" %}</li>
                       </ul>
                     </small>
                   </div>
@@ -120,36 +121,36 @@
               </div>
               <div class="card mb-4">
                 <div class="card-body">
-                  <h5 class="card-title"><i class="fe-key text-primary me-2"></i>API Keys <small class="text-muted fw-normal ms-1">— optional</small></h5>
-                  <p class="card-text text-muted">These enhance Suricatoos but are not required to start. You can skip this now and add them anytime under <strong>Settings &rarr; API Vault</strong>.</p>
+                  <h5 class="card-title"><i class="fe-key text-primary me-2"></i>{% trans "API Keys" %} <small class="text-muted fw-normal ms-1">— {% trans "optional" %}</small></h5>
+                  <p class="card-text text-muted">{% blocktrans %}These enhance Suricatoos but are not required to start. You can skip this now and add them anytime under <strong>Settings &rarr; API Vault</strong>.{% endblocktrans %}</p>
                   <div class="mb-3">
-                    <label for="key_openai" class="form-label">OpenAI Key</label>
-                    <input class="form-control" type="text" id="key_openai" name="key_openai" placeholder="Enter OpenAI Key" value="{{openai_key}}">
-                    <small class="text-muted">Used for generating vulnerability descriptions, remediation, impact, and report writing using ChatGPT.</small>
+                    <label for="key_openai" class="form-label">{% trans "OpenAI Key" %}</label>
+                    <input class="form-control" type="text" id="key_openai" name="key_openai" placeholder="{% trans 'Enter OpenAI Key' %}" value="{{openai_key}}">
+                    <small class="text-muted">{% trans "Used for generating vulnerability descriptions, remediation, impact, and report writing using ChatGPT." %}</small>
                   </div>
                   <div class="mb-3">
-                    <label for="key_netlas" class="form-label">Netlas Key</label>
-                    <input class="form-control" type="text" id="key_netlas" name="key_netlas" placeholder="Enter Netlas Key" value="{{netlas_key}}">
-                    <small class="text-muted">Used to get whois information and other OSINT data.</small>
+                    <label for="key_netlas" class="form-label">{% trans "Netlas Key" %}</label>
+                    <input class="form-control" type="text" id="key_netlas" name="key_netlas" placeholder="{% trans 'Enter Netlas Key' %}" value="{{netlas_key}}">
+                    <small class="text-muted">{% trans "Used to get whois information and other OSINT data." %}</small>
                   </div>
                   <div class="mb-3">
-                    <label for="key_chaos" class="form-label">Chaos Key</label>
-                    <input class="form-control" type="text" id="key_chaos" name="key_chaos" placeholder="Enter Chaos Key" value="{{chaos_key}}">
-                    <small class="text-muted">Enhances reconnaissance capabilities for Public Bug Bounty Programs. <a href="https://cloud.projectdiscovery.io" target="_blank">Get your API key</a></small>
+                    <label for="key_chaos" class="form-label">{% trans "Chaos Key" %}</label>
+                    <input class="form-control" type="text" id="key_chaos" name="key_chaos" placeholder="{% trans 'Enter Chaos Key' %}" value="{{chaos_key}}">
+                    <small class="text-muted">{% trans "Enhances reconnaissance capabilities for Public Bug Bounty Programs." %} <a href="https://cloud.projectdiscovery.io" target="_blank">{% trans "Get your API key" %}</a></small>
                   </div>
                   <div class="mb-3">
-                    <label for="username_hackerone" class="form-label">HackerOne Username</label>
-                    <input class="form-control" type="text" id="username_hackerone" name="username_hackerone" placeholder="Enter HackerOne Username" value="{{hackerone_username}}">
+                    <label for="username_hackerone" class="form-label">{% trans "HackerOne Username" %}</label>
+                    <input class="form-control" type="text" id="username_hackerone" name="username_hackerone" placeholder="{% trans 'Enter HackerOne Username' %}" value="{{hackerone_username}}">
                   </div>
                   <div class="mb-3">
-                    <label for="key_hackerone" class="form-label">HackerOne API Token</label>
-                    <input class="form-control" type="text" id="key_hackerone" name="key_hackerone" placeholder="Enter HackerOne Token" value="{{hackerone_key}}">
-                    <small class="text-muted">Used for importing targets, bookmarked programs, and submitting automated vulnerability reports. <a href="https://hackerone.com/settings/api_token/edit" target="_blank">Generate your API Token</a></small>
+                    <label for="key_hackerone" class="form-label">{% trans "HackerOne API Token" %}</label>
+                    <input class="form-control" type="text" id="key_hackerone" name="key_hackerone" placeholder="{% trans 'Enter HackerOne Token' %}" value="{{hackerone_key}}">
+                    <small class="text-muted">{% trans "Used for importing targets, bookmarked programs, and submitting automated vulnerability reports." %} <a href="https://hackerone.com/settings/api_token/edit" target="_blank">{% trans "Generate your API Token" %}</a></small>
                   </div>
                 </div>
               </div>
               <div class="text-end">
-                <button class="btn btn-primary" type="submit">Complete Setup</button>
+                <button class="btn btn-primary" type="submit">{% trans "Complete Setup" %}</button>
               </div>
             </form>
           </div>

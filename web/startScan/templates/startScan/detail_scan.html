@@ -1,10 +1,11 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 {% load humanize %}
 {% load custom_tags %}
 {% load mathfilters %}
 {% block title %}
-Detailed Scan
+{% trans "Detailed Scan" %}
 {% endblock title %}
 
 {% block custom_js_css_link %}
@@ -22,21 +23,21 @@ Detailed Scan
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item"><a href="{% url 'scan_history' current_project.slug %}">Scan History</a></li>
-<li class="breadcrumb-item active">Summary</li>
+<li class="breadcrumb-item"><a href="{% url 'scan_history' current_project.slug %}">{% trans "Scan History" %}</a></li>
+<li class="breadcrumb-item active">{% trans "Summary" %}</li>
 <li class="breadcrumb-item active" aria-current="page">{{history.domain.name}}</li>
 {% endblock breadcrumb_title %}
 
 {% block page_title %}
-Scan Findings
+{% trans "Scan Findings" %}
 {% endblock page_title %}
 
 {% block main_content %}
 <span aria-current="page" style="display: none">{{history.domain.name}}</span>
 {% if history.scan_status == 0 %}
 <div class="alert alert-danger d-flex align-items-center justify-content-between flex-wrap gap-2" role="alert">
-	<div><i class="fe-alert-triangle me-2"></i><strong>This scan failed.</strong> One or more tasks did not complete &mdash; check the logs for details.</div>
-	<a href="javascript:get_logs_modal({{history.id}})" class="btn btn-sm btn-soft-danger"><i class="fe-terminal me-1"></i> View Logs</a>
+	<div><i class="fe-alert-triangle me-2"></i><strong>{% trans "This scan failed." %}</strong> {% trans "One or more tasks did not complete &mdash; check the logs for details." %}</div>
+	<a href="javascript:get_logs_modal({{history.id}})" class="btn btn-sm btn-soft-danger"><i class="fe-terminal me-1"></i> {% trans "View Logs" %}</a>
 </div>
 {% endif %}
 <div class="row">
@@ -44,36 +45,36 @@ Scan Findings
 		<div class="card">
 			<ul class="nav nav-tabs nav-bordered m-1">
 				<li class="nav-item">
-					<a class="nav-link active" id="pills-summary-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#summary-tab">Home</a>
+					<a class="nav-link active" id="pills-summary-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#summary-tab">{% trans "Home" %}</a>
 				</li>
 				<li class="nav-item">
-					<a class="nav-link" id="pills-subdomain-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#subdomain-tab">Subdomains</a>
+					<a class="nav-link" id="pills-subdomain-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#subdomain-tab">{% trans "Subdomains" %}</a>
 				</li>
 				{% if history.buckets.all %}
 				<li class="nav-item">
-					<a class="nav-link" id="pills-buckets-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#buckets-tab">S3 Buckets</a>
+					<a class="nav-link" id="pills-buckets-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#buckets-tab">{% trans "S3 Buckets" %}</a>
 				</li>
 				{% endif %}
 				<li class="nav-item interesting-tab-show" style="display: none">
-					<a class="nav-link" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#interesting-tab">Interesting Recon</a>
+					<a class="nav-link" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#interesting-tab">{% trans "Interesting Recon" %}</a>
 				</li>
 				<li class="nav-item recon-changes-tab-show" style="display: none">
-					<a class="nav-link" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#recon-changes-tab">Recon Data Changes</a>
+					<a class="nav-link" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#recon-changes-tab">{% trans "Recon Data Changes" %}</a>
 				</li>
 				{% if 'screenshot' in history.tasks %}
 				<li class="nav-item">
-					<a class="nav-link" id="pills-screenshot-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#screenshot-tab">Screenshots</a>
+					<a class="nav-link" id="pills-screenshot-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#screenshot-tab">{% trans "Screenshots" %}</a>
 				</li>
 				{% endif %}
 				{% if 'dir_file_fuzz' in history.tasks %}
 				<li class="nav-item">
-					<a class="nav-link" id="pills-directories-tab" data-bs-toggle="tab" aria-expanded="false" href="#directories-tab">Directories</a>
+					<a class="nav-link" id="pills-directories-tab" data-bs-toggle="tab" aria-expanded="false" href="#directories-tab">{% trans "Directories" %}</a>
 				</li>
 				{% endif %}
 				<li class="nav-item dropdown">
-					<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false">URLs&nbsp;<i class="fe-chevron-down"></i></a>
+					<a class="nav-link dropdown-toggle" data-bs-toggle="dropdown" href="#" role="button" aria-expanded="false">{% trans "URLs" %}&nbsp;<i class="fe-chevron-down"></i></a>
 					<ul class="dropdown-menu" style="width: 240px;">
-						<li><a class="dropdown-item" id="pills-endpoints-tab" href="#endpoints-tab" data-bs-toggle="tab" aria-expanded="false">All Endpoints</a></li>
+						<li><a class="dropdown-item" id="pills-endpoints-tab" href="#endpoints-tab" data-bs-toggle="tab" aria-expanded="false">{% trans "All Endpoints" %}</a></li>
 						{% if 'fetch_url' in history.tasks and history.used_gf_patterns %}
 						{% for key,value in matched_gf_count.items %}
 							{% if value > 0 %}
@@ -85,21 +86,21 @@ Scan Findings
 				</li>
 				{% if total_vulnerability_count > 0 %}
 				<li class="nav-item">
-					<a class="nav-link" id="pills-vulnerabilities-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#vulnerabilities-tab">Vulnerabilities</a>
+					<a class="nav-link" id="pills-vulnerabilities-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#vulnerabilities-tab">{% trans "Vulnerabilities" %}</a>
 				</li>
 				{% endif %}
 				{% if total_leaked_secret_count > 0 %}
 				<li class="nav-item">
-					<a class="nav-link" id="pills-secrets-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#secrets-tab">Secrets</a>
+					<a class="nav-link" id="pills-secrets-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#secrets-tab">{% trans "Secrets" %}</a>
 				</li>
 				{% endif %}
 				{% if 'osint' in history.tasks %}
 				<li class="nav-item">
-					<a class="nav-link" id="pills-osint-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#osint-tab">OSINT</a>
+					<a class="nav-link" id="pills-osint-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#osint-tab">{% trans "OSINT" %}</a>
 				</li>
 				{% endif %}
 				<li class="nav-item">
-					<a class="nav-link" id="pills-visualisation-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#visualisation-tab">Visualization</a>
+					<a class="nav-link" id="pills-visualisation-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#visualisation-tab">{% trans "Visualization" %}</a>
 				</li>
 			</ul>
 		</div>
@@ -115,27 +116,27 @@ Scan Findings
 						<div class="d-flex align-items-start mb-3">
 							<div class="w-100">
 								<h5 class="mt-0 mb-0 font-15">
-									Scan Status for <span class="badge badge-soft-primary">{{history.domain.name}}</span>
+									{% trans "Scan Status for" %} <span class="badge badge-soft-primary">{{history.domain.name}}</span>
 								</h5>
 								<p class="mt-1 mb-0 text-muted font-14">
 									{% if history.scan_status == -1 %}
 									<span class="mdi mdi-circle text-warning"></span>
-									<span class="badge badge-soft-warning">Pending</span>
+									<span class="badge badge-soft-warning">{% trans "Pending" %}</span>
 									{% elif history.scan_status == 0 %}
 									<span class="mdi mdi-circle text-danger"></span>
-									<span class="badge badge-soft-danger">Failed</span>
+									<span class="badge badge-soft-danger">{% trans "Failed" %}</span>
 									{% elif history.scan_status == 1 %}
 									<span class="mdi mdi-circle text-warning"></span>
-									<span class="badge badge-soft-warning">In Progress</span>
+									<span class="badge badge-soft-warning">{% trans "In Progress" %}</span>
 									{% elif history.scan_status == 2 %}
 									<span class="mdi mdi-circle text-success"></span>
-									<span class="badge badge-soft-success">Completed</span>
+									<span class="badge badge-soft-success">{% trans "Completed" %}</span>
 									{% elif history.scan_status == 3 %}
 									<span class="mdi mdi-circle text-danger"></span>
-									<span class="badge badge-soft-danger">Aborted</span>
+									<span class="badge badge-soft-danger">{% trans "Aborted" %}</span>
 									{% else %}
 									<span class="mdi mdi-circle text-danger"></span>
-									<span class="badge badge-danger">Unknown</span>
+									<span class="badge badge-danger">{% trans "Unknown" %}</span>
 									{% endif %}
 								</p>
 							</div>
@@ -144,25 +145,25 @@ Scan Findings
 									<i class="fe-more-vertical"></i>
 								</a>
 								<div class="dropdown-menu" style="">
-									<a class="dropdown-item" href="javascript:download_subdomains({{scan_history_id}}, '{{history.domain.name}}')">Download All Subdomains</a>
-									<a class="dropdown-item" href="javascript:download_endpoints({{scan_history_id}}, '{{history.domain.name}}')">Download All Endpoints</a>
-									<a class="dropdown-item" href="javascript:download_important_subdomains({{scan_history_id}}, '{{history.domain.name}}');">Download Important Subdomains</a>
-									<a class="dropdown-item" href="javascript:download_interesting_subdomains({{scan_history_id}}, '{{history.domain.name}}');">Download Interesting Subdomains</a>
-									<a class="dropdown-item" href="javascript:download_interesting_endpoints({{scan_history_id}}, '{{history.domain.name}}');">Download Interesting Endpoints</a>
+									<a class="dropdown-item" href="javascript:download_subdomains({{scan_history_id}}, '{{history.domain.name}}')">{% trans "Download All Subdomains" %}</a>
+									<a class="dropdown-item" href="javascript:download_endpoints({{scan_history_id}}, '{{history.domain.name}}')">{% trans "Download All Endpoints" %}</a>
+									<a class="dropdown-item" href="javascript:download_important_subdomains({{scan_history_id}}, '{{history.domain.name}}');">{% trans "Download Important Subdomains" %}</a>
+									<a class="dropdown-item" href="javascript:download_interesting_subdomains({{scan_history_id}}, '{{history.domain.name}}');">{% trans "Download Interesting Subdomains" %}</a>
+									<a class="dropdown-item" href="javascript:download_interesting_endpoints({{scan_history_id}}, '{{history.domain.name}}');">{% trans "Download Interesting Endpoints" %}</a>
 								</div>
 							</div>
 						</div>
 						{% if history.scan_status == 0 %}
 						{% if history.error_message %}
-							<p class="text-danger">Scan failed due to ERROR: {{history.error_message}}</p>
+							<p class="text-danger">{% blocktrans with error_message=history.error_message %}Scan failed due to ERROR: {{ error_message }}{% endblocktrans %}</p>
 						{% endif %}
 						{% endif %}
-						<h6 class="font-13 text-muted text-uppercase"><i class="fe-settings"></i> Scan Configurations</h6>
-						<span>Starting Path: {% if history.cfg_starting_point_path %} {{history.cfg_starting_point_path}} {% else %}/ {% endif %}</span><i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Scan path where the scan began"></i><br>
+						<h6 class="font-13 text-muted text-uppercase"><i class="fe-settings"></i> {% trans "Scan Configurations" %}</h6>
+						<span>{% trans "Starting Path:" %} {% if history.cfg_starting_point_path %} {{history.cfg_starting_point_path}} {% else %}/ {% endif %}</span><i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Scan path where the scan began' %}"></i><br>
 						<div class="accordion custom-accordion" id="custom-accordion-one">
 							<div>
 								<a class="custom-accordion-title text-reset d-block collapsed" data-bs-toggle="collapse" href="#collapseImported" aria-expanded="true" aria-controls="collapseImported">
-									{{history.cfg_imported_subdomains|length}} Imported Subdomains <i class="mdi mdi-chevron-down accordion-arrow"></i>
+									{% blocktrans count counter=history.cfg_imported_subdomains|length with num=history.cfg_imported_subdomains|length %}{{ num }} Imported Subdomain{% plural %}{{ num }} Imported Subdomains{% endblocktrans %} <i class="mdi mdi-chevron-down accordion-arrow"></i>
 								</a>
 								<div id="collapseImported" class="collapse" data-bs-parent="#custom-accordion-one" style="">
 									<ul>
@@ -174,7 +175,7 @@ Scan Findings
 							</div>
 							<div>
 								<a class="custom-accordion-title text-reset d-block collapsed" data-bs-toggle="collapse" href="#collapseOutofScope" aria-expanded="true" aria-controls="collapseImported">
-									{{history.cfg_out_of_scope_subdomains|length}} out of scope Subdomains <i class="mdi mdi-chevron-down accordion-arrow"></i>
+									{% blocktrans count counter=history.cfg_out_of_scope_subdomains|length with num=history.cfg_out_of_scope_subdomains|length %}{{ num }} out of scope Subdomain{% plural %}{{ num }} out of scope Subdomains{% endblocktrans %} <i class="mdi mdi-chevron-down accordion-arrow"></i>
 								</a>
 								<div id="collapseOutofScope" class="collapse" data-bs-parent="#custom-accordion-one" style="">
 									<ul>
@@ -186,7 +187,7 @@ Scan Findings
 							</div>
 							<div>
 								<a class="custom-accordion-title text-reset d-block collapsed" data-bs-toggle="collapse" href="#collapsePath" aria-expanded="true" aria-controls="collapseImported">
-									{{history.cfg_excluded_paths|length}} Excluded Paths <i class="mdi mdi-chevron-down accordion-arrow"></i>
+									{% blocktrans count counter=history.cfg_excluded_paths|length with num=history.cfg_excluded_paths|length %}{{ num }} Excluded Path{% plural %}{{ num }} Excluded Paths{% endblocktrans %} <i class="mdi mdi-chevron-down accordion-arrow"></i>
 								</a>
 								<div id="collapsePath" class="collapse" data-bs-parent="#custom-accordion-one" style="">
 									<ul>
@@ -197,27 +198,27 @@ Scan Findings
 								</div>
 							</div>
 						</div>
-						<h6 class="font-13 text-muted text-uppercase mt-3"><i class="fe-file"></i> Scan Logs</h6>
-						<span><a href="javascript:get_logs_modal({{history.id}})"><i class="fe-terminal"></i> Logs</a></span>
-						<h6 class="font-13 text-muted text-uppercase mt-3"><i class="fe-cpu"></i> Scan Engine</h6>
+						<h6 class="font-13 text-muted text-uppercase mt-3"><i class="fe-file"></i> {% trans "Scan Logs" %}</h6>
+						<span><a href="javascript:get_logs_modal({{history.id}})"><i class="fe-terminal"></i> {% trans "Logs" %}</a></span>
+						<h6 class="font-13 text-muted text-uppercase mt-3"><i class="fe-cpu"></i> {% trans "Scan Engine" %}</h6>
 						<span class="badge badge-soft-primary">{{history.scan_type.engine_name}}</span>
-						<h6 class="font-13 text-muted text-uppercase mt-3"><i class="fe-clock"></i> Scan Duration </h6>
+						<h6 class="font-13 text-muted text-uppercase mt-3"><i class="fe-clock"></i> {% trans "Scan Duration" %} </h6>
 						{% if history.scan_status == -1 %}
-						<p class="mt-1 mb-0 text-warning font-14"><small class="text-center text-muted">Scan not yet started.</small></p>
+						<p class="mt-1 mb-0 text-warning font-14"><small class="text-center text-muted">{% trans "Scan not yet started." %}</small></p>
 						{% elif history.scan_status == 0 %}
 						<span class="mt-1 mb-0 text-danger font-14">{{ history.start_scan_date|timesince:history.stop_scan_date }}</span>
 						{% elif history.scan_status == 1 %}
 						<span class="mt-1 mb-0 text-primary font-14">{{ history.get_elapsed_time }}</span>
 						{% elif history.scan_status == 2 %}
 						{% if history.get_total_scan_time_in_sec < 60 %}
-						<span class="mt-1 mb-0 text-success font-14">Completed in < 1 minutes</span>
+						<span class="mt-1 mb-0 text-success font-14">{% trans "Completed in < 1 minutes" %}</span>
 						{% else %}
-						<span class="mt-1 mb-0 text-success font-14">Completed in {{ history.start_scan_date|timesince:history.stop_scan_date }}</span>
+						<span class="mt-1 mb-0 text-success font-14">{% blocktrans with duration=history.start_scan_date|timesince:history.stop_scan_date %}Completed in {{ duration }}{% endblocktrans %}</span>
 						{% endif %}
 						{% elif history.scan_status == 3 %}
-						<span class="mt-1 mb-0 text-danger font-14">Aborted in {{ history.start_scan_date|timesince:history.stop_scan_date }}</span>
+						<span class="mt-1 mb-0 text-danger font-14">{% blocktrans with duration=history.start_scan_date|timesince:history.stop_scan_date %}Aborted in {{ duration }}{% endblocktrans %}</span>
 						{% endif %}
-						<h3 class="font-13 text-muted text-uppercase mt-3"><i class="fe-loader"></i> Scan Progress {% if history.scan_status == 0 or history.scan_status == 1 or history.scan_status == 3 %}<span class="text-primary">&mdash; {% widthratio history.scanactivity_set.all|length history.scan_type.get_number_of_steps|add:4 100 %}% (step {{ history.scanactivity_set.all|length }}/{{ history.scan_type.get_number_of_steps|add:4 }}){% if history.scan_status == 3 %}, aborted{% endif %}</span>{% elif history.scan_status == 2 %}<span class="text-success">&mdash; 100% complete</span>{% endif %}</h3>
+						<h3 class="font-13 text-muted text-uppercase mt-3"><i class="fe-loader"></i> {% trans "Scan Progress" %} {% if history.scan_status == 0 or history.scan_status == 1 or history.scan_status == 3 %}<span class="text-primary">&mdash; {% widthratio history.scanactivity_set.all|length history.scan_type.get_number_of_steps|add:4 100 %}% {% blocktrans with current=history.scanactivity_set.all|length total=history.scan_type.get_number_of_steps|add:4 %}(step {{ current }}/{{ total }}){% endblocktrans %}{% if history.scan_status == 3 %}{% trans ", aborted" %}{% endif %}</span>{% elif history.scan_status == 2 %}<span class="text-success">&mdash; {% trans "100% complete" %}</span>{% endif %}</h3>
 						<div class="progress mb-2 progress-md">
 							{% if history.scan_status == -1 %}
 							<div class="progress-bar bg-warning" role="progressbar" style="width: 10%" aria-valuemin="0" aria-valuemax="100">
@@ -243,13 +244,13 @@ Scan Findings
 						</div>
 
 						{% if  history.domain.get_organization %}
-						<h3 class="font-13 text-muted text-uppercase mb-2">Tagged to Organization</h3>
+						<h3 class="font-13 text-muted text-uppercase mb-2">{% trans "Tagged to Organization" %}</h3>
 						{% for organization in history.domain.get_organization %}
-						<span class="badge badge-soft-dark m-1" data-toggle="tooltip" data-placement="top" title="Domain {{domain.name}} belongs to organization {{organization.name}}">{{ organization.name }}</span>
+						<span class="badge badge-soft-dark m-1" data-toggle="tooltip" data-placement="top" title="{% blocktrans with domain_name=domain.name org_name=organization.name %}Domain {{ domain_name }} belongs to organization {{ org_name }}{% endblocktrans %}">{{ organization.name }}</span>
 						{% endfor %}
 						{% endif %}
 
-						<h6 class="font-13 text-muted text-uppercase mt-4 mb-2"><i class="fe-activity"></i> Timeline</h6>
+						<h6 class="font-13 text-muted text-uppercase mt-4 mb-2"><i class="fe-activity"></i> {% trans "Timeline" %}</h6>
 						<div data-simplebar style="max-height: 410px;" class="p-2">
 							<div class="track-order-list">
 								<ul class="list-unstyled">
@@ -257,19 +258,19 @@ Scan Findings
 									<li class="completed">
 										<h5 class="mt-0 mb-1">{{activity.title}}
 											<span class="float-end badge {% if activity.status == 0 %}badge-soft-danger {% elif activity.status == 1 %}badge-soft-warning{% elif activity.status == 2 %}badge-soft-success{% endif %}">
-												{% if activity.status == 0 %}Failed
-												{% elif activity.status == 1 %}In progress<span class="active-dot dot"></span>
-												{% elif activity.status == 2 %}Completed
+												{% if activity.status == 0 %}{% trans "Failed" %}
+												{% elif activity.status == 1 %}{% trans "In progress" %}<span class="active-dot dot"></span>
+												{% elif activity.status == 2 %}{% trans "Completed" %}
 												{% endif %}
 											</span>
 										</h5>
 										<p class="text-muted">{{activity.time|naturaltime}}<br><small class="text-muted">{{activity.time}}</small> </p>
 										{% if activity.status == 0 %}
 											{% if activity.error_message %}
-												<p class="badge badge-soft-danger">Error: {{activity.error_message}}</p>
+												<p class="badge badge-soft-danger">{% blocktrans with error_message=activity.error_message %}Error: {{ error_message }}{% endblocktrans %}</p>
 											{% endif %}
 										{% endif %}
-										<span><a href="javascript:get_logs_modal(null, {{activity.id}})"><i class="fe-terminal"></i> Logs</a></span>
+										<span><a href="javascript:get_logs_modal(null, {{activity.id}})"><i class="fe-terminal"></i> {% trans "Logs" %}</a></span>
 									</li>
 									{% endfor %}
 								</ul>
@@ -282,7 +283,7 @@ Scan Findings
 						<div class="d-flex align-items-start mb-3">
 							<div class="w-100">
 								<h5 class="mt-0 mb-0 font-15">
-									Recent Scans for <span class="badge badge-soft-primary">{{history.domain.name}}</span>
+									{% trans "Recent Scans for" %} <span class="badge badge-soft-primary">{{history.domain.name}}</span>
 								</h5>
 								<div class="track-order-list mt-3">
 									<ul class="list-unstyled">
@@ -292,40 +293,40 @@ Scan Findings
 												<h5 class="mt-0 mb-1">
 													{% if history.id == scan.id %}
 													<span class="active-dot dot"></span>
-													<span class="float-start badge badge-soft-primary ms-1 me-1">Current Scan</span>
+													<span class="float-start badge badge-soft-primary ms-1 me-1">{% trans "Current Scan" %}</span>
 													{% endif %}
 													{{scan.scan_type.engine_name}}
 													{% if scan.scan_status == -1 %}
-													<span class="badge badge-soft-warning float-end">Pending</span>
+													<span class="badge badge-soft-warning float-end">{% trans "Pending" %}</span>
 													{% elif scan.scan_status == 0 %}
-													<span class="badge badge-soft-danger float-end">Failed</span>
+													<span class="badge badge-soft-danger float-end">{% trans "Failed" %}</span>
 													{% elif scan.scan_status == 1 %}
-													<span class="badge badge-soft-primary float-end">Scanning</span>
+													<span class="badge badge-soft-primary float-end">{% trans "Scanning" %}</span>
 													{% elif scan.scan_status == 2 %}
-													<span class="badge badge-soft-success float-end">Completed</span>
+													<span class="badge badge-soft-success float-end">{% trans "Completed" %}</span>
 													{% elif scan.scan_status == 3 %}
-													<span class="badge badge-soft-danger float-end">Aborted</span>
+													<span class="badge badge-soft-danger float-end">{% trans "Aborted" %}</span>
 													{% else %}
-													<span class="badge badge-soft-danger float-end">Unknown</span>
+													<span class="badge badge-soft-danger float-end">{% trans "Unknown" %}</span>
 													{% endif %}
 												</h5>
 												<br>
 												<p class="text-muted">{{scan.start_scan_date|naturaltime}}<br><small class="text-muted">{{scan.start_scan_date}}</small></p>
 												<p class="text-primary">
-													{{scan.get_subdomain_count}} Subdomains Discovered
+													{% blocktrans with count=scan.get_subdomain_count %}{{ count }} Subdomains Discovered{% endblocktrans %}
 													<span class="float-end text-dark">
 														{% with next_element=most_recent_scans|next:forloop.counter0 %}
 														{% if next_element.get_subdomain_count and scan.get_subdomain_count and next_element.get_subdomain_count > scan.get_subdomain_count %}
-														<span class="text-danger" data-toggle="tooltip" data-placement="top" title="{{scan.get_subdomain_count|sub:next_element.get_subdomain_count|abs}} subdomains missing since last scan."><i class="fa fa-caret-down text-danger me-1"></i>{{scan.get_subdomain_count|sub:next_element.get_subdomain_count}} Subdomains</span>
+														<span class="text-danger" data-toggle="tooltip" data-placement="top" title="{% blocktrans with diff=scan.get_subdomain_count|sub:next_element.get_subdomain_count|abs %}{{ diff }} subdomains missing since last scan.{% endblocktrans %}"><i class="fa fa-caret-down text-danger me-1"></i>{% blocktrans with diff=scan.get_subdomain_count|sub:next_element.get_subdomain_count %}{{ diff }} Subdomains{% endblocktrans %}</span>
 														{% elif next_element.get_subdomain_count and scan.get_subdomain_count and next_element.get_subdomain_count < scan.get_subdomain_count %}
-														<span class="text-success" data-toggle="tooltip" data-placement="top" title="{{scan.get_subdomain_count|sub:next_element.get_subdomain_count}} subdomains added since last scan."><i class="fa fa-caret-up text-success me-1"></i>{{scan.get_subdomain_count|sub:next_element.get_subdomain_count}} Subdomains</span>
+														<span class="text-success" data-toggle="tooltip" data-placement="top" title="{% blocktrans with diff=scan.get_subdomain_count|sub:next_element.get_subdomain_count %}{{ diff }} subdomains added since last scan.{% endblocktrans %}"><i class="fa fa-caret-up text-success me-1"></i>{% blocktrans with diff=scan.get_subdomain_count|sub:next_element.get_subdomain_count %}{{ diff }} Subdomains{% endblocktrans %}</span>
 														{% endif %}
 														{% endwith %}
 													</span>
 												</p>
 												{% if scan.scan_status == 0 %}
 													{% if scan.error_message %}
-														<p class="text-danger">ERROR: {{scan.error_message}}</p>
+														<p class="text-danger">{% blocktrans with error_message=scan.error_message %}ERROR: {{ error_message }}{% endblocktrans %}</p>
 													{% endif %}
 												{% endif %}
 											</a>
@@ -342,7 +343,7 @@ Scan Findings
 						<div class="d-flex align-items-start mb-3">
 							<div class="w-100">
 								<h5 class="mt-0 mb-0 font-15">
-									<span id="sub_scan_history_count"></span> Sub Scan History for <span class="badge badge-soft-primary">{{history.domain.name}}</span>
+									<span id="sub_scan_history_count"></span> {% trans "Sub Scan History for" %} <span class="badge badge-soft-primary">{{history.domain.name}}</span>
 								</h5>
 								<div data-simplebar style="max-height: 510px;" class="p-2">
 									<div id="subscan_history_widget">
@@ -358,11 +359,11 @@ Scan Findings
 					<div class="col-xl-3 col-lg-3 col-6">
 						<div class="card" id="tooltip-container">
 							<div class="card-body">
-								<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Total Subdomains Discovered by Suricatoos during this scan"></i>
-								<h4 class="mt-0 font-16">Subdomains Discovered</h4>
+								<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Total Subdomains Discovered by Suricatoos during this scan' %}"></i>
+								<h4 class="mt-0 font-16">{% trans "Subdomains Discovered" %}</h4>
 								<h2 class="text-primary my-3 text-center"><span data-plugin="counterup">{{subdomain_count|intcomma}}</span></h2>
 								<br>
-								<p class="mb-0"><span class="badge badge-soft-success">Alive Subdomains: {{alive_count}}</span></p>
+								<p class="mb-0"><span class="badge badge-soft-success">{% blocktrans with count=alive_count %}Alive Subdomains: {{ count }}{% endblocktrans %}</span></p>
 							</div>
 						</div>
 					</div>
@@ -370,11 +371,11 @@ Scan Findings
 					<div class="col-xl-3 col-lg-3 col-6">
 						<div class="card" id="tooltip-container1">
 							<div class="card-body">
-								<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container1" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Total Endpoints discovered by Suricatoos during this scan. This includes any URLs discovered."></i>
-								<h4 class="mt-0 font-16">Endpoints Discovered</h4>
+								<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container1" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Total Endpoints discovered by Suricatoos during this scan. This includes any URLs discovered.' %}"></i>
+								<h4 class="mt-0 font-16">{% trans "Endpoints Discovered" %}</h4>
 								<h2 class="text-primary my-3 text-center"><span data-plugin="counterup">{{endpoint_count|intcomma}}</span></h2>
 								<br>
-								<p class="text-success mb-0"><span class="badge badge-soft-success">Alive Endpoints: {{endpoint_alive_count}}</span></p>
+								<p class="text-success mb-0"><span class="badge badge-soft-success">{% blocktrans with count=endpoint_alive_count %}Alive Endpoints: {{ count }}{% endblocktrans %}</span></p>
 							</div>
 						</div>
 					</div>
@@ -382,17 +383,17 @@ Scan Findings
 					<div class="col-xl-3 col-lg-3 col-6">
 						<div class="card" id="tooltip-container2">
 							<div class="card-body">
-								<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container2" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Total Vulnerabilities discovered by Suricatoos. This will be populated only if vulnerability scan is performed during this scan."></i>
-								<h4 class="mt-0 font-16">Vulnerabilities Discovered</h4>
+								<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container2" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Total Vulnerabilities discovered by Suricatoos. This will be populated only if vulnerability scan is performed during this scan.' %}"></i>
+								<h4 class="mt-0 font-16">{% trans "Vulnerabilities Discovered" %}</h4>
 								<h2 class="text-danger my-3 text-center"><span data-plugin="counterup">{{total_vulnerability_count|intcomma}}</span></h2>
 								{% if total_vulnerability_count > 0 %}
 								<p class="text-muted mb-0">
-									<span class="w-title text-danger">{{critical_count}} Critical, {{high_count}} High, {{medium_count}} Medium</span>
+									<span class="w-title text-danger">{% blocktrans with critical=critical_count high=high_count medium=medium_count %}{{ critical }} Critical, {{ high }} High, {{ medium }} Medium{% endblocktrans %}</span>
 									<br>
-									<span class="w-title text-primary">{{low_count}} Low, {{info_count}} Info, and {{unknown_count}} Unknown Vulnerabilities</span>
+									<span class="w-title text-primary">{% blocktrans with low=low_count info=info_count unknown=unknown_count %}{{ low }} Low, {{ info }} Info, and {{ unknown }} Unknown Vulnerabilities{% endblocktrans %}</span>
 								</p>
 								{% else %}
-								<p class="text-muted mb-0 small">No vulnerabilities found.</p>
+								<p class="text-muted mb-0 small">{% trans "No vulnerabilities found." %}</p>
 								<br>
 								{% endif %}
 							</div>
@@ -402,13 +403,13 @@ Scan Findings
 					<div class="col-xl-3 col-lg-3 col-6">
 						<div class="card" id="tooltip-container-secrets">
 							<div class="card-body">
-								<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container-secrets" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Leaked secrets discovered by the secret scan engine (gitleaks / ggshield). Values are masked."></i>
-								<h4 class="mt-0 font-16">Secrets Discovered</h4>
+								<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container-secrets" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Leaked secrets discovered by the secret scan engine (gitleaks / ggshield). Values are masked.' %}"></i>
+								<h4 class="mt-0 font-16">{% trans "Secrets Discovered" %}</h4>
 								<h2 class="text-danger my-3 text-center"><span data-plugin="counterup">{{total_leaked_secret_count|intcomma}}</span></h2>
 								{% if total_leaked_secret_count > 0 %}
-								<p class="text-muted mb-0 small">Hardcoded secrets found in scan artifacts. Values are masked &mdash; the raw secret is never stored.</p>
+								<p class="text-muted mb-0 small">{% trans "Hardcoded secrets found in scan artifacts. Values are masked &mdash; the raw secret is never stored." %}</p>
 								{% else %}
-								<p class="text-muted mb-0 small">No leaked secrets found.</p>
+								<p class="text-muted mb-0 small">{% trans "No leaked secrets found." %}</p>
 								<br>
 								{% endif %}
 							</div>
@@ -418,16 +419,16 @@ Scan Findings
 					<div class="col-xl-3 col-lg-3 col-6">
 						<div class="card" id="tooltip-container3">
 							<div class="card-body">
-								<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container3" data-bs-toggle="tooltip" data-bs-placement="bottom" title="OSINT Results"></i>
-								<h4 class="mt-0 font-16">OSINT</h4>
+								<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container3" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'OSINT Results' %}"></i>
+								<h4 class="mt-0 font-16">{% trans "OSINT" %}</h4>
 								{% if 'osint' in history.tasks %}
-								<h5 class="text-warning">{{exposed_count}} Exposed Credentials</h5>
-								<p class="text-muted mb-0">{{email_count}} Email Address Discovered</p>
-								<p class="text-muted mb-0">{{employees_count}} Employees Found</p>
+								<h5 class="text-warning">{% blocktrans with count=exposed_count %}{{ count }} Exposed Credentials{% endblocktrans %}</h5>
+								<p class="text-muted mb-0">{% blocktrans with count=email_count %}{{ count }} Email Address Discovered{% endblocktrans %}</p>
+								<p class="text-muted mb-0">{% blocktrans with count=employees_count %}{{ count }} Employees Found{% endblocktrans %}</p>
 								<br>
 								{% else %}
 								<h5 class="text-warning">&nbsp;</h5>
-								<p class="text-muted mb-0">OSINT hasn't been performed.</p>
+								<p class="text-muted mb-0">{% trans "OSINT hasn't been performed." %}</p>
 								<p class="text-muted mb-0">&nbsp;</p>
 								<br>
 								<br>
@@ -438,20 +439,20 @@ Scan Findings
 					<div class="col-6 interesting-tab-show" style="display: none">
 						<div class="alert alert-warning alert-dismissible fade show" role="alert">
 							<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-							<i class="mdi mdi-fire-alert me-2"></i> Suricatoos identified <span id="interesting_subdomain_alert_count"></span> <span id="interesting_endpoint_alert_count"></span> <a class="" id="interesting-tab-btn" href="#">Check it out!</a>
+							<i class="mdi mdi-fire-alert me-2"></i> {% trans "Suricatoos identified" %} <span id="interesting_subdomain_alert_count"></span> <span id="interesting_endpoint_alert_count"></span> <a class="" id="interesting-tab-btn" href="#">{% trans "Check it out!" %}</a>
 						</div>
 					</div>
 					<div class="col-6 recon-changes-tab-show" style="display: none">
 						<div class="alert alert-warning alert-dismissible fade show" role="alert">
 							<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-							<i class="fe-trending-up me-2"></i> <span id="subdomain_changes_alert"></span> <a class="alert-link" id="recon-changes-tab-btn" href="#">Check it out!</a>
+							<i class="fe-trending-up me-2"></i> <span id="subdomain_changes_alert"></span> <a class="alert-link" id="recon-changes-tab-btn" href="#">{% trans "Check it out!" %}</a>
 						</div>
 					</div>
 					{% if history.domain.domain_info.related_domains.all %}
 					<div class="col-6 related-domains-tab-show">
 						<div class="alert alert-warning alert-dismissible fade show" role="alert">
 							<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-							<i class="fe-trending-up me-2"></i> Suricatoos identified {{history.domain.domain_info.related_domains.count}} domains related to {{history.domain}}. <a href="#" onclick="$('#v-pills-tab a:last').prev().tab('show');">Check it out!</a>
+							<i class="fe-trending-up me-2"></i> {% blocktrans with count=history.domain.domain_info.related_domains.count domain=history.domain %}Suricatoos identified {{ count }} domains related to {{ domain }}.{% endblocktrans %} <a href="#" onclick="$('#v-pills-tab a:last').prev().tab('show');">{% trans "Check it out!" %}</a>
 						</div>
 					</div>
 					{% endif %}
@@ -459,7 +460,7 @@ Scan Findings
 					<div class="col-6 related-domains-tab-show">
 						<div class="alert alert-warning alert-dismissible fade show" role="alert">
 							<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-							<i class="fe-trending-up me-2"></i> Suricatoos identified {{history.buckets.count}} Buckets related to {{history.domain}}. <a class="" id="buckets-tab-btn" href="#">Check it out!</a>
+							<i class="fe-trending-up me-2"></i> {% blocktrans with count=history.buckets.count domain=history.domain %}Suricatoos identified {{ count }} Buckets related to {{ domain }}.{% endblocktrans %} <a class="" id="buckets-tab-btn" href="#">{% trans "Check it out!" %}</a>
 						</div>
 					</div>
 					{% endif %}
@@ -467,7 +468,7 @@ Scan Findings
 					<div class="col-6 related-domains-tab-show">
 						<div class="alert alert-warning alert-dismissible fade show" role="alert">
 							<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-							<i class="fe-trending-up me-2"></i>{{history.domain.name}} has {{history.domain.domain_info.related_tlds.count}} registered TLDs. <a href="#" onclick="$('#v-pills-tab a:last').tab('show');">Check it out!</a>
+							<i class="fe-trending-up me-2"></i>{% blocktrans with domain_name=history.domain.name count=history.domain.domain_info.related_tlds.count %}{{ domain_name }} has {{ count }} registered TLDs.{% endblocktrans %} <a href="#" onclick="$('#v-pills-tab a:last').tab('show');">{% trans "Check it out!" %}</a>
 						</div>
 					</div>
 					{% endif %}
@@ -475,25 +476,25 @@ Scan Findings
 						<div class="card" style="height: 95%">
 							<div class="card-body">
 								<div class="card-widgets">
-									<a href="javascript: fetch_whois('{{history.domain}}', true);" data-toggle="tooltip" title="Reload Whois"><i class="mdi mdi-refresh"></i></a>
+									<a href="javascript: fetch_whois('{{history.domain}}', true);" data-toggle="tooltip" title="{% trans 'Reload Whois' %}"><i class="mdi mdi-refresh"></i></a>
 								</div>
-								<h4 class="header-title mb-0"><i class="fe-activity"></i>&nbsp;Target Information</h4>
+								<h4 class="header-title mb-0"><i class="fe-activity"></i>&nbsp;{% trans "Target Information" %}</h4>
 								<div class="row mt-3">
 									<div class="col-sm-3">
 										<div class="nav flex-column nav-pills nav-pills-tab" id="v-pills-tab" role="tablist" aria-orientation="vertical">
-											<a class="nav-link active show mb-1" id="v-pills-domain-tab" data-bs-toggle="pill" href="#v-pills-domain" role="tab" aria-controls="v-pills-domain-tab" aria-selected="true">Domain info</a>
-											<a class="nav-link mb-1" id="v-pills-whois-tab" data-bs-toggle="pill" href="#v-pills-whois" role="tab" aria-controls="v-pills-whois" aria-selected="false">Whois</a>
-											<a class="nav-link mb-1" id="v-pills-nameserver-tab" data-bs-toggle="pill" href="#v-pills-nameserver" role="tab" aria-controls="v-pills-nameserver" aria-selected="false">Nameservers</a>
-											<a class="nav-link mb-1" id="v-pills-dns-tab" data-bs-toggle="pill" href="#v-pills-dns" role="tab" aria-controls="v-pills-dns" aria-selected="false">DNS Records</a>
-											<a class="nav-link mb-1" id="v-pills-history-tab" data-bs-toggle="pill" href="#v-pills-history" role="tab" aria-controls="v-pills-history"aria-selected="false">Historical Ips</a>
+											<a class="nav-link active show mb-1" id="v-pills-domain-tab" data-bs-toggle="pill" href="#v-pills-domain" role="tab" aria-controls="v-pills-domain-tab" aria-selected="true">{% trans "Domain info" %}</a>
+											<a class="nav-link mb-1" id="v-pills-whois-tab" data-bs-toggle="pill" href="#v-pills-whois" role="tab" aria-controls="v-pills-whois" aria-selected="false">{% trans "Whois" %}</a>
+											<a class="nav-link mb-1" id="v-pills-nameserver-tab" data-bs-toggle="pill" href="#v-pills-nameserver" role="tab" aria-controls="v-pills-nameserver" aria-selected="false">{% trans "Nameservers" %}</a>
+											<a class="nav-link mb-1" id="v-pills-dns-tab" data-bs-toggle="pill" href="#v-pills-dns" role="tab" aria-controls="v-pills-dns" aria-selected="false">{% trans "DNS Records" %}</a>
+											<a class="nav-link mb-1" id="v-pills-history-tab" data-bs-toggle="pill" href="#v-pills-history" role="tab" aria-controls="v-pills-history"aria-selected="false">{% trans "Historical Ips" %}</a>
 											<a class="nav-link mb-1" id="v-pills-related-tab" data-bs-toggle="pill" href="#v-pills-related" role="tab" aria-controls="v-pills-related" aria-selected="false">
-												Related Domains
+												{% trans "Related Domains" %}
 												{% if history.domain.domain_info.related_domains.count %}
 												<span class="badge badge-soft-primary float-end">{{history.domain.domain_info.related_domains.count}}</span>
 												{% endif %}
 											</a>
 											<a class="nav-link mb-1" id="v-pills-similar-tab" data-bs-toggle="pill" href="#v-pills-similar" role="tab" aria-controls="v-pills-similar-tld" aria-selected="false">
-												Related TLDs
+												{% trans "Related TLDs" %}
 												{% if history.domain.domain_info.related_tlds.count %}
 												<span class="badge badge-soft-primary float-end">{{history.domain.domain_info.related_tlds.count}}</span>
 												{% endif %}
@@ -503,19 +504,19 @@ Scan Findings
 									<div class="col-sm-9">
 										<div class="tab-content pt-0">
 											<div class="tab-pane fade" id="v-pills-dns" role="tabpanel" aria-labelledby="v-pills-dns-tab" data-simplebar style="min-height: 300px;">
-												<h4>A Records</h4>
+												<h4>{% trans "A Records" %}</h4>
 												{% for dns in history.domain.domain_info.dns_records.all %}
 													{% if dns.type == 'a' %}
 														<span class="badge badge-soft-primary me-1 mt-1">{{ dns }}</span>
 													{% endif %}
 												{% endfor %}
-												<h4>MX Records</h4>
+												<h4>{% trans "MX Records" %}</h4>
 												{% for dns in history.domain.domain_info.dns_records.all %}
 													{% if dns.type == 'mx' %}
 														<span class="badge badge-soft-primary me-1 mt-1">{{ dns }}</span>
 													{% endif %}
 												{% endfor %}
-												<h4>TXT Records</h4>
+												<h4>{% trans "TXT Records" %}</h4>
 												{% for dns in history.domain.domain_info.dns_records.all %}
 													{% if dns.type == 'txt' %}
 														<span class="badge badge-soft-secondary me-1 mt-1">{{ dns }}</span>
@@ -526,61 +527,61 @@ Scan Findings
 												{% if not history.domain.domain_info %}
 												<div class="alert alert-danger alert-dismissible fade show" role="alert" id="whois_not_fetched_alert">
 													<button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-													WHOIS Record Has not been fetched, would you like to <a href="javascript: fetch_whois('{{history.domain}}', true);">fetch it now?</a>
+													{% trans "WHOIS Record Has not been fetched, would you like to" %} <a href="javascript: fetch_whois('{{history.domain}}', true);">{% trans "fetch it now?" %}</a>
 												</div>
 												{% endif %}
 												<div class="alert alert-info alert-dismissible fade show" role="alert" id="whois_fetching_alert" style="display: none">
-													Fetching WHOIS records, Please wait...
+													{% trans "Fetching WHOIS records, Please wait..." %}
 													<div class="spinner-border spinner-border-sm float-end" role="status"></div>
 												</div>
 												<div class="alert alert-success alert-dismissible fade show" role="alert" id="whois_fetched_alert" style="display: none">
-													WHOIS Records have been fetched, please <a href="javascript:location.reload();">reload the page.</a>
+													{% trans "WHOIS Records have been fetched, please" %} <a href="javascript:location.reload();">{% trans "reload the page." %}</a>
 												</div>
 												<div class="row">
 													<div class="col-4">
-														<small class="sub-header">Domain</small>
+														<small class="sub-header">{% trans "Domain" %}</small>
 														<h5>{{history.domain.name}}</h5>
 													</div>
 													<div class="col-4">
-														<small class="sub-header">Dnssec</small>
+														<small class="sub-header">{% trans "Dnssec" %}</small>
 														<h5>{{history.domain.domain_info.dnssec}}</h5>
 													</div>
 													<div class="col-4">
-														<small class="sub-header">Geolocation</small>
+														<small class="sub-header">{% trans "Geolocation" %}</small>
 														<h5>{{history.domain.domain_info.geolocation_iso|upper}}<span class="ms-2 fi fi-{{history.domain.domain_info.geolocation_iso|lower}}"></span></h5>
 													</div>
 												</div>
 												<div class="row">
 													<div class="col-4">
-														<small class="sub-header">Created</small>
+														<small class="sub-header">{% trans "Created" %}</small>
 														<h5>{{history.domain.domain_info.created}}</h5>
 													</div>
 													<div class="col-4">
-														<small class="sub-header">Updated</small>
+														<small class="sub-header">{% trans "Updated" %}</small>
 														<h5>{{history.domain.domain_info.updated}}</h5>
 													</div>
 													<div class="col-4">
-														<small class="sub-header">Expires</small>
+														<small class="sub-header">{% trans "Expires" %}</small>
 														<h5>{{history.domain.domain_info.expires}}</h5>
 													</div>
 												</div>
 												<div class="row">
 													<div class="col-6">
-														<small class="sub-header">Whois Server</small>
+														<small class="sub-header">{% trans "Whois Server" %}</small>
 														<h5>{{history.domain.domain_info.whois_server}}</h5>
 													</div>
 												</div>
 												<div class="row">
 													<div class="col-4">
-														<small class="sub-header">Registrar Name</small>
+														<small class="sub-header">{% trans "Registrar Name" %}</small>
 														<h5>{{history.domain.domain_info.registrar.name}}</h5>
 													</div>
 													<div class="col-4">
-														<smal class="sub-header"l>Registrar Phone</small>
+														<smal class="sub-header"l>{% trans "Registrar Phone" %}</small>
 														<h5>{{history.domain.domain_info.registrar.phone}}</h5>
 													</div>
 													<div class="col-4">
-														<small class="sub-header">Registrar Email</small>
+														<small class="sub-header">{% trans "Registrar Email" %}</small>
 														<h5>{{history.domain.domain_info.registrar.email}}</h5>
 													</div>
 												</div>
@@ -596,17 +597,17 @@ Scan Findings
 												<ul class="nav nav-tabs nav-bordered nav-justified">
 													<li class="nav-item">
 														<a href="#registrant-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link active">
-															Registrant
+															{% trans "Registrant" %}
 														</a>
 													</li>
 													<li class="nav-item">
 														<a href="#admin-tab" data-bs-toggle="tab" aria-expanded="true" class="nav-link">
-															Administrative
+															{% trans "Administrative" %}
 														</a>
 													</li>
 													<li class="nav-item">
 														<a href="#technical-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link">
-															Technical
+															{% trans "Technical" %}
 														</a>
 													</li>
 												</ul>
@@ -616,23 +617,23 @@ Scan Findings
 															<table class="table mb-0">
 																<tbody>
 																	<tr class="table-info">
-																		<td><b>ID</b></td>
+																		<td><b>{% trans "ID" %}</b></td>
 																		<td><span class="fe-user"></span>&nbsp;{{history.domain.domain_info.registrant.id_str}}</td>
 																	</tr>
 																	<tr class="">
-																		<td><b>Name</b></td>
+																		<td><b>{% trans "Name" %}</b></td>
 																		<td><span class="fe-user"></span>&nbsp;{{history.domain.domain_info.registrant.name}}</td>
 																	</tr>
 																	<tr class="table-primary">
-																		<td><b>Organization</b></td>
+																		<td><b>{% trans "Organization" %}</b></td>
 																		<td><span class="fe-briefcase"></span>&nbsp;{{history.domain.domain_info.registrant.organization}}</td>
 																	</tr>
 																	<tr class="">
-																		<td><b>Email</b></td>
+																		<td><b>{% trans "Email" %}</b></td>
 																		<td><span class="fe-mail"></span>&nbsp;{{history.domain.domain_info.registrant.email}}</td>
 																	</tr>
 																	<tr class="table-info">
-																		<td><b>Phone/Fax</b></td>
+																		<td><b>{% trans "Phone/Fax" %}</b></td>
 																		<td>
 																			{% if history.domain.domain_info.registrant.phone %}
 																			<span class="fe-phone"></span>&nbsp;{{history.domain.domain_info.registrant.phone}}
@@ -643,12 +644,12 @@ Scan Findings
 																		{% endif %}
 																	</tr>
 																	<tr class="">
-																		<td><b>Address</b></td>
+																		<td><b>{% trans "Address" %}</b></td>
 																		<td><span class="fe-home"></span>&nbsp;{{history.domain.domain_info.registrant.address}}</td>
 																	</tr>
 																	<tr class="table-danger">
-																		<td><b>Address</b></td>
-																		<td><b>City: </b>{{history.domain.domain_info.registrant.city}} <b>State: </b>{{history.domain.domain_info.registrant.state}} <b>Zip Code: </b>{{history.domain.domain_info.registrant.zip_code}} <b>Country:
+																		<td><b>{% trans "Address" %}</b></td>
+																		<td><b>{% trans "City:" %} </b>{{history.domain.domain_info.registrant.city}} <b>{% trans "State:" %} </b>{{history.domain.domain_info.registrant.state}} <b>{% trans "Zip Code:" %} </b>{{history.domain.domain_info.registrant.zip_code}} <b>{% trans "Country:" %}
 																		</b>{{history.domain.domain_info.registrant.country}} </td>
 																	</tr>
 																</tbody>
@@ -660,23 +661,23 @@ Scan Findings
 															<table class="table mb-0">
 																<tbody>
 																	<tr class="table-info">
-																		<td><b>ID</b></td>
+																		<td><b>{% trans "ID" %}</b></td>
 																		<td><span class="fe-user"></span>&nbsp;{{history.domain.domain_info.admin.id_str}}</td>
 																	</tr>
 																	<tr class="">
-																		<td><b>Name</b></td>
+																		<td><b>{% trans "Name" %}</b></td>
 																		<td><span class="fe-user"></span>&nbsp;{{history.domain.domain_info.admin.name}}</td>
 																	</tr>
 																	<tr class="table-primary">
-																		<td><b>Organization</b></td>
+																		<td><b>{% trans "Organization" %}</b></td>
 																		<td><span class="fe-briefcase"></span>&nbsp;{{history.domain.domain_info.admin.organization}}</td>
 																	</tr>
 																	<tr class="">
-																		<td><b>Email</b></td>
+																		<td><b>{% trans "Email" %}</b></td>
 																		<td><span class="fe-mail"></span>&nbsp;{{history.domain.domain_info.admin.email}}</td>
 																	</tr>
 																	<tr class="table-info">
-																		<td><b>Phone/Fax</b></td>
+																		<td><b>{% trans "Phone/Fax" %}</b></td>
 																		<td>
 																			{% if history.domain.domain_info.admin.phone %}
 																			<span class="fe-phone"></span>&nbsp;{{history.domain.domain_info.admin.phone}}
@@ -687,12 +688,12 @@ Scan Findings
 																		{% endif %}
 																	</tr>
 																	<tr class="">
-																		<td><b>Address</b></td>
+																		<td><b>{% trans "Address" %}</b></td>
 																		<td><span class="fe-home"></span>&nbsp;{{history.domain.domain_info.admin.address}}</td>
 																	</tr>
 																	<tr class="table-danger">
-																		<td><b>Address</b></td>
-																		<td><b>City: </b>{{history.domain.domain_info.admin.city}} <b>State: </b>{{history.domain.domain_info.admin.state}} <b>Zip Code: </b>{{history.domain.domain_info.admin.zip_code}} <b>Country:
+																		<td><b>{% trans "Address" %}</b></td>
+																		<td><b>{% trans "City:" %} </b>{{history.domain.domain_info.admin.city}} <b>{% trans "State:" %} </b>{{history.domain.domain_info.admin.state}} <b>{% trans "Zip Code:" %} </b>{{history.domain.domain_info.admin.zip_code}} <b>{% trans "Country:" %}
 																		</b>{{history.domain.domain_info.admin.country}} </td>
 																	</tr>
 																</tbody>
@@ -704,23 +705,23 @@ Scan Findings
 															<table class="table mb-0">
 																<tbody>
 																	<tr class="table-info">
-																		<td><b>ID</b></td>
+																		<td><b>{% trans "ID" %}</b></td>
 																		<td><span class="fe-user"></span>&nbsp;{{history.domain.domain_info.admin.id_str}}</td>
 																	</tr>
 																	<tr class="">
-																		<td><b>Name</b></td>
+																		<td><b>{% trans "Name" %}</b></td>
 																		<td><span class="fe-user"></span>&nbsp;{{history.domain.domain_info.admin.name}}</td>
 																	</tr>
 																	<tr class="table-primary">
-																		<td><b>Organization</b></td>
+																		<td><b>{% trans "Organization" %}</b></td>
 																		<td><span class="fe-briefcase"></span>&nbsp;{{history.domain.domain_info.admin.organization}}</td>
 																	</tr>
 																	<tr class="">
-																		<td><b>Email</b></td>
+																		<td><b>{% trans "Email" %}</b></td>
 																		<td><span class="fe-mail"></span>&nbsp;{{history.domain.domain_info.admin.email}}</td>
 																	</tr>
 																	<tr class="table-info">
-																		<td><b>Phone/Fax</b></td>
+																		<td><b>{% trans "Phone/Fax" %}</b></td>
 																		<td>
 																			{% if history.domain.domain_info.admin.phone %}
 																			<span class="fe-phone"></span>&nbsp;{{history.domain.domain_info.admin.phone}}
@@ -731,12 +732,12 @@ Scan Findings
 																		{% endif %}
 																	</tr>
 																	<tr class="">
-																		<td><b>Address</b></td>
+																		<td><b>{% trans "Address" %}</b></td>
 																		<td><span class="fe-home"></span>&nbsp;{{history.domain.domain_info.admin.address}}</td>
 																	</tr>
 																	<tr class="table-danger">
-																		<td><b>Address</b></td>
-																		<td><b>City: </b>{{history.domain.domain_info.tech.city}} <b>State: </b>{{history.domain.domain_info.tech.state}} <b>Zip Code: </b>{{history.domain.domain_info.tech.zip_code}} <b>Country:
+																		<td><b>{% trans "Address" %}</b></td>
+																		<td><b>{% trans "City:" %} </b>{{history.domain.domain_info.tech.city}} <b>{% trans "State:" %} </b>{{history.domain.domain_info.tech.state}} <b>{% trans "Zip Code:" %} </b>{{history.domain.domain_info.tech.zip_code}} <b>{% trans "Country:" %}
 																		</b>{{history.domain.domain_info.tech.country}} </td>
 																	</tr>
 																</tbody>
@@ -747,14 +748,14 @@ Scan Findings
 											</div>
 											<div class="tab-pane fade" id="v-pills-history" role="tabpanel" aria-labelledby="v-pills-history-tab" data-simplebar style="max-height: 300px; min-height: 300px;">
 												{% if history.domain.domain_info.historical_ips.all %}
-												<div class="alert alert-success">{{history.domain.domain_info.historical_ips.all.count}} Historical Ips</div>
+												<div class="alert alert-success">{% blocktrans with count=history.domain.domain_info.historical_ips.all.count %}{{ count }} Historical Ips{% endblocktrans %}</div>
 												<table id="basic-datatable" class="table dt-responsive w-100">
 													<thead>
 															<tr>
-																	<th>IP</th>
-																	<th>Location</th>
-																	<th>Owner</th>
-																	<th>Last Seen</th>
+																	<th>{% trans "IP" %}</th>
+																	<th>{% trans "Location" %}</th>
+																	<th>{% trans "Owner" %}</th>
+																	<th>{% trans "Last Seen" %}</th>
 															</tr>
 													</thead>
 													<tbody>
@@ -769,37 +770,37 @@ Scan Findings
 													</tbody>
 												</table>
 												{% else %}
-												<div class="alert alert-info">No historical IPs found!</div>
+												<div class="alert alert-info">{% trans "No historical IPs found!" %}</div>
 												{% endif %}
 											</div>
 											<div class="tab-pane fade" id="v-pills-nameserver" role="tabpanel" aria-labelledby="v-pills-nameserver-tab" data-simplebar style="max-height: 300px; min-height: 300px;">
 												{% if history.domain.domain_info.name_servers.all %}
-													<div class="alert alert-success">{{history.domain.domain_info.name_servers.all.count}} NameServers identified</div>
+													<div class="alert alert-success">{% blocktrans with count=history.domain.domain_info.name_servers.all.count %}{{ count }} NameServers identified{% endblocktrans %}</div>
 													{% for nameserver in history.domain.domain_info.name_servers.all %}
 														<span class="badge badge-soft-primary me-1 mt-1">{{ nameserver}}</span>
 													{% endfor %}
 												{% else %}
-													<div class="alert alert-info">No NameServers identified</div>
+													<div class="alert alert-info">{% trans "No NameServers identified" %}</div>
 												{% endif %}
 											</div>
 											<div class="tab-pane fade" id="v-pills-related" role="tabpanel" aria-labelledby="v-pills-related-tab" data-simplebar style="max-height: 300px; min-height: 300px;">
 												{% if history.domain.domain_info.related_domains.all %}
-													<div class="alert alert-success">{{history.domain.domain_info.related_domains.all.count}} Related Domains identified</div>
+													<div class="alert alert-success">{% blocktrans with count=history.domain.domain_info.related_domains.all.count %}{{ count }} Related Domains identified{% endblocktrans %}</div>
 													{% for domain in history.domain.domain_info.related_domains.all %}
-														<span class="badge badge-soft-primary badge-link waves-effect waves-light me-1" data-toggle="tooltip" title="Add {{domain}} as target." onclick="add_target('{{domain}}')">{{domain}}</span>
+														<span class="badge badge-soft-primary badge-link waves-effect waves-light me-1" data-toggle="tooltip" title="{% blocktrans %}Add {{ domain }} as target.{% endblocktrans %}" onclick="add_target('{{domain}}')">{{domain}}</span>
 													{% endfor %}
 												{% else %}
-													<div class="alert alert-info">No Related Domains identified</div>
+													<div class="alert alert-info">{% trans "No Related Domains identified" %}</div>
 												{% endif %}
 											</div>
 											<div class="tab-pane fade" id="v-pills-similar" role="tabpanel" aria-labelledby="v-pills-similar-tab" data-simplebar style="max-height: 300px; min-height: 300px;">
 												{% if history.domain.domain_info.related_tlds.all %}
-													<div class="alert alert-success">{{history.domain.domain_info.related_tlds.all.count}} Related TLDs identified</div>
+													<div class="alert alert-success">{% blocktrans with count=history.domain.domain_info.related_tlds.all.count %}{{ count }} Related TLDs identified{% endblocktrans %}</div>
 													{% for domain in history.domain.domain_info.related_tlds.all %}
-														<span class="badge badge-soft-primary badge-link waves-effect waves-light me-1" data-toggle="tooltip" title="Add {{domain}} as target." onclick="add_target('{{domain}}')">{{domain}}</span>
+														<span class="badge badge-soft-primary badge-link waves-effect waves-light me-1" data-toggle="tooltip" title="{% blocktrans %}Add {{ domain }} as target.{% endblocktrans %}" onclick="add_target('{{domain}}')">{{domain}}</span>
 													{% endfor %}
 												{% else %}
-													<div class="alert alert-info">No Related TLDs identified</div>
+													<div class="alert alert-info">{% trans "No Related TLDs identified" %}</div>
 												{% endif %}
 											</div>
 										</div>
@@ -811,7 +812,7 @@ Scan Findings
 					<div class="col-xl-5 col-lg-5 col-12">
 						<div class="card" style="height: 95%">
 							<div class="card-body">
-								<h4 class="header-title mb-0">HTTP Status Breakdown</h4>
+								<h4 class="header-title mb-0">{% trans "HTTP Status Breakdown" %}</h4>
 								<div id="http_status_chart" class="apex-charts"></div>
 							</div>
 						</div>
@@ -821,7 +822,7 @@ Scan Findings
 							<div class="card-body">
 								<div class="row">
 									<div class="col-9">
-										<h4 class="header-title mb-0">Geographical Distribution of Assets</h4>
+										<h4 class="header-title mb-0">{% trans "Geographical Distribution of Assets" %}</h4>
 										<div id="world_map" style="height: 520px"></div>
 									</div>
 									<div class="col-3">
@@ -830,8 +831,8 @@ Scan Findings
 												<thead class="table-light">
 													<tr>
 														<th>&nbsp;</th>
-														<th>Country</th>
-														<th>Assets</th>
+														<th>{% trans "Country" %}</th>
+														<th>{% trans "Assets" %}</th>
 													</tr>
 												</thead>
 												<tbody>
@@ -868,7 +869,7 @@ Scan Findings
 					<div class="col-xl-6 col-lg-6 col-12">
 						<div class="card">
 							<div class="card-body">
-								<h4 class="header-title mb-0"><span id="important-count"><span class="spinner-border spinner-border-sm me-1"></span></span>Important Subdomains</h4>
+								<h4 class="header-title mb-0"><span id="important-count"><span class="spinner-border spinner-border-sm me-1"></span></span>{% trans "Important Subdomains" %}</h4>
 								<div class="p-2" data-simplebar style="max-height: 235px; min-height: 235px;">
 									<div id="important-subdomains-list">
 									</div>
@@ -880,8 +881,8 @@ Scan Findings
 						<div class="card">
 							<div class="card-body">
 								<h4 class="header-title mb-0"><span id="tasks-count"><span class="spinner-border spinner-border-sm me-1"></span></span>
-									Recon Note/Todo
-									<span class="text-primary float-end" data-toggle="tooltip" data-placement="top" title="Add Recon Todo" onclick="add_todo_for_scanhistory_modal({{history.id}})">
+									{% trans "Recon Note/Todo" %}
+									<span class="text-primary float-end" data-toggle="tooltip" data-placement="top" title="{% trans 'Add Recon Todo' %}" onclick="add_todo_for_scanhistory_modal({{history.id}})">
 										<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-plus"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
 									</span>
 								</h4>
@@ -896,33 +897,33 @@ Scan Findings
 											<div class="modal-body">
 												<div class="compose-box">
 													<div class="compose-content" id="addTaskModalTitle">
-														<h4 class="header-title">Add Recon Todo</h4>
+														<h4 class="header-title">{% trans "Add Recon Todo" %}</h4>
 														<form>
 															<input type="hidden" name="summary_identifier" value="{{history.id}}" id="summary_identifier_val">
 
 															<div class="mt-2">
-																<label for="todoTitle" class="form-label">Todo Title</label>
-																<input id="todoTitle" type="text" placeholder="Todo Title" class="form-control" name="task">
+																<label for="todoTitle" class="form-label">{% trans "Todo Title" %}</label>
+																<input id="todoTitle" type="text" placeholder="{% trans 'Todo Title' %}" class="form-control" name="task">
 															</div>
 
 															<div class="mt-2">
-																<label for="todoSubdomainDropdown" class="form-label">Select Subdomain (Optional)</label>
+																<label for="todoSubdomainDropdown" class="form-label">{% trans "Select Subdomain (Optional)" %}</label>
 																<span id="selectedSubdomainCount"></span>
 																<select class="w-100 form-control" data-toggle="select2" data-width="100%" id="todoSubdomainDropdown">
-																	<option>Choose Subdomain...</option>
+																	<option>{% trans "Choose Subdomain..." %}</option>
 																</select>
 															</div>
 
 															<div class="">
-																<label for="todoDescription" class="form-label">Todo Description (Optional)</label>
-																<textarea class="form-control" id="todoDescription" rows="5" spellcheck="false" placeholder="Todo Description"></textarea>
+																<label for="todoDescription" class="form-label">{% trans "Todo Description (Optional)" %}</label>
+																<textarea class="form-control" id="todoDescription" rows="5" spellcheck="false" placeholder="{% trans 'Todo Description' %}"></textarea>
 															</div>
 														</form>
 													</div>
 												</div>
 											</div>
 											<div class="modal-footer">
-												<button class="btn btn-primary add-scan-history-todo">Add Recon Todo</button>
+												<button class="btn btn-primary add-scan-history-todo">{% trans "Add Recon Todo" %}</button>
 											</div>
 										</div>
 									</div>
@@ -933,8 +934,8 @@ Scan Findings
 					<div class="col-xl-4 col-lg-4 col-12">
 						<div class="card">
 							<div class="card-body">
-								<h4 class="header-title mb-0"><span id="ip-address-count"><span class="spinner-border spinner-border-sm me-1"></span></span> IP Addresses</h4>
-								<small class="text-warning float-end">*IP Addresses highlighted with yellow are CDN IP</small>
+								<h4 class="header-title mb-0"><span id="ip-address-count"><span class="spinner-border spinner-border-sm me-1"></span></span> {% trans "IP Addresses" %}</h4>
+								<small class="text-warning float-end">{% trans "*IP Addresses highlighted with yellow are CDN IP" %}</small>
 								<br>
 								<div class="p-2" data-simplebar style="max-height: 235px; min-height: 235px;">
 									<div id="ip-address" class="mt-2"></div>
@@ -945,8 +946,8 @@ Scan Findings
 					<div class="col-xl-4 col-lg-4 col-12">
 						<div class="card">
 							<div class="card-body">
-								<h4 class="header-title mb-0"><span id="ports-count"><span class="spinner-border spinner-border-sm me-1"></span></span> Discovered Ports</h4>
-								<small class="text-danger float-end">*Ports highlighted with red are uncommon Ports</small>
+								<h4 class="header-title mb-0"><span id="ports-count"><span class="spinner-border spinner-border-sm me-1"></span></span> {% trans "Discovered Ports" %}</h4>
+								<small class="text-danger float-end">{% trans "*Ports highlighted with red are uncommon Ports" %}</small>
 								<br>
 								<div class="p-2" data-simplebar style="max-height: 235px; min-height: 235px;">
 									<div id="ports" class="mt-2"></div>
@@ -957,7 +958,7 @@ Scan Findings
 					<div class="col-xl-4 col-lg-4 col-12">
 						<div class="card">
 							<div class="card-body">
-								<h4 class="header-title mb-0"><span id="technologies-count"><span class="spinner-border spinner-border-sm me-1"></span></span> Discovered Technologies</h4>
+								<h4 class="header-title mb-0"><span id="technologies-count"><span class="spinner-border spinner-border-sm me-1"></span></span> {% trans "Discovered Technologies" %}</h4>
 								<small class="text-warning float-end">&nbsp;</small>
 								<br>
 								<div class="p-2" data-simplebar style="max-height: 235px; min-height: 235px;">
@@ -982,14 +983,14 @@ Scan Findings
 							<table id="s3-datatable" class="table dt-responsive w-100">
 								<thead>
 									<tr>
-										<th>Name</th>
-										<th>Region</th>
-										<th>Provider</th>
-										<th>Owner</th>
-										<th>Objects Count</th>
-										<th>Bucket Size</th>
-										<th>Auth Users Permission</th>
-										<th>All Users Permission</th>
+										<th>{% trans "Name" %}</th>
+										<th>{% trans "Region" %}</th>
+										<th>{% trans "Provider" %}</th>
+										<th>{% trans "Owner" %}</th>
+										<th>{% trans "Objects Count" %}</th>
+										<th>{% trans "Bucket Size" %}</th>
+										<th>{% trans "Auth Users Permission" %}</th>
+										<th>{% trans "All Users Permission" %}</th>
 									</tr>
 								</thead>
 								<tbody>
@@ -1000,8 +1001,8 @@ Scan Findings
 											<td>{{bucket.provider}}</td>
 											<td>
 												<ul>
-													<li>ID: {{bucket.owner_id}}</li>
-													<li>Display Name: {{bucket.owner_display_name}}</li>
+													<li>{% blocktrans with owner_id=bucket.owner_id %}ID: {{ owner_id }}{% endblocktrans %}</li>
+													<li>{% blocktrans with display_name=bucket.owner_display_name %}Display Name: {{ display_name }}{% endblocktrans %}</li>
 												</ul>
 											</td>
 											<td>{{bucket.num_objects}}</td>
@@ -1045,7 +1046,7 @@ Scan Findings
 					<div class="p-2">
 						<div class="row" id="filter-screenshot" style="display: none;">
 							<div class="col-xl-6 col-lg-6 col-sm-6">
-								<h5 class=""><i class="fe-filter text-primary"></i> Filter Screenshots</h5>
+								<h5 class=""><i class="fe-filter text-primary"></i> {% trans "Filter Screenshots" %}</h5>
 							</div>
 							<div class="col-xl-6 col-lg-6 col-sm-6">
 								<div class="float-end">
@@ -1056,29 +1057,29 @@ Scan Findings
 							</div>
 							<div class="row">
 								<div class="col-xl-2 col-lg-4 col-sm-12">
-									<label for="http_select_filter" class="form-label">HTTP Status</label>
+									<label for="http_select_filter" class="form-label">{% trans "HTTP Status" %}</label>
 									<select class="form-control tagging" id="http_select_filter" multiple="multiple" data-width="100%">
 									</select>
 								</div>
 								<div class="col-xl-2 col-lg-4 col-sm-12">
-									<label for="ips_select_filter" class="form-label">IP Address</label>
+									<label for="ips_select_filter" class="form-label">{% trans "IP Address" %}</label>
 									<select class="form-control tagging" id="ips_select_filter" multiple="multiple" data-width="100%">
 									</select>
 								</div>
 								{% if 'port_scan' in history.tasks %}
 								<div class="col-xl-2 col-lg-4 col-sm-12">
-									<label for="services_select_filter" class="form-label">Running Services</label>
+									<label for="services_select_filter" class="form-label">{% trans "Running Services" %}</label>
 									<select class="form-control tagging" id="services_select_filter" multiple="multiple" data-width="100%">
 									</select>
 								</div>
 								<div class="col-xl-2 col-lg-4 col-sm-12">
-									<label for="ports_select_filter" class="form-label">Ports</label>
+									<label for="ports_select_filter" class="form-label">{% trans "Ports" %}</label>
 									<select class="form-control tagging" id="ports_select_filter" multiple="multiple" data-width="100%">
 									</select>
 								</div>
 								{% endif %}
 								<div class="col-xl-2 col-lg-4 col-sm-12">
-									<label for="tech_select_filter" class="form-label">Technology</label>
+									<label for="tech_select_filter" class="form-label">{% trans "Technology" %}</label>
 									<select class="form-control tagging" id="tech_select_filter" multiple="multiple" data-width="100%">
 									</select>
 								</div>
@@ -1098,7 +1099,7 @@ Scan Findings
 									<div class="outer-div d-flex justify-content-center">
 										<div class="spinner-grow text-primary m-2"></div>
 									</div>
-									<h5 class="text-center mt-3">Loading Screenshots...</h5>
+									<h5 class="text-center mt-3">{% trans "Loading Screenshots..." %}</h5>
 								</div>
 							</div>
 							<div class="col-12">
@@ -1125,17 +1126,17 @@ Scan Findings
 			<div class="col-12">
 				<div class="card">
 					<div class="card-body">
-						<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" data-bs-toggle="dropdown" aria-expanded="false">Display <span class="caret"></span></button>
+						<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" data-bs-toggle="dropdown" aria-expanded="false">{% trans "Display" %} <span class="caret"></span></button>
 						<table id="directories-table" class="table dt-responsive w-100">
 							<thead>
 								<tr>
-									<th class="checkbox-column">Status</th>
-									<th>Subdomain</th>
-									<th>Status</th>
-									<th>Page Title</th>
-									<th>Directories</th>
-									<th>HTTP URL</th>
-									<th>Is Intereting</th>
+									<th class="checkbox-column">{% trans "Status" %}</th>
+									<th>{% trans "Subdomain" %}</th>
+									<th>{% trans "Status" %}</th>
+									<th>{% trans "Page Title" %}</th>
+									<th>{% trans "Directories" %}</th>
+									<th>{% trans "HTTP URL" %}</th>
+									<th>{% trans "Is Intereting" %}</th>
 								</tr>
 							</thead>
 						</table>
@@ -1158,18 +1159,18 @@ Scan Findings
 	<div class="tab-pane" id="secrets-tab">
 		<div class="card">
 			<div class="card-body">
-				<h4 class="header-title">Leaked Secrets <span class="badge badge-soft-danger">{{total_leaked_secret_count}}</span></h4>
-				<p class="text-muted mb-3">Secrets discovered by gitleaks / ggshield in the collected scan artifacts. Values are masked &mdash; the raw secret is never stored.</p>
+				<h4 class="header-title">{% trans "Leaked Secrets" %} <span class="badge badge-soft-danger">{{total_leaked_secret_count}}</span></h4>
+				<p class="text-muted mb-3">{% trans "Secrets discovered by gitleaks / ggshield in the collected scan artifacts. Values are masked &mdash; the raw secret is never stored." %}</p>
 				<table id="secret_results" class="table dt-responsive w-100">
 					<thead class="table-light">
 						<tr>
-							<th><div class="th-content">Source</div></th>
-							<th><div class="th-content">Rule</div></th>
-							<th><div class="th-content">File</div></th>
-							<th><div class="th-content">Line</div></th>
-							<th><div class="th-content">Severity</div></th>
-							<th><div class="th-content">Secret (masked)</div></th>
-							<th><div class="th-content">Location</div></th>
+							<th><div class="th-content">{% trans "Source" %}</div></th>
+							<th><div class="th-content">{% trans "Rule" %}</div></th>
+							<th><div class="th-content">{% trans "File" %}</div></th>
+							<th><div class="th-content">{% trans "Line" %}</div></th>
+							<th><div class="th-content">{% trans "Severity" %}</div></th>
+							<th><div class="th-content">{% trans "Secret (masked)" %}</div></th>
+							<th><div class="th-content">{% trans "Location" %}</div></th>
 						</tr>
 					</thead>
 					<tbody></tbody>
@@ -1184,7 +1185,7 @@ Scan Findings
 	<div class="tab-pane" id="osint-tab">
 		<div class="card" id="dorking_result_card">
 			<div class="card-body">
-				<h4 class="header-title mb-4">Dorking Results</h4>
+				<h4 class="header-title mb-4">{% trans "Dorking Results" %}</h4>
 				<div class="row">
 					<div class="col-sm-3">
 						<div class="nav flex-column nav-pills nav-pills-tab" id="dork_type_vertical_tablist" role="tablist" aria-orientation="vertical">
@@ -1206,13 +1207,13 @@ Scan Findings
 							<span id="employees-count">
 								<span class="spinner-border spinner-border-sm me-1"></span>
 							</span>
-							Employees/People associated with {{history.domain.name}}
+							{% blocktrans with domain_name=history.domain.name %}Employees/People associated with {{ domain_name }}{% endblocktrans %}
 						</h4>
 						<table class="table mt-3">
 							<thead class="table-light">
 								<tr>
-									<th><div class="th-content">Employee Name</div></th>
-									<th><div class="th-content">Designation</div></th>
+									<th><div class="th-content">{% trans "Employee Name" %}</div></th>
+									<th><div class="th-content">{% trans "Designation" %}</div></th>
 								</tr>
 							</thead>
 							<tbody id="employees-table-body">
@@ -1228,13 +1229,13 @@ Scan Findings
 							<span id="emails-count">
 								<span class="spinner-border spinner-border-sm me-1"></span>
 							</span>
-							Discovered Email addresses  <span id="exposed_summary" class="text-danger"></span>
+							{% trans "Discovered Email addresses" %}  <span id="exposed_summary" class="text-danger"></span>
 						</h4>
 						<table class="table mt-3">
 							<thead class="table-light">
 								<tr>
-									<th><div class="th-content">Email Address</div></th>
-									<th><div class="th-content">Exposed Credentials</div></th>
+									<th><div class="th-content">{% trans "Email Address" %}</div></th>
+									<th><div class="th-content">{% trans "Exposed Credentials" %}</div></th>
 								</tr>
 							</thead>
 							<tbody id="email-table-body">
@@ -1250,14 +1251,14 @@ Scan Findings
 							<span id="metadata-count">
 								<span class="spinner-border spinner-border-sm me-1"></span>
 							</span>
-							Discovered Metadata
+							{% trans "Discovered Metadata" %}
 						</h4>
 						<table class="table mt-3">
 							<thead class="table-light">
 								<tr>
-									<th><div class="th-content">Document</div></th>
-									<th><div class="th-content text-center">User</div></th>
-									<th><div class="th-content text-center">Metadata</div></th>
+									<th><div class="th-content">{% trans "Document" %}</div></th>
+									<th><div class="th-content text-center">{% trans "User" %}</div></th>
+									<th><div class="th-content text-center">{% trans "Metadata" %}</div></th>
 								</tr>
 							</thead>
 							<tbody id="metadata-table-body">
@@ -1281,7 +1282,7 @@ Scan Findings
 								<div class="col-6">
 									<div class="form-check form-switch">
 										<input type="checkbox" class="form-check-input" name="expand-nodes-checkbox" checked>
-										<label class="form-check-label" for="customSwitch1">&nbsp; &nbsp; Expand all nodes</label>
+										<label class="form-check-label" for="customSwitch1">&nbsp; &nbsp; {% trans "Expand all nodes" %}</label>
 									</div>
 								</div>
 								<div class="col-6">
@@ -1290,7 +1291,7 @@ Scan Findings
 											<i class="mdi mdi-dots-vertical"></i>
 										</a>
 										<div class="dropdown-menu dropdown-menu-end" style="">
-											<a href="#" class="dropdown-item" id="saveButton">Download Visualization as png</a>
+											<a href="#" class="dropdown-item" id="saveButton">{% trans "Download Visualization as png" %}</a>
 										</div>
 									</div>
 								</div>
@@ -1300,10 +1301,10 @@ Scan Findings
 						<div id="visualisation-loader">
 							<div class="d-flex justify-content-center" id="visualisation-loader">
 								<div class="spinner-border" role="status">
-									<span class="visually-hidden">Loading...</span>
+									<span class="visually-hidden">{% trans "Loading..." %}</span>
 								</div>
 							</div>
-							<h5 class="text-center mt-3">Loading Recon Visualization...</h5>
+							<h5 class="text-center mt-3">{% trans "Loading Recon Visualization..." %}</h5>
 						</div>
 						<div class="row">
 							<div class="col-10">
@@ -1312,9 +1313,9 @@ Scan Findings
 							</div>
 							<div class="col-2">
 								<div class="float-end m-3">
-									<small class="text-success text-right"style="display: block;">*Subdomains highlighted with green are 20X (OK) HTTP status</small>
-									<small class="text-warning text-right"style="display: block;">*Subdomains highlighted with orange are 30X (Redirect) HTTP status</small>
-									<small class="text-danger text-right" style="display: block;">*Subdomains highlighted with red are 40X (Not found) HTTP status</small>
+									<small class="text-success text-right"style="display: block;">{% trans "*Subdomains highlighted with green are 20X (OK) HTTP status" %}</small>
+									<small class="text-warning text-right"style="display: block;">{% trans "*Subdomains highlighted with orange are 30X (Redirect) HTTP status" %}</small>
+									<small class="text-danger text-right" style="display: block;">{% trans "*Subdomains highlighted with red are 40X (Not found) HTTP status" %}</small>
 								</div>
 							</div>
 						</div>
@@ -1335,19 +1336,19 @@ Scan Findings
 								<i class="mdi mdi-dots-vertical"></i>
 							</a>
 							<div class="dropdown-menu dropdown-menu-end">
-								<a class="dropdown-item" href="javascript:download_interesting_subdomains({{scan_history_id}}, '{{history.domain.name}}');">Download Interesting Subdomains</a>
+								<a class="dropdown-item" href="javascript:download_interesting_subdomains({{scan_history_id}}, '{{history.domain.name}}');">{% trans "Download Interesting Subdomains" %}</a>
 							</div>
 						</div>
-						<h4 class="header-title mb-0"><span id="interesting_subdomain_count_badge"><span class="spinner-border spinner-border-sm me-1"></span></span> Interesting Subdomains</h4>
+						<h4 class="header-title mb-0"><span id="interesting_subdomain_count_badge"><span class="spinner-border spinner-border-sm me-1"></span></span> {% trans "Interesting Subdomains" %}</h4>
 						<table id="interesting_subdomains" class="table dt-responsive w-100">
 							<thead>
 								<tr>
-									<th>Subdomain</th>
-									<th>Page Title</th>
-									<th>HTTP Status</th>
-									<th>Content Length</th>
-									<th>HTTP URL</th>
-									<th>Tech Stack</th>
+									<th>{% trans "Subdomain" %}</th>
+									<th>{% trans "Page Title" %}</th>
+									<th>{% trans "HTTP Status" %}</th>
+									<th>{% trans "Content Length" %}</th>
+									<th>{% trans "HTTP URL" %}</th>
+									<th>{% trans "Tech Stack" %}</th>
 								</tr>
 							</thead>
 						</table>
@@ -1362,17 +1363,17 @@ Scan Findings
 								<i class="mdi mdi-dots-vertical"></i>
 							</a>
 							<div class="dropdown-menu dropdown-menu-end">
-								<a class="dropdown-item" href="javascript:download_interesting_endpoints({{scan_history_id}}, '{{history.domain.name}}');">Download Interesting Endpoints</a>
+								<a class="dropdown-item" href="javascript:download_interesting_endpoints({{scan_history_id}}, '{{history.domain.name}}');">{% trans "Download Interesting Endpoints" %}</a>
 							</div>
 						</div>
-						<h4 class="header-title mb-0"><span id="interesting_endpoint_count_badge"><span class="spinner-border spinner-border-sm me-1"></span></span> Interesting Endpoints</h4>
+						<h4 class="header-title mb-0"><span id="interesting_endpoint_count_badge"><span class="spinner-border spinner-border-sm me-1"></span></span> {% trans "Interesting Endpoints" %}</h4>
 						<table id="interesting_endpoints" class="table dt-responsive w-100">
 							<thead>
 								<tr>
-									<th>URL</th>
-									<th>Title</th>
-									<th>HTTP Status</th>
-									<th>Content Length</th>
+									<th>{% trans "URL" %}</th>
+									<th>{% trans "Title" %}</th>
+									<th>{% trans "HTTP Status" %}</th>
+									<th>{% trans "Content Length" %}</th>
 								</tr>
 							</thead>
 						</table>
@@ -1388,15 +1389,15 @@ Scan Findings
 			<div class="col-xl-12">
 				<div class="card" id="recon_changes_subdomain_div">
 					<div class="card-body">
-						<h4 class="header-title mb-0"><span id="subdomain_change_count"><span class="spinner-border spinner-border-sm me-1"></span></span> Subdomain Changes</h4>
+						<h4 class="header-title mb-0"><span id="subdomain_change_count"><span class="spinner-border spinner-border-sm me-1"></span></span> {% trans "Subdomain Changes" %}</h4>
 						<table class="table dt-responsive w-100" id="table-subdomain-changes">
 							<thead>
 								<tr>
-									<th>Subdomain</th>
-									<th>Page Title</th>
-									<th>Status</th>
-									<th>Content Length</th>
-									<th>Change</th>
+									<th>{% trans "Subdomain" %}</th>
+									<th>{% trans "Page Title" %}</th>
+									<th>{% trans "Status" %}</th>
+									<th>{% trans "Content Length" %}</th>
+									<th>{% trans "Change" %}</th>
 								</tr>
 							</thead>
 						</table>
@@ -1406,15 +1407,15 @@ Scan Findings
 			<div class="col-xl-12" id="endpoint-changes-div">
 				<div class="card">
 					<div class="card-body">
-						<h4 class="header-title mb-0"><span id="endpoint_change_count"><span class="spinner-border spinner-border-sm me-1"></span></span> Endpoint Changes</h4>
+						<h4 class="header-title mb-0"><span id="endpoint_change_count"><span class="spinner-border spinner-border-sm me-1"></span></span> {% trans "Endpoint Changes" %}</h4>
 						<table class="table dt-responsive w-100" id="table-endpoint-changes">
 							<thead>
 								<tr>
-									<th>Subdomain</th>
-									<th>Page Title</th>
-									<th>Status</th>
-									<th>Content Length</th>
-									<th>Change</th>
+									<th>{% trans "Subdomain" %}</th>
+									<th>{% trans "Page Title" %}</th>
+									<th>{% trans "Status" %}</th>
+									<th>{% trans "Content Length" %}</th>
+									<th>{% trans "Change" %}</th>
 								</tr>
 							</thead>
 						</table>

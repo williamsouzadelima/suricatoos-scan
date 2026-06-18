@@ -1,13 +1,14 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load humanize %}
 {% load static %}
 {% load mathfilters %}
 {% block title %}
-Dashboard
+{% trans "Dashboard" %}
 {% endblock title %}
 
 {% block page_title %}
-Dashboard
+{% trans "Dashboard" %}
 {% endblock page_title %}
 
 {% block custom_js_css_link %}
@@ -28,18 +29,18 @@ Dashboard
 			<div class="card-body">
 				<div class="row align-items-center">
 					<div class="col-md-8">
-						<span class="badge bg-soft-primary mb-2" style="letter-spacing:.08em;">GETTING STARTED</span>
-						<h4 class="mt-0">Welcome! Let's run your first scan</h4>
-						<p class="text-muted mb-3">This project has no targets yet &mdash; three quick steps to your first results:</p>
+						<span class="badge bg-soft-primary mb-2" style="letter-spacing:.08em;">{% trans "GETTING STARTED" %}</span>
+						<h4 class="mt-0">{% trans "Welcome! Let's run your first scan" %}</h4>
+						<p class="text-muted mb-3">{% trans "This project has no targets yet" %} &mdash; {% trans "three quick steps to your first results:" %}</p>
 						<ol class="mb-0 ps-3">
-							<li class="mb-1"><strong>Add a target</strong> <span class="text-muted">&mdash; a domain you're authorized to test.</span></li>
-							<li class="mb-1"><strong>Pick a scan engine</strong> <span class="text-muted">&mdash; a sensible default is ready to use.</span></li>
-							<li><strong>Start the scan</strong> <span class="text-muted">&mdash; results stream in as they're found.</span></li>
+							<li class="mb-1"><strong>{% trans "Add a target" %}</strong> <span class="text-muted">&mdash; {% trans "a domain you're authorized to test." %}</span></li>
+							<li class="mb-1"><strong>{% trans "Pick a scan engine" %}</strong> <span class="text-muted">&mdash; {% trans "a sensible default is ready to use." %}</span></li>
+							<li><strong>{% trans "Start the scan" %}</strong> <span class="text-muted">&mdash; {% trans "results stream in as they're found." %}</span></li>
 						</ol>
 					</div>
 					<div class="col-md-4 text-md-end mt-3 mt-md-0">
-						<a href="{% url 'add_target' current_project.slug %}" class="btn btn-primary"><i class="fe-plus me-1"></i> Add your first target</a>
-						<div class="mt-2"><a href="{% url 'scan_engine_index' current_project.slug %}" class="text-muted">or review scan engines</a></div>
+						<a href="{% url 'add_target' current_project.slug %}" class="btn btn-primary"><i class="fe-plus me-1"></i> {% trans "Add your first target" %}</a>
+						<div class="mt-2"><a href="{% url 'scan_engine_index' current_project.slug %}" class="text-muted">{% trans "or review scan engines" %}</a></div>
 					</div>
 				</div>
 			</div>
@@ -51,8 +52,8 @@ Dashboard
 	<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
 		<div class="card" id="tooltip-container">
 			<div class="card-body">
-				<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Total Number of Targets/Domains"></i>
-				<h4 class="mt-0 font-16">Total Targets</h4>
+				<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Total Number of Targets/Domains' %}"></i>
+				<h4 class="mt-0 font-16">{% trans "Total Targets" %}</h4>
 				<h2 class="text-primary my-3 text-center"><span data-plugin="counterup">{{domain_count|intcomma}}</span></h2>
 				<div id="targets_chart"></div>
 				<p class="text-success mb-0 mt-2"><span class="badge rounded-pill float-end">&nbsp;</span></p>
@@ -65,12 +66,12 @@ Dashboard
 	<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
 		<div class="card" id="tooltip-container1">
 			<div class="card-body">
-				<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container1" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Total Number of Subdomains discovered by Suricatoos across all targets."></i>
-				<h4 class="mt-0 font-16">Total Subdomains</h4>
+				<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container1" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Total Number of Subdomains discovered by Suricatoos across all targets.' %}"></i>
+				<h4 class="mt-0 font-16">{% trans "Total Subdomains" %}</h4>
 				<h2 class="text-primary my-3 text-center"><span data-plugin="counterup">{{subdomain_count|intcomma}}</span></h2>
 				<div id="subdomains_chart"></div>
 				<br>
-				<p class="text-success mb-0 mt-2"><span class="badge badge-soft-success rounded-pill float-end">Alive Subdomains: {{alive_count|intcomma}}</span></p>
+				<p class="text-success mb-0 mt-2"><span class="badge badge-soft-success rounded-pill float-end">{% blocktrans with count=alive_count|intcomma %}Alive Subdomains: {{ count }}{% endblocktrans %}</span></p>
 				<br>
 				<br>
 			</div>
@@ -79,12 +80,12 @@ Dashboard
 	<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
 		<div class="card" id="tooltip-container2">
 			<div class="card-body">
-				<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container2" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Total Endpoints/URLs discovered by Suricatoos across all targets & subdomains."></i>
-				<h4 class="mt-0 font-16">Total Endpoints</h4>
+				<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container2" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Total Endpoints/URLs discovered by Suricatoos across all targets & subdomains.' %}"></i>
+				<h4 class="mt-0 font-16">{% trans "Total Endpoints" %}</h4>
 				<h2 class="text-primary my-3 text-center">{{endpoint_count|intcomma}}</h2>
 				<div id="endpoint_chart"></div>
 				<br>
-				<p class="text-success mb-0 mt-2"><span class="badge badge-soft-success rounded-pill float-end">Alive Endpoints: {{endpoint_alive_count|intcomma}}</span></p>
+				<p class="text-success mb-0 mt-2"><span class="badge badge-soft-success rounded-pill float-end">{% blocktrans with count=endpoint_alive_count|intcomma %}Alive Endpoints: {{ count }}{% endblocktrans %}</span></p>
 				<br>
 				<br>
 			</div>
@@ -93,13 +94,13 @@ Dashboard
 	<div class="col-xl-3 col-lg-3 col-md-6 col-sm-12 col-12">
 		<div class="card" id="tooltip-container3">
 			<div class="card-body">
-				<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container3" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Total Vulnerabilities discovered by Suricatoos across all targets, subdomains & endpoints."></i>
-				<h4 class="mt-0 font-16 text-danger">Total Vulnerabilities</h4>
+				<i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container3" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Total Vulnerabilities discovered by Suricatoos across all targets, subdomains & endpoints.' %}"></i>
+				<h4 class="mt-0 font-16 text-danger">{% trans "Total Vulnerabilities" %}</h4>
 				<h2 class="text-danger my-3 text-center"><span data-plugin="counterup">{{total_vul_count|intcomma}}</span></h2>
 				<div id="vuln_chart"></div>
-				<p class="text-danger mb-0 mt-2"><span class="badge badge-soft-danger rounded-pill float-end"><b>{{critical_count}} Critical, {{high_count}} High, {{medium_count}} Medium</b></span></p>
+				<p class="text-danger mb-0 mt-2"><span class="badge badge-soft-danger rounded-pill float-end"><b>{% blocktrans with critical=critical_count high=high_count medium=medium_count %}{{ critical }} Critical, {{ high }} High, {{ medium }} Medium{% endblocktrans %}</b></span></p>
 				<br>
-				<p class="text-danger mb-0 mt-2"><span class="badge badge-soft-primary rounded-pill float-end">{{low_count}} Low, {{info_count}} Info, {{unknown_count}} Unknown Vulnerabilities</span></p>
+				<p class="text-danger mb-0 mt-2"><span class="badge badge-soft-primary rounded-pill float-end">{% blocktrans with low=low_count info=info_count unknown=unknown_count %}{{ low }} Low, {{ info }} Info, {{ unknown }} Unknown Vulnerabilities{% endblocktrans %}</span></p>
 				<br>
 			</div>
 		</div>
@@ -112,7 +113,7 @@ Dashboard
 				<div class="d-flex align-items-start mb-3">
 					<div class="w-100">
 						<h5 class="mt-0 mb-0 font-15">
-							<i class='mdi mdi-trending-up me-2 font-18 text-primary'></i> Activity Feed
+							<i class='mdi mdi-trending-up me-2 font-18 text-primary'></i> {% trans "Activity Feed" %}
 						</h5>
 					</div>
 				</div>
@@ -133,7 +134,7 @@ Dashboard
 										<strong>{{item.title}}</strong>
 										</br>
 										<span class="text-muted">
-											{% if item.status == 2 %} {% if item.title != 'Scan Completed' %} Completed {% endif %}{% elif item.status == 1 %} Initiated {% elif item.status == 0 %} {% if item.title != 'Scan aborted' %} Aborted {% endif %} {% endif %}</b>for <span class="badge badge-soft-info">{{item.scan_of.domain.name}}</span>
+											{% if item.status == 2 %} {% if item.title != 'Scan Completed' %} {% trans "Completed" %} {% endif %}{% elif item.status == 1 %} {% trans "Initiated" %} {% elif item.status == 0 %} {% if item.title != 'Scan aborted' %} {% trans "Aborted" %} {% endif %} {% endif %}</b>{% trans "for" %} <span class="badge badge-soft-info">{{item.scan_of.domain.name}}</span>
 										</span>
 										<br>
 										<span>{{item.time|naturaltime}}</span>
@@ -141,7 +142,7 @@ Dashboard
 								</div>
 							</div>
 							{% empty %}
-							Feed will be automatically generated while the scan is running.
+							{% trans "Feed will be automatically generated while the scan is running." %}
 							{% endfor %}
 						</ul>
 					</div>
@@ -153,7 +154,7 @@ Dashboard
 				<div class="d-flex align-items-start mb-3">
 					<div class="w-100">
 						<h5 class="mt-0 mb-0 font-15">
-							<i class='fa fa-bug me-2 font-18 text-danger'></i> Vulnerability Feed
+							<i class='fa fa-bug me-2 font-18 text-danger'></i> {% trans "Vulnerability Feed" %}
 						</h5>
 					</div>
 				</div>
@@ -192,27 +193,27 @@ Dashboard
 										text-info
 										{% endif %}
 										">{% if item.severity == 0 %}
-										<span class='badge badge-soft-primary'>Info</span>
+										<span class='badge badge-soft-primary'>{% trans "Info" %}</span>
 										{% elif item.severity == 1 %}
-										<span class='badge badge-low'>Low</span>
+										<span class='badge badge-low'>{% trans "Low" %}</span>
 										{% elif item.severity == 2 %}
-										<span class='badge badge-soft-warning'>Medium</span>
+										<span class='badge badge-soft-warning'>{% trans "Medium" %}</span>
 										{% elif item.severity == 3 %}
-										<span class='badge badge-soft-danger'>High</span>
+										<span class='badge badge-soft-danger'>{% trans "High" %}</span>
 										{% elif item.severity == 4 %}
-										<span class='badge badge-critical'>Critical</span>
+										<span class='badge badge-critical'>{% trans "Critical" %}</span>
 										{% elif item.severity == -1 %}
-										<span class='badge badge-soft-info'>Unknown</span>
+										<span class='badge badge-soft-info'>{% trans "Unknown" %}</span>
 										{% endif %}{{item.name}}</strong>
 										</br>
-										detected on {{item.subdomain}}
+										{% blocktrans with subdomain=item.subdomain %}detected on {{ subdomain }}{% endblocktrans %}
 										<br>
 										<span class="text-muted">{{item.discovered_date|naturaltime}}</span>
 									</a>
 								</div>
 							</div>
 							{% empty %}
-							Feed will be automatically generated once the vulnerability scan is completed.
+							{% trans "Feed will be automatically generated once the vulnerability scan is completed." %}
 							{% endfor %}
 						</ul>
 					</div>
@@ -227,7 +228,7 @@ Dashboard
 					<div class="card-body">
 						<div class="row">
 							<div class="col-9">
-								<h4 class="header-title mb-0">Geographical Distribution of Assets</h4>
+								<h4 class="header-title mb-0">{% trans "Geographical Distribution of Assets" %}</h4>
 								<div id="world_map" style="height: 520px"></div>
 							</div>
 							<div class="col-3">
@@ -236,8 +237,8 @@ Dashboard
 										<thead class="table-light">
 											<tr>
 												<th>&nbsp;</th>
-												<th>Country</th>
-												<th>Assets</th>
+												<th>{% trans "Country" %}</th>
+												<th>{% trans "Assets" %}</th>
 											</tr>
 										</thead>
 										<tbody>
@@ -275,7 +276,7 @@ Dashboard
 			<div class="col-xl-4">
 				<div class="card">
 					<div class="card-body">
-						<h4 class="header-title mb-0">Most common IP Address</h4>
+						<h4 class="header-title mb-0">{% trans "Most common IP Address" %}</h4>
 						<div id="cardCollpase8" class="collapse pt-3 show" dir="ltr">
 							<div id="most_common_ip_chart" class="apex-charts"></div>
 						</div>
@@ -285,7 +286,7 @@ Dashboard
 			<div class="col-xl-4">
 				<div class="card">
 					<div class="card-body">
-						<h4 class="header-title mb-0">Most common Ports</h4>
+						<h4 class="header-title mb-0">{% trans "Most common Ports" %}</h4>
 						<div id="cardCollpase8" class="collapse pt-3 show" dir="ltr">
 							<div id="most_common_port_chart" class="apex-charts"></div>
 						</div>
@@ -295,7 +296,7 @@ Dashboard
 			<div class="col-xl-4">
 				<div class="card">
 					<div class="card-body">
-						<h4 class="header-title mb-0">Most common Technology</h4>
+						<h4 class="header-title mb-0">{% trans "Most common Technology" %}</h4>
 						<div id="cardCollpase8" class="collapse pt-3 show" dir="ltr">
 							<div id="most_common_tech_chart" class="apex-charts"></div>
 						</div>

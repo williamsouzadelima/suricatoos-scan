@@ -1,21 +1,22 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 {% load humanize %}
 {% load permission_tags %}
 
 {% block title %}
-Scan history
+{% trans "Scan history" %}
 {% endblock title %}
 
 {% block custom_js_css_link %}
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item active" aria-current="page">Scan History</li>
+<li class="breadcrumb-item active" aria-current="page">{% trans "Scan History" %}</li>
 {% endblock breadcrumb_title %}
 
 {% block page_title %}
-Quick Scan History
+{% trans "Quick Scan History" %}
 {% endblock page_title %}
 
 {% block main_content %}
@@ -26,42 +27,42 @@ Quick Scan History
         <div class="row">
           <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
             <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" id="filterMenu">
-              Filter <i class="fe-filter"></i>
+              {% trans "Filter" %} <i class="fe-filter"></i>
             </button>
             <div id="filteringText" class="mt-2">
             </div>
             <div class="dropdown-menu" style="width: 30%">
               <div class="px-4 py-3">
-                <h4 class="headline-title">Filters</h4>
+                <h4 class="headline-title">{% trans "Filters" %}</h4>
                 <div class="">
-                  <label for="filterByOrganization" class="form-label">Filter by Organization</label>
+                  <label for="filterByOrganization" class="form-label">{% trans "Filter by Organization" %}</label>
                   <select class="form-control" id="filterByOrganization">
                   </select>
                 </div>
                 <div class="">
-                  <label for="filterByTarget" class="form-label">Filter by Targets</label>
+                  <label for="filterByTarget" class="form-label">{% trans "Filter by Targets" %}</label>
                   <select class="form-control" id="filterByTarget">
                   </select>
                 </div>
                 <div class="">
-                  <label for="filterByScanType" class="form-label">Filter by Scan Type</label>
+                  <label for="filterByScanType" class="form-label">{% trans "Filter by Scan Type" %}</label>
                   <select class="form-control" id="filterByScanType">
                   </select>
                 </div>
                 <div class="">
-                  <label for="filterByScanStatus" class="form-label">Filter by Scan Status</label>
+                  <label for="filterByScanStatus" class="form-label">{% trans "Filter by Scan Status" %}</label>
                   <select class="form-control" id="filterByScanStatus">
                   </select>
                 </div>
               </div>
               <div class="dropdown-divider"></div>
-              <a href="#" class="dropdown-ite text-primary float-end" id="resetFilters">Reset Filters</a>
+              <a href="#" class="dropdown-ite text-primary float-end" id="resetFilters">{% trans "Reset Filters" %}</a>
             </div>
           </div>
           {% if user|can:'initiate_scans_subscans' %}
           <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
-            <a class="btn btn-soft-danger float-end disabled ms-1 mt-1" href="#" onclick="deleteMultipleScan()" id="delete_multiple_button">Delete Multiple Scans</a>
-            <a class="btn btn-soft-danger float-end disabled ms-1 mt-1" href="#" onclick="stopMultipleScan()" id="stop_multiple_button">Stop Multiple Scans</a>
+            <a class="btn btn-soft-danger float-end disabled ms-1 mt-1" href="#" onclick="deleteMultipleScan()" id="delete_multiple_button">{% trans "Delete Multiple Scans" %}</a>
+            <a class="btn btn-soft-danger float-end disabled ms-1 mt-1" href="#" onclick="stopMultipleScan()" id="stop_multiple_button">{% trans "Stop Multiple Scans" %}</a>
           </div>
           {% endif %}
         </div>
@@ -77,16 +78,16 @@ Quick Scan History
         <table id="scan_history_table" class="table dt-responsive w-100">
           <thead>
             <tr>
-              <th class="checkbox-column text-center">Serial Number</th>
-              <th class="text-center">Serial Number</th>
-              <th class="">Domain Name</th>
-              <th>Summary</th>
-              <th class="">Scan Engine Used</th>
-              <th>Last Scan</th>
-              <th>Initiated By</th>
-              <th class="text-center">Status</th>
-              <th class="text-center">Progress</th>
-              <th class="text-center no-sorting">Action</th>
+              <th class="checkbox-column text-center">{% trans "Serial Number" %}</th>
+              <th class="text-center">{% trans "Serial Number" %}</th>
+              <th class="">{% trans "Domain Name" %}</th>
+              <th>{% trans "Summary" %}</th>
+              <th class="">{% trans "Scan Engine Used" %}</th>
+              <th>{% trans "Last Scan" %}</th>
+              <th>{% trans "Initiated By" %}</th>
+              <th class="text-center">{% trans "Status" %}</th>
+              <th class="text-center">{% trans "Progress" %}</th>
+              <th class="text-center no-sorting">{% trans "Action" %}</th>
             </tr>
           </thead>
           <tbody>
@@ -98,17 +99,17 @@ Quick Scan History
                 {{ scan_history.domain.name }}
                 <br>
                 {% if scan_history.cfg_starting_point_path %}
-                  <span><i class=""></i>Path: <code>{{scan_history.cfg_starting_point_path}}</code></span>
+                  <span><i class=""></i>{% trans "Path:" %} <code>{{scan_history.cfg_starting_point_path}}</code></span>
                 {% endif %}
                 <br>
                 {% for organization in scan_history.domain.get_organization %}
-                <span class="badge badge-soft-dark mt-1 me-1" data-toggle="tooltip" data-placement="top" title="Domain {{domain.name}} belongs to organization {{organization.name}}">{{ organization.name }}</span>
+                <span class="badge badge-soft-dark mt-1 me-1" data-toggle="tooltip" data-placement="top" title="{% blocktrans with domain_name=domain.name organization_name=organization.name %}Domain {{ domain_name }} belongs to organization {{ organization_name }}{% endblocktrans %}">{{ organization.name }}</span>
                 {% endfor %}
               </td>
               <td class="text-left">
-                <span class="badge badge-pills bg-info mt-1" data-toggle="tooltip" data-placement="top" title="Subdomains">{{scan_history.get_subdomain_count}}</span>
-                <span class="badge badge-pills bg-warning mt-1" data-toggle="tooltip" data-placement="top" title="Endpoints">{{scan_history.get_endpoint_count}}</span>
-                <span class="badge badge-pills bg-danger mt-1" data-toggle="tooltip" data-placement="top" title="{{scan_history.get_critical_vulnerability_count}} Critical, {{scan_history.get_high_vulnerability_count}} High, {{scan_history.get_medium_vulnerability_count}} Medium Vulnerabilities">{{scan_history.get_vulnerability_count}}</span>
+                <span class="badge badge-pills bg-info mt-1" data-toggle="tooltip" data-placement="top" title="{% trans 'Subdomains' %}">{{scan_history.get_subdomain_count}}</span>
+                <span class="badge badge-pills bg-warning mt-1" data-toggle="tooltip" data-placement="top" title="{% trans 'Endpoints' %}">{{scan_history.get_endpoint_count}}</span>
+                <span class="badge badge-pills bg-danger mt-1" data-toggle="tooltip" data-placement="top" title="{% blocktrans with critical=scan_history.get_critical_vulnerability_count high=scan_history.get_high_vulnerability_count medium=scan_history.get_medium_vulnerability_count %}{{ critical }} Critical, {{ high }} High, {{ medium }} Medium Vulnerabilities{% endblocktrans %}">{{scan_history.get_vulnerability_count}}</span>
               </td>
               <td class="">
                 <span class="badge badge-soft-primary">{{ scan_history.scan_type }}</span>
@@ -121,20 +122,20 @@ Quick Scan History
               </td>
               <td class="text-center">
                 {% if scan_history.scan_status == -1 %}
-                <span class="badge badge-soft-warning" data-placement="top" data-toggle="tooltip" data-placement="top" title="Waiting for other scans to complete"><span class="spinner-border spinner-border-sm"></span> Pending</span>
+                <span class="badge badge-soft-warning" data-placement="top" data-toggle="tooltip" data-placement="top" title="{% trans 'Waiting for other scans to complete' %}"><span class="spinner-border spinner-border-sm"></span> {% trans "Pending" %}</span>
                 {% elif scan_history.scan_status == 0 %}
-                <span class="badge badge-soft-danger">Failed</span>
-                {% if scan_history.error_message %}</br><p class="text-danger">Scan Failed due to: {{scan_history.error_message}}</p>{% endif %}
+                <span class="badge badge-soft-danger">{% trans "Failed" %}</span>
+                {% if scan_history.error_message %}</br><p class="text-danger">{% blocktrans with error_message=scan_history.error_message %}Scan Failed due to: {{ error_message }}{% endblocktrans %}</p>{% endif %}
                 {% elif scan_history.scan_status == 1 %}
-                <span class="badge badge-soft-info"><span class="spinner-border spinner-border-sm"></span> In Progress</span>
+                <span class="badge badge-soft-info"><span class="spinner-border spinner-border-sm"></span> {% trans "In Progress" %}</span>
                 {% elif scan_history.scan_status == 2 %}
-                <span class="badge badge-soft-success">Successful</span>
+                <span class="badge badge-soft-success">{% trans "Successful" %}</span>
                 {% elif scan_history.scan_status == 3 %}
-                <span class="badge badge-soft-danger">Aborted</span>
+                <span class="badge badge-soft-danger">{% trans "Aborted" %}</span>
                 <br>
-                <small class="text-muted">Aborted by: {{scan_history.aborted_by}}</small>
+                <small class="text-muted">{% blocktrans with aborted_by=scan_history.aborted_by %}Aborted by: {{ aborted_by }}{% endblocktrans %}</small>
                 {% else %}
-                <span class="badge badge-soft-danger">Unknown</span>
+                <span class="badge badge-soft-danger">{% trans "Unknown" %}</span>
                 {% endif %}
               </td>
               <td class="text-center">
@@ -171,35 +172,35 @@ Quick Scan History
               <td class="text-center">
                 <div class="btn-group mb-2 dropstart">
                   <div class="btn-group">
-                    <a href="/scan/{{current_project.slug}}/detail/{{scan_history.id}}" class="btn btn-soft-primary">View Results</a>
+                    <a href="/scan/{{current_project.slug}}/detail/{{scan_history.id}}" class="btn btn-soft-primary">{% trans "View Results" %}</a>
                     <div class="btn-group dropstart" role="group">
                       <button type="button" class="btn btn-soft-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                         <i class="mdi mdi-chevron-right"></i>
                       </button>
                       <div class="dropdown-menu" style="">
-                        <a class="dropdown-item text-primary" href="javascript:show_scan_configuration('{{scan_history.cfg_starting_point_path}}', {{scan_history.cfg_out_of_scope_subdomains}}, {{scan_history.cfg_excluded_paths}}, {{scan_history.cfg_imported_subdomains}})"><i class="fe-settings"></i>&nbsp;Show Configurations</a>
+                        <a class="dropdown-item text-primary" href="javascript:show_scan_configuration('{{scan_history.cfg_starting_point_path}}', {{scan_history.cfg_out_of_scope_subdomains}}, {{scan_history.cfg_excluded_paths}}, {{scan_history.cfg_imported_subdomains}})"><i class="fe-settings"></i>&nbsp;{% trans "Show Configurations" %}</a>
                         {% if user|can:'initiate_scans_subscans' %}
                           {% if scan_history.scan_status == 0 or scan_history.scan_status == 2 or scan_history.scan_status == 3 %}
                           <a class="dropdown-item text-primary" href="{% url 'start_scan' current_project.slug scan_history.domain.id %}?rescan=true&history_id={{ scan_history.id }}">
-                            <i class="fe-refresh-ccw"></i>&nbsp;Rescan
+                            <i class="fe-refresh-ccw"></i>&nbsp;{% trans "Rescan" %}
                           </a>
                           {% endif %}
 
                           {% if scan_history.scan_status == 1 or scan_history.scan_status == -1%}
                           <a href="#" class="dropdown-item text-danger" onclick="stop_scan(scan_id={{ scan_history.id }}, subscan_id=null, reload_scan_bar=false, reload_location=true)">
-                          <i class="fe-alert-triangle"></i>&nbsp;Stop Scan</a>
+                          <i class="fe-alert-triangle"></i>&nbsp;{% trans "Stop Scan" %}</a>
                           {% endif %}
                         {% endif %}
                         {% if user|can:'modify_scan_results' %}
                           {% if scan_history.scan_status == 2 or scan_history.scan_status == 3 or scan_history.scan_status == 0 %}
                             <a href="#" class="dropdown-item text-danger" onclick="delete_scan('{{ scan_history.id }}')">
-                            <i class="fe-trash-2"></i>&nbsp;Delete Scan Results</a>
+                            <i class="fe-trash-2"></i>&nbsp;{% trans "Delete Scan Results" %}</a>
                           {% endif %}
                           <div class="dropdown-divider"></div>
                         {% endif %}
                         {% if scan.scan_status != -1%}
                           <a href="#" class="dropdown-item text-dark" onclick="initiate_report(id={{scan_history.id}}, has_subdomain_scan={% if 'subdomain_discovery' in scan_history.scan_type.tasks %}true{% else %}false{% endif %}, has_vulnerability_scan={% if 'vulnerability_scan' in scan_history.scan_type.tasks %}true{% else %}false{% endif %}, domain_name='{{ scan_history.domain.name }}')">
-                          <i class="fe-download"></i>&nbsp;Scan Report</a>
+                          <i class="fe-download"></i>&nbsp;{% trans "Scan Report" %}</a>
                         {% endif %}
                         </div>
                       </div>
@@ -218,12 +219,12 @@ Quick Scan History
   <div class="modal-dialog modal-lg modal-dialog-centered">
     <div class="modal-content border-0 shadow">
       <div class="modal-header bg-light border-bottom-0">
-        <h5 class="modal-title" id="modalLabel">Generate Report</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        <h5 class="modal-title" id="modalLabel">{% trans "Generate Report" %}</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="{% trans 'Close' %}"></button>
       </div>
       <div class="modal-body">
         <div class="container-fluid">
-          <h6 class="text-primary mb-3">Select Report Type</h6>
+          <h6 class="text-primary mb-3">{% trans "Select Report Type" %}</h6>
           <div class="row g-3 mb-4">
             <div class="col-md-4">
               <div class="card h-100 border-0 shadow-sm">
@@ -231,12 +232,12 @@ Quick Scan History
                   <div class="form-check">
                     <input class="form-check-input" type="radio" name="reportType" id="report_type_checkbox" value="full" checked>
                       <label class="form-check-label w-100" for="fullScan">
-                      <h6 class="mb-2">Full Scan</h6>
-                      <p class="text-muted small mb-0">Comprehensive analysis including Recon and Vulnerabilities</p>
+                      <h6 class="mb-2">{% trans "Full Scan" %}</h6>
+                      <p class="text-muted small mb-0">{% trans "Comprehensive analysis including Recon and Vulnerabilities" %}</p>
                     </label>
                   </div>
                 </div>
-                <div class="card-footer border-0 text-primary bg-soft-primary"> Complete Overview </div>
+                <div class="card-footer border-0 text-primary bg-soft-primary"> {% trans "Complete Overview" %} </div>
               </div>
             </div>
             <div class="col-md-4">
@@ -245,12 +246,12 @@ Quick Scan History
                   <div class="form-check">
                     <input class="form-check-input" type="radio" name="reportType" id="report_type_checkbox" value="recon" disabled>
                     <label class="form-check-label w-100" for="reconReport">
-                      <h6 class="mb-2">Reconnaissance</h6>
-                      <p class="text-muted small mb-0">Report containing detailed overview of discovered assets only</p>
+                      <h6 class="mb-2">{% trans "Reconnaissance" %}</h6>
+                      <p class="text-muted small mb-0">{% trans "Report containing detailed overview of discovered assets only" %}</p>
                     </label>
                   </div>
                 </div>
-                <div class="card-footer border-0 text-info bg-soft-info"> Asset Mapping </div>
+                <div class="card-footer border-0 text-info bg-soft-info"> {% trans "Asset Mapping" %} </div>
               </div>
             </div>
             <div class="col-md-4">
@@ -259,28 +260,28 @@ Quick Scan History
                   <div class="form-check">
                     <input class="form-check-input" type="radio" name="reportType" id="report_type_checkbox" value="vuln" disabled>
                     <label class="form-check-label w-100" for="vulnReport">
-                      <h6 class="mb-2">Vulnerability</h6>
-                      <p class="text-muted small mb-0">Report focused on the identified vulnerabilities and remediation</p>
+                      <h6 class="mb-2">{% trans "Vulnerability" %}</h6>
+                      <p class="text-muted small mb-0">{% trans "Report focused on the identified vulnerabilities and remediation" %}</p>
                     </label>
                   </div>
                 </div>
-                <div class="card-footer border-0 text-danger bg-soft-danger"> Risk Assessment </div>
+                <div class="card-footer border-0 text-danger bg-soft-danger"> {% trans "Risk Assessment" %} </div>
               </div>
             </div>
           </div>
           <div class="row g-3">
             <div class="col-md-6">
-              <h6 class="text-primary mb-3">Report Template</h6>
-              <select id="templateSelect" class="form-select" aria-label="Select report template">
-                <option value="modern">Modern Template</option>
-                <option value="default">Default Template</option>
+              <h6 class="text-primary mb-3">{% trans "Report Template" %}</h6>
+              <select id="templateSelect" class="form-select" aria-label="{% trans 'Select report template' %}">
+                <option value="modern">{% trans "Modern Template" %}</option>
+                <option value="default">{% trans "Default Template" %}</option>
               </select>
             </div>
             <div class="col-md-6">
-              <h6 class="text-primary mb-3">Additional Options</h6>
+              <h6 class="text-primary mb-3">{% trans "Additional Options" %}</h6>
               <div class="form-check form-switch" id="report_info_vuln_div">
                 <input class="form-check-input" type="checkbox" id="excludeInfoFindings" name="excludeInfoFindings" checked>
-                <label class="form-check-label" for="excludeInfoFindings"> Exclude Informational Findings </label>
+                <label class="form-check-label" for="excludeInfoFindings"> {% trans "Exclude Informational Findings" %} </label>
               </div>
             </div>
           </div>
@@ -290,8 +291,8 @@ Quick Scan History
         <div class="container-fluid">
           <div class="row justify-content-end">
             <div class="col-auto">
-              <button type="button" class="btn btn-outline-primary me-2" id="previewReportBtn">Preview Report</button>
-              <button type="button" class="btn btn-primary" id="generateReportBtn">Download Report</button>
+              <button type="button" class="btn btn-outline-primary me-2" id="previewReportBtn">{% trans "Preview Report" %}</button>
+              <button type="button" class="btn btn-primary" id="generateReportBtn">{% trans "Download Report" %}</button>
             </div>
           </div>
         </div>

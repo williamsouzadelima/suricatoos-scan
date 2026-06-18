@@ -1,21 +1,22 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 {% load humanize %}
 {% load permission_tags %}
 
 {% block title %}
-Subscan History
+{% trans "Subscan History" %}
 {% endblock title %}
 
 {% block custom_js_css_link %}
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item active" aria-current="page">Scan History</li>
+<li class="breadcrumb-item active" aria-current="page">{% trans "Scan History" %}</li>
 {% endblock breadcrumb_title %}
 
 {% block page_title %}
-SubScan History
+{% trans "SubScan History" %}
 {% endblock page_title %}
 
 {% block main_content %}
@@ -26,42 +27,42 @@ SubScan History
         <div class="row">
           <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
             <button type="button" class="btn btn-primary dropdown-toggle" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" id="filterMenu">
-              Filter <i class="fe-filter"></i>
+              {% trans "Filter" %} <i class="fe-filter"></i>
             </button>
             <div id="filteringText" class="mt-2">
             </div>
             <div class="dropdown-menu" style="width: 30%">
               <div class="px-4 py-3">
-                <h4 class="headline-title">Filters</h4>
+                <h4 class="headline-title">{% trans "Filters" %}</h4>
                 <div class="">
-                  <label for="filterByOrganization" class="form-label">Filter by Organization</label>
+                  <label for="filterByOrganization" class="form-label">{% trans "Filter by Organization" %}</label>
                   <select class="form-control" id="filterByOrganization">
                   </select>
                 </div>
                 <div class="">
-                  <label for="filterByTarget" class="form-label">Filter by Targets</label>
+                  <label for="filterByTarget" class="form-label">{% trans "Filter by Targets" %}</label>
                   <select class="form-control" id="filterByTarget">
                   </select>
                 </div>
                 <div class="">
-                  <label for="filterByScanType" class="form-label">Filter by Scan Type</label>
+                  <label for="filterByScanType" class="form-label">{% trans "Filter by Scan Type" %}</label>
                   <select class="form-control" id="filterByScanType">
                   </select>
                 </div>
                 <div class="">
-                  <label for="filterByScanStatus" class="form-label">Filter by Scan Status</label>
+                  <label for="filterByScanStatus" class="form-label">{% trans "Filter by Scan Status" %}</label>
                   <select class="form-control" id="filterByScanStatus">
                   </select>
                 </div>
               </div>
               <div class="dropdown-divider"></div>
-              <a href="#" class="dropdown-ite text-primary float-end" id="resetFilters">Reset Filters</a>
+              <a href="#" class="dropdown-ite text-primary float-end" id="resetFilters">{% trans "Reset Filters" %}</a>
             </div>
           </div>
           {% if user|can:'initiate_scans_subscans' %}
           <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
-            <a class="btn btn-soft-danger float-end disabled ms-1" href="#" onclick="deleteMultipleSubScan()" id="delete_multiple_button">Delete Multiple SubScans</a>
-            <a class="btn btn-soft-danger float-end disabled ms-1" href="#" onclick="stopMultipleSubScan()" id="stop_multiple_button">Stop Multiple SubScans</a>
+            <a class="btn btn-soft-danger float-end disabled ms-1" href="#" onclick="deleteMultipleSubScan()" id="delete_multiple_button">{% trans "Delete Multiple SubScans" %}</a>
+            <a class="btn btn-soft-danger float-end disabled ms-1" href="#" onclick="stopMultipleSubScan()" id="stop_multiple_button">{% trans "Stop Multiple SubScans" %}</a>
           </div>
           {% endif %}
         </div>
@@ -75,14 +76,14 @@ SubScan History
       <table id="subscan_history_table" class="table dt-responsive w-100">
         <thead>
           <tr>
-            <th class="checkbox-column text-center">Serial Number</th>
-            <th class="text-center">Serial Number</th>
-            <th>Scanned Subdomain</th>
-            <th class="text-center">Task</th>
-            <th class="text-center">Engine</th>
-            <th>Scan Started</th>
-            <th class="text-center">Status</th>
-            <th class="text-center no-sorting">Action</th>
+            <th class="checkbox-column text-center">{% trans "Serial Number" %}</th>
+            <th class="text-center">{% trans "Serial Number" %}</th>
+            <th>{% trans "Scanned Subdomain" %}</th>
+            <th class="text-center">{% trans "Task" %}</th>
+            <th class="text-center">{% trans "Engine" %}</th>
+            <th>{% trans "Scan Started" %}</th>
+            <th class="text-center">{% trans "Status" %}</th>
+            <th class="text-center no-sorting">{% trans "Action" %}</th>
           </tr>
         </thead>
         <tbody>
@@ -91,14 +92,14 @@ SubScan History
             <td class="checkbox-column"> {{ subscan.id }} </td>
             <td class=""> {{ subscan.id }} </td>
             <td class="">
-              <span class="" data-toggle="tooltip" data-placement="top" title="Scanned Subdomain">{{ subscan.subdomain.name }}</span>
+              <span class="" data-toggle="tooltip" data-placement="top" title="{% trans 'Scanned Subdomain' %}">{{ subscan.subdomain.name }}</span>
             </br>
-            <b><span data-toggle="tooltip" data-placement="top" title="Domain">{{ subscan.scan_history.domain.name }}</span></b>
+            <b><span data-toggle="tooltip" data-placement="top" title="{% trans 'Domain' %}">{{ subscan.scan_history.domain.name }}</span></b>
             {% for organization in subscan.scan_history.domain.get_organization %}
-              <span class="badge badge-soft-dark mt-1 me-1" data-toggle="tooltip" data-placement="top" title="Domain {{domain.name}} belongs to organization {{organization.name}}">{{ organization.name }}</span>
+              <span class="badge badge-soft-dark mt-1 me-1" data-toggle="tooltip" data-placement="top" title="{% blocktrans with domain_name=domain.name organization_name=organization.name %}Domain {{ domain_name }} belongs to organization {{ organization_name }}{% endblocktrans %}">{{ organization.name }}</span>
             {% endfor %}
           </br>
-          <a href="/scan/{{current_project.slug}}/detail/{{subscan.scan_history.id}}" class="text-info">Recent Scan&nbsp;<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-external-link"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>< svg></a>
+          <a href="/scan/{{current_project.slug}}/detail/{{subscan.scan_history.id}}" class="text-info">{% trans "Recent Scan" %}&nbsp;<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="feather feather-external-link"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line>< svg></a>
           </td>
           <td class="text-center">
             <span class="badge badge-soft-primary">{{ subscan.get_task_name_str }}</span>
@@ -111,23 +112,23 @@ SubScan History
           </td>
           <td class="text-center">
             {% if subscan.status == -1 %}
-            <span class="badge badge-soft-warning" data-toggle="tooltip" data-placement="top" title="Waiting for other scans to complete"><span class="spinner-border spinner-border-sm"></span> Pending</span>
+            <span class="badge badge-soft-warning" data-toggle="tooltip" data-placement="top" title="{% trans 'Waiting for other scans to complete' %}"><span class="spinner-border spinner-border-sm"></span> {% trans "Pending" %}</span>
             {% elif subscan.status == 0 %}
-            <span class="badge badge-soft-danger">Failed</span>
+            <span class="badge badge-soft-danger">{% trans "Failed" %}</span>
             {% elif subscan.status == 1 %}
-            <span class="badge badge-soft-info"><span class="spinner-border spinner-border-sm"></span> In Progress</span>
+            <span class="badge badge-soft-info"><span class="spinner-border spinner-border-sm"></span> {% trans "In Progress" %}</span>
             {% elif subscan.status == 2 %}
-            <span class="badge badge-soft-success">Successful</span>
+            <span class="badge badge-soft-success">{% trans "Successful" %}</span>
             {% elif subscan.status == 3 %}
-            <span class="badge badge-soft-danger">Aborted</span>
+            <span class="badge badge-soft-danger">{% trans "Aborted" %}</span>
             {% else %}
-            <span class="badge badge-soft-danger">Unknown</span>
+            <span class="badge badge-soft-danger">{% trans "Unknown" %}</span>
             {% endif %}
           </td>
           <td class="text-center">
             <div class="btn-group mb-2 dropstart">
               <div class="btn-group">
-                <a href="#" class="btn btn-soft-primary" onclick="show_subscan_results({{subscan.id}})">View Results</a>
+                <a href="#" class="btn btn-soft-primary" onclick="show_subscan_results({{subscan.id}})">{% trans "View Results" %}</a>
                 <div class="btn-group dropstart" role="group">
                   <button type="button" class="btn btn-soft-primary dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
                     <i class="mdi mdi-chevron-right"></i>
@@ -135,11 +136,11 @@ SubScan History
                   <div class="dropdown-menu" style="">
                     {% if user|can:'initiate_scans_subscans' %}
                       {% if subscan.status == 1 %}
-                        <a href="#" class="dropdown-item text-danger" onclick="stop_scan(scan_id=null, subscan_id={{subscan.id}}, reload_scan_bar=false, reload_location=true)"><i class="fe-alert-triangle"></i>&nbsp;Stop Subscan</a>
+                        <a href="#" class="dropdown-item text-danger" onclick="stop_scan(scan_id=null, subscan_id={{subscan.id}}, reload_scan_bar=false, reload_location=true)"><i class="fe-alert-triangle"></i>&nbsp;{% trans "Stop Subscan" %}</a>
                       {% endif %}
                     {% endif %}
                     {% if user|can:'modify_scan_results' %}
-                    <a href="#" class="dropdown-item text-danger" onclick="delete_subscan('{{ subscan.id }}')"><i class="fe-trash-2"></i>&nbsp;Delete Subscan</a>
+                    <a href="#" class="dropdown-item text-danger" onclick="delete_subscan('{{ subscan.id }}')"><i class="fe-trash-2"></i>&nbsp;{% trans "Delete Subscan" %}</a>
                     {% endif %}
                   </div>
                 </div>

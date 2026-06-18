@@ -1,20 +1,21 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load humanize %}
 {% load static %}
 
 {% block title %}
-Universal Search
+{% trans "Universal Search" %}
 {% endblock title %}
 
 {% block custom_js_css_link %}
 {% endblock custom_js_css_link %}
 
 {% block page_title %}
-Search Results
+{% trans "Search Results" %}
 {% endblock page_title %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item active">Universal Search</li>
+<li class="breadcrumb-item active">{% trans "Universal Search" %}</li>
 {% endblock breadcrumb_title %}
 
 {% block main_content %}
@@ -28,15 +29,15 @@ Search Results
 							<form class="app-search" method="get" action="/{{current_project.slug}}/search">
 							<div class="input-group">
 								{% if request.GET.query %}
-								<input type="search" class="form-control" placeholder="Universal Search..." id="top-search" name="query" value="{{request.GET.query}}">
+								<input type="search" class="form-control" placeholder="{% trans 'Universal Search...' %}" id="top-search" name="query" value="{{request.GET.query}}">
 								{% else %}
-								<input type="search" class="form-control" placeholder="Universal Search..." id="top-search" name="query">
+								<input type="search" class="form-control" placeholder="{% trans 'Universal Search...' %}" id="top-search" name="query">
 								{% endif %}
-								<button type="submit" class="input-group-text btn waves-effect waves-light btn-primary"><i class="fa fa-search me-1"></i> Search</button>
+								<button type="submit" class="input-group-text btn waves-effect waves-light btn-primary"><i class="fa fa-search me-1"></i> {% trans "Search" %}</button>
 							</div>
 						</form>
 							<div class="mt-3 text-center">
-								<h4>Search Results For "{{ request.GET.query }}"</h4>
+								<h4>{% blocktrans with query=request.GET.query %}Search Results For "{{ query }}"{% endblocktrans %}</h4>
 							</div>
 						</div>
 					</div>
@@ -55,25 +56,25 @@ Search Results
 					<ul class="nav nav-tabs nav-bordered">
 						<li class="nav-item subdomains">
 							<a href="#subdomains-tab" data-bs-toggle="tab" aria-expanded="true" class="nav-link" id="nav-item-subdomains">
-								Subdomains <span class="badge bg-primary ms-1" id="search-subdomains-count-badge"></span>
+								{% trans "Subdomains" %} <span class="badge bg-primary ms-1" id="search-subdomains-count-badge"></span>
 							</a>
 						</li>
 
 						<li class="nav-item endpoints">
 							<a href="#endpoints-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" id="nav-item-endpoints">
-								Endpoints <span class="badge bg-primary ms-1" id="search-endpoints-count-badge"></span>
+								{% trans "Endpoints" %} <span class="badge bg-primary ms-1" id="search-endpoints-count-badge"></span>
 							</a>
 						</li>
 
 						<li class="nav-item vulnerabilities">
 							<a href="#vulnerabilities-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" id="nav-item-vulnerabilities">
-								Vulnerabilities <span class="badge bg-primary ms-1" id="search-vulnerabilities-count-badge"></span>
+								{% trans "Vulnerabilities" %} <span class="badge bg-primary ms-1" id="search-vulnerabilities-count-badge"></span>
 							</a>
 						</li>
 
 						<li class="nav-item others">
 							<a href="#others-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link">
-								Others <span class="badge bg-primary ms-1" id="search-others-count-badge"></span>
+								{% trans "Others" %} <span class="badge bg-primary ms-1" id="search-others-count-badge"></span>
 							</a>
 						</li>
 					</ul>

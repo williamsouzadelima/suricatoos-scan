@@ -1,21 +1,22 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load humanize %}
 {% load static %}
 
 {% block title %}
-Profile
+{% trans "Profile" %}
 {% endblock title %}
 
 {% block custom_js_css_link %}
 {% endblock custom_js_css_link %}
 
 {% block page_title %}
-My Profile
+{% trans "My Profile" %}
 {% endblock page_title %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item"><a href="/{{current_project.slug}}/dashboard">Dashboard</a></li>
-<li class="breadcrumb-item active">My Profile</li>
+<li class="breadcrumb-item"><a href="/{{current_project.slug}}/dashboard">{% trans "Dashboard" %}</a></li>
+<li class="breadcrumb-item active">{% trans "My Profile" %}</li>
 {% endblock breadcrumb_title %}
 
 {% block main_content %}
@@ -23,20 +24,20 @@ My Profile
   <div class="col-12">
     <div class="card">
       <div class="card-body">
-        <h4>Hi {{user.get_username}}!</h4>
+        <h4>{% blocktrans with username=user.get_username %}Hi {{ username }}!{% endblocktrans %}</h4>
         <div class="row">
           <div class="col-12 mt-2">
             <div class="mb-4">
-              <label for="username" class="form-label">Username</label>
-              <input type="text" class="form-control" id="username" placeholder="username" value="@{{user.get_username}}" disabled>
+              <label for="username" class="form-label">{% trans "Username" %}</label>
+              <input type="text" class="form-control" id="username" placeholder="{% trans 'username' %}" value="@{{user.get_username}}" disabled>
             </div>
           </div>
-          <h4>Change Password</h4>
+          <h4>{% trans "Change Password" %}</h4>
           <form method="POST">
             {% csrf_token %}
             <div class="row">
               <div class="col-12 mt-2">
-                <label for="old_password" class="form-label">Old Password</label>
+                <label for="old_password" class="form-label">{% trans "Old Password" %}</label>
                 <input type="password" name="old_password" autocomplete="current-password" autofocus="" required="" id="old_password" class="form-control mb-4 {% if form.errors.old_password %}is-invalid{% endif %}">
                 {% if form.errors.old_password %}
                   {% for error in form.errors.old_password %}
@@ -45,11 +46,11 @@ My Profile
                 {% endif %}
               </div>
               <div class="col-6">
-                <label for="new_password1" class="form-label">New Password</label>
+                <label for="new_password1" class="form-label">{% trans "New Password" %}</label>
                 <input type="password" name="new_password1" autocomplete="new-password" required="" id="new_password1" class="form-control mb-4 {% if form.errors.new_password2 %}is-invalid{% endif %}">
               </div>
               <div class="col-6">
-                <label for="new_password2" class="form-label">Confirm Password</label>
+                <label for="new_password2" class="form-label">{% trans "Confirm Password" %}</label>
                 <input type="password" name="new_password2" autocomplete="new-password" required="" id="new_password2" class="form-control mb-4 {% if form.errors.new_password2 %}is-invalid{% endif %}">
               </div>
             </div>
@@ -58,7 +59,7 @@ My Profile
                 <p class="text-danger">{{error}}</p>
               {% endfor %}
             {% endif %}
-            <input type="submit" class="btn btn-soft-primary float-end" value="Change Password">
+            <input type="submit" class="btn btn-soft-primary float-end" value="{% trans 'Change Password' %}">
           </form>
         </div>
       </div>
