@@ -34,7 +34,10 @@ api.interceptors.response.use(
         .finally(() => { refreshing = null })
       const newAccess = await refreshing
       if (newAccess) { original.headers.Authorization = `Bearer ${newAccess}`; return api(original) }
-      if (location.pathname !== '/login') location.href = '/login'
+      // In prod the SPA is mounted at /app (BrowserRouter basename); send the
+      // user to the SPA login, not the legacy Django template login at /login.
+      const loginPath = import.meta.env.PROD ? '/app/login' : '/login'
+      if (location.pathname !== loginPath) location.href = loginPath
     }
     return Promise.reject(error)
   },

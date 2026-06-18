@@ -879,7 +879,10 @@ class ScanDetailSerializer(ScanSpaSerializer):
 
 	def get_progress(self, obj):
 		try:
-			return obj.get_progress()
+			# get_progress() returns None for a just-started scan (0 steps done);
+			# coerce to 0 so the SPA renders a valid 0% bar instead of "null%".
+			val = obj.get_progress()
+			return val if val is not None else 0
 		except Exception:
 			return 0
 

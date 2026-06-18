@@ -2986,12 +2986,20 @@ class SpaVulnerabilityViewSet(viewsets.ReadOnlyModelViewSet):
 		slug = req.query_params.get('project')
 		scan_id = req.query_params.get('scan_history')
 		severity = req.query_params.get('severity')
+		# Bound the list: require a project/scan scope so an unscoped GET can't
+		# serialize every vuln across all projects (retrieve stays unaffected).
+		if self.action == 'list' and not slug and not scan_id:
+			return qs.none()
 		if slug:
 			qs = qs.filter(scan_history__domain__project__slug=slug)
 		if scan_id:
 			qs = qs.filter(scan_history__id=scan_id)
 		if severity not in (None, ''):
-			qs = qs.filter(severity=severity)
+			# severity is an IntegerField; a non-int value would 500 on Postgres.
+			try:
+				qs = qs.filter(severity=int(severity))
+			except (TypeError, ValueError):
+				return qs.none()
 		return qs.order_by('-severity', 'name').distinct()
 
 
@@ -3336,11 +3344,15 @@ class SpaScanViewSet(viewsets.ReadOnlyModelViewSet):
 	def get_queryset(self):
 		# Annotate counts once (distinct=True keeps them correct across the two
 		# reverse-FK joins) instead of 2 COUNT queries per row in the serializer.
-		qs = ScanHistory.objects.annotate(
+		qs = ScanHistory.objects.select_related('domain', 'scan_type').annotate(
 			subdomain_count=Count('subdomain', distinct=True),
 			vulnerability_count=Count('vulnerability', distinct=True),
 		)
 		slug = self.request.query_params.get('project')
+		# Bound the list to a project (retrieve, used by the SPA scan-detail page,
+		# stays unaffected and resolves by pk).
+		if self.action == 'list' and not slug:
+			return qs.none()
 		if slug:
 			qs = qs.filter(domain__project__slug=slug)
 		return qs.order_by('-start_scan_date').distinct()
@@ -3403,6 +3415,8 @@ class SpaSubdomainViewSet(viewsets.ReadOnlyModelViewSet):
 		qs = Subdomain.objects.all()
 		slug = self.request.query_params.get('project')
 		scan_id = self.request.query_params.get('scan_history')
+		if self.action == 'list' and not slug and not scan_id:
+			return qs.none()
 		if slug:
 			qs = qs.filter(scan_history__domain__project__slug=slug)
 		if scan_id:
@@ -3427,6 +3441,8 @@ class SpaTargetViewSet(viewsets.ReadOnlyModelViewSet):
 	def get_queryset(self):
 		qs = Domain.objects.all()
 		slug = self.request.query_params.get('project')
+		if self.action == 'list' and not slug:
+			return qs.none()
 		if slug:
 			qs = qs.filter(project__slug=slug)
 		return qs.order_by('name').distinct()

@@ -53,9 +53,9 @@ export function ScanDetail() {
 
       {data.scan_status === 1 && (
         <div className="mb-6">
-          <div className="mb-1 flex justify-between text-xs text-sx-muted"><span>Progress</span><span>{data.progress}%</span></div>
+          <div className="mb-1 flex justify-between text-xs text-sx-muted"><span>Progress</span><span>{data.progress ?? 0}%</span></div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-sx-surface-2">
-            <div className="h-full bg-sx-primary" style={{ width: `${data.progress}%` }} />
+            <div className="h-full bg-sx-primary" style={{ width: `${data.progress ?? 0}%` }} />
           </div>
         </div>
       )}
