@@ -2,7 +2,46 @@
 
 All notable changes to Suricatoos are documented in this file.
 
-## Unreleased
+## v1.0.0
+
+Initial release of Suricatoos — a web-based automated reconnaissance platform
+(scan engines, subdomain discovery, port scanning, endpoint enumeration,
+vulnerability scanning, OSINT, scheduling and reporting).
+
+### Scanning & OSINT
+
+- **Secret scanning** via the `secret_scan` engine, powered by gitleaks and
+  ggshield, detecting hardcoded secrets (passwords, API keys, tokens) in
+  collected scan artifacts. Findings are stored in the `LeakedSecret` model with
+  values masked — the raw secret is never persisted. Enabled by default in the
+  "Full Scan" and "Suricatoos Recommended" engines.
+- **SpiderFoot** as an opt-in OSINT module, enabled via the
+  `osint.enable_spiderfoot` engine setting.
+- A **Secrets** tab and a "Secrets Discovered" summary card on the scan detail
+  page, plus a `listLeakedSecrets` API endpoint.
+- A **GitGuardian API key** field in Settings → API for the ggshield scanner
+  (falls back to the `GITGUARDIAN_API_KEY` environment variable).
+
+### UI
+
+- **Premium dark theme as the default.** A central override layer
+  (`web/static/custom/premium-theme.css`) with a self-hosted Inter variable font,
+  a suricata-mascot favicon and white SVG wordmarks; dark is applied before first
+  paint and a saved `light` preference is honored. Accessibility/correctness fixes
+  from a pre-release adversarial review: WCAG-AA contrast on the `critical`/`high`
+  severity and `bg-info`/`bg-success` badges and on dropdown section headers, and a
+  wizard that pre-selects exactly one engine. Report templates stay print-light by
+  design (WeasyPrint).
+
+### Performance
+
+- **Small-VM resource tuning.** The 21 light/IO-bound Celery queues are now served
+  by a single shared gevent worker (previously one process per queue, each loading
+  the full Django app at ~140 MB RSS), cutting baseline worker RSS by ~2.8 GB and
+  fixing the boot-time OOM on ~3.8 GB single-host VMs. Concurrency is tunable via
+  `SHARED_CONCURRENCY` (default 50); the prefork `main_scan` worker and the
+  `api_worker` are unchanged. The idle-by-default `ollama` container is capped at
+  `mem_limit: 1g` so loading a model OOM-kills the container instead of the host.
 
 ### Security
 
@@ -46,20 +85,3 @@ All notable changes to Suricatoos are documented in this file.
 - **CI:** build/CodeQL workflows now trigger on `main` (they were pinned to the
   non-default `master`, so PR builds and static analysis never ran), and a new
   `tests.yml` job runs the command-injection and secret-scan suites on every PR.
-
-## v1.0.0
-
-- Initial public release of Suricatoos: a web-based automated reconnaissance
-  platform with scan engines, subdomain discovery, port scanning, endpoint
-  enumeration, vulnerability scanning, OSINT, scheduling and reporting.
-- **Secret scanning** via the `secret_scan` engine, powered by gitleaks and
-  ggshield, detecting hardcoded secrets (passwords, API keys, tokens) in
-  collected scan artifacts. Findings are stored in the `LeakedSecret` model with
-  values masked — the raw secret is never persisted. Enabled by default in the
-  "Full Scan" and "Suricatoos Recommended" engines.
-- **SpiderFoot** as an opt-in OSINT module, enabled via the
-  `osint.enable_spiderfoot` engine setting.
-- A **Secrets** tab and a "Secrets Discovered" summary card on the scan detail
-  page, plus a `listLeakedSecrets` API endpoint.
-- A **GitGuardian API key** field in Settings → API for the ggshield scanner
-  (falls back to the `GITGUARDIAN_API_KEY` environment variable).
