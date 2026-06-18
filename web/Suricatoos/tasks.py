@@ -492,7 +492,11 @@ def subdomain_discovery(
 			elif tool == 'ctfr':
 				results_file = self.results_dir + '/subdomains_ctfr.txt'
 				cmd = f'python3 /usr/src/github/ctfr/ctfr.py -d {shlex.quote(host)} -o {shlex.quote(results_file)}'
-				cmd_extract = f"cat {shlex.quote(results_file)} | sed 's/\*.//g' | tail -n +12 | uniq | sort > {shlex.quote(results_file)}"
+				# Write to a temp file then move it into place: `cat X | ... > X` self-clobbers
+				# (the shell truncates X before cat reads it), which silently dropped ALL
+				# ctfr/crt.sh subdomains -- a key-free passive source -- from every scan.
+				tmp_file = results_file + '.tmp'
+				cmd_extract = f"cat {shlex.quote(results_file)} | sed 's/\*.//g' | tail -n +12 | uniq | sort > {shlex.quote(tmp_file)} && mv {shlex.quote(tmp_file)} {shlex.quote(results_file)}"
 				cmd += f' && {cmd_extract}'
 
 			elif tool == 'tlsx':
