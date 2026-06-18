@@ -1932,8 +1932,14 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		cmd_map['katana'] += ' ' + formatted_headers
 	cat_input = f'cat {input_path}'
 	grep_output = f'grep -Eo {host_regex}'
+	# Bound each external crawler with `timeout`: gau / waybackurls / hakrawler query
+	# third-party services and can hang indefinitely (e.g. an unresponsive Wayback
+	# Machine), which would stall the whole fetch_url phase since the group waits for all
+	# of them. timeout kills a stuck tool after `tool_timeout` seconds; the pipeline still
+	# finishes with whatever URLs were gathered before the kill.
+	tool_timeout = _safe_int(cfg.get('timeout', 300), 300)
 	cmd_map = {
-		tool: f'{cat_input} | {cmd} | {grep_output} > {self.results_dir}/urls_{tool}.txt'
+		tool: f'{cat_input} | timeout {tool_timeout} {cmd} | {grep_output} > {self.results_dir}/urls_{tool}.txt'
 		for tool, cmd in cmd_map.items()
 	}
 	tasks = group(
