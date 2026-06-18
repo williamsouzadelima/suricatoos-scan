@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Design tokens mirrored from web/static/custom/premium-theme.css (dark default). */
+:root {
+  --sx-bg: #0f1420;
+  --sx-surface: #161d2b;
+  --sx-surface-2: #1b2433;
+  --sx-border: #26334a;
+  --sx-text: #e7ebf3;
+  --sx-muted: #9aa6bd;
+  --sx-primary: #3d5af1;
+  --sx-primary-600: #2f49d4;
+  --sx-critical: #ff5c63;
+  --sx-high: #ff9351;
+  --sx-medium: #ffc24b;
+  --sx-low: #4cd2a0;
+  --sx-info: #57acff;
+  --sx-success: #34c79a;
+}
+html[data-sx-theme="light"] {
+  --sx-bg: #f4f6fb;
+  --sx-surface: #ffffff;
+  --sx-surface-2: #eef1f7;
+  --sx-border: #d8dee9;
+  --sx-text: #1b2433;
+  --sx-muted: #5b6678;
+}
+body { background: var(--sx-bg); color: var(--sx-text); margin: 0; }
