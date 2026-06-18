@@ -857,6 +857,27 @@
                     {% blocktrans with domain=scan_object.domain.name %}No interesting subdomains were identified on <span class="primary">{{ domain }}</span>{% endblocktrans %}
                 </p>
             {% endif %}
+            {% if osint_results and show_recon %}
+                <h3 class="primary">{% trans "OSINT Intelligence" %}</h3>
+                <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                    <thead>
+                        <tr style="text-align:left; border-bottom:2px solid {{primary_color}};">
+                            <th style="padding:4px;">{% trans "Category" %}</th>
+                            <th style="padding:4px;">{% trans "Type" %}</th>
+                            <th style="padding:4px;">{% trans "Data" %}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for o in osint_results %}
+                            <tr style="border-bottom:1px solid #eee;{% if o.is_malicious %}color:#b00020;font-weight:bold;{% endif %}">
+                                <td style="padding:4px;">{{ o.get_bucket_display }}</td>
+                                <td style="padding:4px;">{{ o.event_type }}</td>
+                                <td style="padding:4px; word-break:break-all;">{{ o.data }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            {% endif %}
         </article>
         {% if show_vuln %}
             <h3 class="primary">{% trans "Summary of Vulnerabilities Identified" %}</h3>

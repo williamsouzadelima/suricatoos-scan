@@ -2665,6 +2665,12 @@ def save_osint_result(scan_history, bucket, event_type, data, source='spiderfoot
 	"""Idempotently persist a generic OSINT finding (de-dup per scan/bucket/type/data)."""
 	if not data:
 		return None, False
+	# SpiderFoot wraps source links in <SFURL>..</SFURL> and bundles multi-line blobs;
+	# flatten that markup so the value reads cleanly in the UI.
+	data = str(data).replace('<SFURL>', ' ').replace('</SFURL>', '')
+	data = ' '.join(data.split()).strip()
+	if not data:
+		return None, False
 	target = scan_history.domain if scan_history else None
 	obj, created = OsintResult.objects.get_or_create(
 		scan_history=scan_history, bucket=bucket, event_type=event_type,
@@ -2774,6 +2780,12 @@ def _validation_target_url(url, allow_private=True):
 	loopback/link-local/metadata/unspecified/multicast/reserved address (ALWAYS
 	blocked); RFC1918/ULA private ranges are legitimate internal-pentest targets and
 	are blocked only when allow_private is False. Returns (url, None) or (None, reason).
+
+	NOTE: this validates the host's CURRENT resolution but returns the hostname URL,
+	which nuclei re-resolves independently — so it is NOT a DNS-rebinding defense. That
+	residual TOCTOU is accepted: it only matters with allow_private=False (else private
+	IPs are allowed anyway) AND requires attacker-controlled DNS for an already-scanned
+	target; pinning the IP would break TLS SNI/cert validation on https re-tests.
 	"""
 	s = str(url or '').strip()
 	if not s:

@@ -1004,13 +1004,15 @@ def _image_data_uri(path):
         return ''
 
 
-def report_logo_data_uri():
+def report_logo_data_uri(branding=None):
     """Data URI for the report logo: the uploaded white-label logo if set, else the
-    bundled Suricatoos dark-ink logo (reports are on a light background)."""
-    try:
-        branding = BrandingSetting.load()
-    except Exception:
-        branding = None
+    bundled Suricatoos dark-ink logo (reports are on a light background). Accepts an
+    already-loaded BrandingSetting to avoid loading the singleton twice per report."""
+    if branding is None:
+        try:
+            branding = BrandingSetting.load()
+        except Exception:
+            branding = None
     if branding and branding.logo_dark:
         uri = _image_data_uri(branding.logo_dark.path)
         if uri:
@@ -1111,6 +1113,7 @@ def create_report(request, id):
         .filter(ip_addresses__in=subdomains)
         .distinct()
     )
+    _branding = BrandingSetting.load()
     data = {
         'scan_object': scan,
         'unique_vulnerabilities': unique_vulns,
@@ -1124,8 +1127,10 @@ def create_report(request, id):
         'show_vuln': show_vuln,
         'report_name': report_name,
         'is_ignore_info_vuln': is_ignore_info_vuln,
-        'report_logo_uri': report_logo_data_uri(),
-        'brand_name': BrandingSetting.load().name,
+        'report_logo_uri': report_logo_data_uri(_branding),
+        'brand_name': _branding.name,
+        'osint_results': OsintResult.objects.filter(
+            scan_history=scan).order_by('-is_malicious', 'bucket', 'event_type'),
     }
 
     # Get report related config

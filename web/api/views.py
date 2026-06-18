@@ -2947,8 +2947,11 @@ class LeakedSecretViewSet(viewsets.ReadOnlyModelViewSet):
 
 class OsintResultViewSet(viewsets.ReadOnlyModelViewSet):
 	# Read-only: OSINT intel is produced by scans, never created/edited via API.
+	# No pagination: the UI loader reads the full list in one call (the project's
+	# default DatatablesPageNumberPagination would silently cap results at 500).
 	queryset = OsintResult.objects.none()
 	serializer_class = OsintResultSerializer
+	pagination_class = None
 
 	def get_queryset(self):
 		req = self.request
