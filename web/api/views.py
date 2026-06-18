@@ -1225,6 +1225,27 @@ class DeleteVulnerability(APIView):
 		return Response({'status': True})
 
 
+class ValidateVulnerability(APIView):
+	"""Manually (re-)validate one or more findings. Runs asynchronously; the
+	validation_status updates once the re-test completes (reload the table to see it)."""
+	permission_classes = [HasPermission]
+	permission_required = PERM_MODIFY_SCAN_RESULTS
+
+	def post(self, request):
+		ids = request.data.get('vulnerability_ids') or []
+		single = request.data.get('vulnerability_id')
+		if single and not ids:
+			ids = [single]
+		queued = 0
+		for vid in ids:
+			try:
+				validate_single_vulnerability.delay(int(vid))
+				queued += 1
+			except (TypeError, ValueError):
+				continue
+		return Response({'status': True, 'queued': queued})
+
+
 class ListInterestingKeywords(APIView):
 	def get(self, request, format=None):
 		req = self.request
@@ -2924,6 +2945,64 @@ class LeakedSecretViewSet(viewsets.ReadOnlyModelViewSet):
 		return qs
 
 
+class OsintResultViewSet(viewsets.ReadOnlyModelViewSet):
+	# Read-only: OSINT intel is produced by scans, never created/edited via API.
+	# No pagination: the UI loader reads the full list in one call (the project's
+	# default DatatablesPageNumberPagination would silently cap results at 500).
+	queryset = OsintResult.objects.none()
+	serializer_class = OsintResultSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		req = self.request
+		scan_id = req.query_params.get('scan_history')
+		target_id = req.query_params.get('target_id')
+		bucket = req.query_params.get('bucket')
+		slug = req.GET.get('project', None)
+		if slug:
+			qs = OsintResult.objects.filter(scan_history__domain__project__slug=slug)
+		else:
+			qs = OsintResult.objects.all()
+		if scan_id:
+			qs = qs.filter(scan_history__id=scan_id)
+		elif target_id:
+			qs = qs.filter(target_domain__id=target_id)
+		if bucket:
+			qs = qs.filter(bucket=bucket)
+		return qs.order_by('-is_malicious', 'bucket', 'event_type').distinct()
+
+
+class SpaVulnerabilityViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Clean REST vulnerability list for the SPA (plain JSON array, no DataTables
+	envelope). Filter by ?project= / ?scan_history= / ?severity=. The SPA table
+	(TanStack) sorts/filters/paginates client-side."""
+	queryset = Vulnerability.objects.none()
+	serializer_class = VulnSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		req = self.request
+		qs = Vulnerability.objects.all()
+		slug = req.query_params.get('project')
+		scan_id = req.query_params.get('scan_history')
+		severity = req.query_params.get('severity')
+		# Bound the list: require a project/scan scope so an unscoped GET can't
+		# serialize every vuln across all projects (retrieve stays unaffected).
+		if self.action == 'list' and not slug and not scan_id:
+			return qs.none()
+		if slug:
+			qs = qs.filter(scan_history__domain__project__slug=slug)
+		if scan_id:
+			qs = qs.filter(scan_history__id=scan_id)
+		if severity not in (None, ''):
+			# severity is an IntegerField; a non-int value would 500 on Postgres.
+			try:
+				qs = qs.filter(severity=int(severity))
+			except (TypeError, ValueError):
+				return qs.none()
+		return qs.order_by('-severity', 'name').distinct()
+
+
 class VulnerabilityViewSet(viewsets.ModelViewSet):
 	queryset = Vulnerability.objects.none()
 	serializer_class = VulnerabilitySerializer
@@ -3214,3 +3293,156 @@ class VulnerabilityViewSet(viewsets.ModelViewSet):
 					print(e)
 
 		return qs
+
+
+class DashboardStats(APIView):
+	"""KPI counts for the SPA dashboard. Optional ?project=<slug> scopes the data;
+	without it, aggregates across all projects. Auth via the DRF default
+	(IsAuthenticated) — JWT or session."""
+
+	def get(self, request):
+		slug = request.query_params.get('project')
+		domains = Domain.objects.all()
+		subdomains = Subdomain.objects.all()
+		endpoints = EndPoint.objects.all()
+		scans = ScanHistory.objects.all()
+		vulns = Vulnerability.objects.all()
+		if slug:
+			domains = domains.filter(project__slug=slug)
+			subdomains = subdomains.filter(scan_history__domain__project__slug=slug)
+			endpoints = endpoints.filter(scan_history__domain__project__slug=slug)
+			scans = scans.filter(domain__project__slug=slug)
+			vulns = vulns.filter(scan_history__domain__project__slug=slug)
+
+		def sev(s):
+			return vulns.filter(severity=s).count()
+
+		return Response({
+			'targets': domains.count(),
+			'subdomains': subdomains.count(),
+			'subdomains_alive': subdomains.exclude(http_status__exact=0).count(),
+			'endpoints': endpoints.count(),
+			'endpoints_alive': endpoints.filter(http_status__exact=200).count(),
+			'scans': scans.count(),
+			'vulnerabilities': {
+				'total': vulns.count(),
+				'critical': sev(4), 'high': sev(3), 'medium': sev(2),
+				'low': sev(1), 'info': sev(0), 'unknown': sev(-1),
+			},
+		})
+
+
+class SpaScanViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Clean REST scan-history list/detail for the SPA. Filter by ?project=. Newest first."""
+	queryset = ScanHistory.objects.none()
+	serializer_class = ScanSpaSerializer
+	pagination_class = None
+
+	def get_serializer_class(self):
+		return ScanDetailSerializer if self.action == 'retrieve' else ScanSpaSerializer
+
+	def get_queryset(self):
+		# Annotate counts once (distinct=True keeps them correct across the two
+		# reverse-FK joins) instead of 2 COUNT queries per row in the serializer.
+		qs = ScanHistory.objects.select_related('domain', 'scan_type').annotate(
+			subdomain_count=Count('subdomain', distinct=True),
+			vulnerability_count=Count('vulnerability', distinct=True),
+		)
+		slug = self.request.query_params.get('project')
+		# Bound the list to a project (retrieve, used by the SPA scan-detail page,
+		# stays unaffected and resolves by pk).
+		if self.action == 'list' and not slug:
+			return qs.none()
+		if slug:
+			qs = qs.filter(domain__project__slug=slug)
+		return qs.order_by('-start_scan_date').distinct()
+
+
+class ScanOptions(APIView):
+	"""Targets + engines for the SPA 'start scan' picker (optionally ?project=)."""
+
+	def get(self, request):
+		slug = request.query_params.get('project')
+		domains = Domain.objects.all()
+		if slug:
+			domains = domains.filter(project__slug=slug)
+		return Response({
+			'targets': [{'id': d.id, 'name': d.name} for d in domains.order_by('name')],
+			'engines': [{'id': e.id, 'name': e.engine_name}
+				for e in EngineType.objects.all().order_by('engine_name')],
+		})
+
+
+class StartScan(APIView):
+	"""Start a scan from the SPA: create the ScanHistory and queue initiate_scan."""
+	permission_classes = [HasPermission]
+	permission_required = PERM_INITATE_SCANS_SUBSCANS
+
+	def post(self, request):
+		domain_id = request.data.get('domain_id')
+		engine_id = request.data.get('engine_id')
+		if not domain_id or not engine_id:
+			return Response({'error': 'domain_id and engine_id are required'},
+				status=status.HTTP_400_BAD_REQUEST)
+		try:
+			domain_id = int(domain_id)
+			engine_id = int(engine_id)
+			Domain.objects.get(id=domain_id)
+			EngineType.objects.get(id=engine_id)
+		except (ValueError, Domain.DoesNotExist, EngineType.DoesNotExist):
+			return Response({'error': 'invalid domain_id or engine_id'},
+				status=status.HTTP_400_BAD_REQUEST)
+		scan_id = create_scan_object(
+			host_id=domain_id, engine_id=engine_id, initiated_by_id=request.user.id)
+		kwargs = {
+			'scan_history_id': scan_id, 'domain_id': domain_id, 'engine_id': engine_id,
+			'scan_type': LIVE_SCAN, 'results_dir': '/usr/src/scan_results',
+			'imported_subdomains': [], 'out_of_scope_subdomains': [],
+			'starting_point_path': '', 'excluded_paths': [''],
+			'initiated_by_id': request.user.id,
+		}
+		initiate_scan.apply_async(kwargs=kwargs)
+		return Response({'scan_history_id': scan_id}, status=status.HTTP_202_ACCEPTED)
+
+
+class SpaSubdomainViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Clean REST subdomain list for the SPA. Filter by ?project= / ?scan_history=."""
+	queryset = Subdomain.objects.none()
+	serializer_class = SubdomainSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		qs = Subdomain.objects.all()
+		slug = self.request.query_params.get('project')
+		scan_id = self.request.query_params.get('scan_history')
+		if self.action == 'list' and not slug and not scan_id:
+			return qs.none()
+		if slug:
+			qs = qs.filter(scan_history__domain__project__slug=slug)
+		if scan_id:
+			qs = qs.filter(scan_history__id=scan_id)
+		return qs.order_by('name').distinct()
+
+
+class ProjectsList(APIView):
+	"""Projects for the SPA project selector."""
+
+	def get(self, request):
+		projects = Project.objects.all().order_by('name')
+		return Response(ProjectSpaSerializer(projects, many=True).data)
+
+
+class SpaTargetViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Clean REST target/domain list for the SPA. Filter by ?project=."""
+	queryset = Domain.objects.none()
+	serializer_class = TargetSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		qs = Domain.objects.all()
+		slug = self.request.query_params.get('project')
+		if self.action == 'list' and not slug:
+			return qs.none()
+		if slug:
+			qs = qs.filter(project__slug=slug)
+		return qs.order_by('name').distinct()

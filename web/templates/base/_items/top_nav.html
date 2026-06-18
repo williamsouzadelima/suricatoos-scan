@@ -126,6 +126,7 @@
               <div class="dropdown-divider"></div>
               <h6 class="dropdown-header">{% trans "Reporting" %}</h6>
               <a href="{% url 'report_settings' current_project.slug %}" class="dropdown-item">{% trans "Report Settings" %}</a>
+              <a href="{% url 'branding_settings' current_project.slug %}" class="dropdown-item">{% trans "Branding (White-label)" %}</a>
               {% endif %}
               {% if user|can:'modify_scan_configurations' %}
               <div class="dropdown-divider"></div>

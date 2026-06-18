@@ -228,6 +228,49 @@ function get_severity_badge(severity) {
 			return "";
 	}
 }
+// Validation status badge (anti false-positive layer). Shown next to the finding name.
+function get_validation_badge(status) {
+	switch (status) {
+		case 'confirmed':
+			return " <span class='badge badge-soft-success' data-toggle='tooltip' title='Re-tested: confirmed real'>&nbsp;CONFIRMED&nbsp;</span>";
+		case 'false_positive':
+			return " <span class='badge badge-soft-secondary' data-toggle='tooltip' title='Re-tested: likely false positive'>&nbsp;FALSE POSITIVE&nbsp;</span>";
+		case 'needs_review':
+			return " <span class='badge badge-soft-warning' data-toggle='tooltip' title='Could not be auto-validated; needs manual review'>&nbsp;NEEDS REVIEW&nbsp;</span>";
+		case 'error':
+			return " <span class='badge badge-soft-danger' data-toggle='tooltip' title='Validation re-test failed to run'>&nbsp;VALIDATION ERROR&nbsp;</span>";
+		case 'not_validated':
+		case null:
+		case undefined:
+		case '':
+			return " <span class='badge badge-soft-info' data-toggle='tooltip' title='Not validated yet'>&nbsp;NOT VALIDATED&nbsp;</span>";
+		default:
+			return "";
+	}
+}
+// Manually trigger a re-test of a single finding (async; reload to see the result).
+function revalidate_vulnerability(id) {
+	const api = "/api/action/vulnerability/validate/";
+	fetch(api, {
+		method: 'POST',
+		credentials: "same-origin",
+		headers: {
+			"X-CSRFToken": getCookie("csrftoken"),
+			"Content-Type": "application/json"
+		},
+		body: JSON.stringify({ 'vulnerability_id': id })
+	}).then(function(response) {
+		return response.json();
+	}).then(function(data) {
+		Snackbar.show({
+			text: 'Re-validation started — reload the table in a few seconds to see the result.',
+			pos: 'top-right',
+			duration: 4000
+		});
+	}).catch(function() {
+		Snackbar.show({ text: 'Could not start re-validation.', pos: 'top-right', duration: 3000 });
+	});
+}
 // Source: https://stackoverflow.com/a/54733055
 function typingEffect(words, id, i) {
 	let word = words[i].split("");

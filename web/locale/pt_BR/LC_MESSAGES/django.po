@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-06-18 03:23+0000\n"
+"POT-Creation-Date: 2026-06-18 17:11+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -75,7 +75,7 @@ msgstr "Subdomínio não encontrado com o id %(id)s"
 msgid "Missing GET param Vulnerability `id`"
 msgstr "Parâmetro GET de Vulnerabilidade `id` ausente"
 
-#: api/views.py:579 api/views.py:1549
+#: api/views.py:579 api/views.py:1570
 msgid "Invalid Domain/URL provided!"
 msgstr "Domínio/URL fornecido inválido!"
 
@@ -103,7 +103,7 @@ msgstr "O ID de CVE não existe."
 msgid "No subdomain_id provided"
 msgstr "Nenhum subdomain_id fornecido"
 
-#: api/views.py:944 api/views.py:1515
+#: api/views.py:944 api/views.py:1536
 msgid "Invalid domain or IP"
 msgstr "Domínio ou IP inválido"
 
@@ -120,76 +120,74 @@ msgstr "Falha ao adicionar como alvo !"
 msgid "Subscan %(id)s does not exist"
 msgstr "A subvarredura %(id)s não existe"
 
-#: api/views.py:1305
+#: api/views.py:1326
 msgid "Default tools can not be uninstalled"
 msgstr "As ferramentas padrão não podem ser desinstaladas"
 
-#: api/views.py:1320
+#: api/views.py:1341
 msgid "Cannot uninstall tool!"
 msgstr "Não é possível desinstalar a ferramenta!"
 
-#: api/views.py:1327
+#: api/views.py:1348
 msgid "Uninstall Tool Success"
 msgstr "Ferramenta desinstalada com sucesso"
 
-#: api/views.py:1350
+#: api/views.py:1371
 #, python-format
 msgid "%(name)s has missing update command! Cannot update the tool."
-msgstr ""
-"Falta o comando de atualização de %(name)s! Não é possível atualizar a "
-"ferramenta."
+msgstr "Falta o comando de atualização de %(name)s! Não é possível atualizar a ferramenta."
 
-#: api/views.py:1360
+#: api/views.py:1381
 #, python-format
 msgid "%(name)s updated successfully."
 msgstr "%(name)s atualizado com sucesso."
 
-#: api/views.py:1380 api/views.py:1384
+#: api/views.py:1401 api/views.py:1405
 msgid "Tool Not found"
 msgstr "Ferramenta não encontrada"
 
-#: api/views.py:1388
+#: api/views.py:1409
 msgid "Version Lookup command not provided."
 msgstr "Comando de verificação de versão não fornecido."
 
-#: api/views.py:1398
+#: api/views.py:1419
 msgid "Invalid version lookup command."
 msgstr "Comando de verificação de versão inválido."
 
-#: api/views.py:1423
+#: api/views.py:1444
 msgid "Github URL is not provided, Cannot check updates"
 msgstr "URL do Github não fornecida, não é possível verificar atualizações"
 
-#: api/views.py:1512
+#: api/views.py:1533
 msgid "Target IP/Domain required!"
 msgstr "IP/Domínio do alvo obrigatório!"
 
-#: api/views.py:1561
+#: api/views.py:1582
 msgid "Could not detect CMS!"
 msgstr "Não foi possível detectar o CMS!"
 
-#: api/views.py:1604
+#: api/views.py:1625
 msgid "IP Address Required"
 msgstr "Endereço IP obrigatório"
 
-#: api/views.py:1655 api/views.py:1665 api/views.py:1675 api/views.py:1685
-#: api/views.py:1695
+#: api/views.py:1676 api/views.py:1686 api/views.py:1696 api/views.py:1706
+#: api/views.py:1716
 msgid "File Created!"
 msgstr "Arquivo criado!"
 
-#: api/views.py:1709
+#: api/views.py:1730
 msgid "Invalid path!"
 msgstr "Caminho inválido!"
 
-#: api/views.py:1722
+#: api/views.py:1743
 msgid "Invalid Path!"
 msgstr "Caminho inválido!"
 
-#: api/views.py:1726
+#: api/views.py:1747
 msgid "Invalid Query Params"
 msgstr "Parâmetros de consulta inválidos"
 
-#: api/views.py:2887
+#: api/views.py:2908
 msgid "Scan id or subdomain id must be provided."
 msgstr "O id da varredura ou o id do subdomínio deve ser fornecido."
 
@@ -260,8 +258,8 @@ msgstr "Último acesso"
 #: dashboard/templates/dashboard/admin.html:53
 #: startScan/templates/startScan/detail_scan.html:1133
 #: startScan/templates/startScan/detail_scan.html:1135
-#: startScan/templates/startScan/detail_scan.html:1398
-#: startScan/templates/startScan/detail_scan.html:1416
+#: startScan/templates/startScan/detail_scan.html:1420
+#: startScan/templates/startScan/detail_scan.html:1438
 #: startScan/templates/startScan/history.html:88
 #: startScan/templates/startScan/subscan_history.html:85
 #: templates/base/_items/endpoint_tab_content.html:115
@@ -455,10 +453,8 @@ msgid "Total Targets"
 msgstr "Total de alvos"
 
 #: dashboard/templates/dashboard/index.html:69
-msgid ""
-"Total Number of Subdomains discovered by Suricatoos across all targets."
-msgstr ""
-"Número total de subdomínios descobertos pelo Suricatoos em todos os alvos."
+msgid "Total Number of Subdomains discovered by Suricatoos across all targets."
+msgstr "Número total de subdomínios descobertos pelo Suricatoos em todos os alvos."
 
 #: dashboard/templates/dashboard/index.html:70
 msgid "Total Subdomains"
@@ -472,12 +468,8 @@ msgid "Alive Subdomains: %(count)s"
 msgstr "Subdomínios ativos: %(count)s"
 
 #: dashboard/templates/dashboard/index.html:83
-msgid ""
-"Total Endpoints/URLs discovered by Suricatoos across all targets & "
-"subdomains."
-msgstr ""
-"Total de endpoints/URLs descobertos pelo Suricatoos em todos os alvos e "
-"subdomínios."
+msgid "Total Endpoints/URLs discovered by Suricatoos across all targets & subdomains."
+msgstr "Total de endpoints/URLs descobertos pelo Suricatoos em todos os alvos e subdomínios."
 
 #: dashboard/templates/dashboard/index.html:84
 msgid "Total Endpoints"
@@ -491,12 +483,8 @@ msgid "Alive Endpoints: %(count)s"
 msgstr "Endpoints ativos: %(count)s"
 
 #: dashboard/templates/dashboard/index.html:97
-msgid ""
-"Total Vulnerabilities discovered by Suricatoos across all targets, "
-"subdomains & endpoints."
-msgstr ""
-"Total de vulnerabilidades descobertas pelo Suricatoos em todos os alvos, "
-"subdomínios e endpoints."
+msgid "Total Vulnerabilities discovered by Suricatoos across all targets, subdomains & endpoints."
+msgstr "Total de vulnerabilidades descobertas pelo Suricatoos em todos os alvos, subdomínios e endpoints."
 
 #: dashboard/templates/dashboard/index.html:98
 msgid "Total Vulnerabilities"
@@ -512,8 +500,7 @@ msgstr "%(critical)s Crítica, %(high)s Alta, %(medium)s Média"
 #: dashboard/templates/dashboard/index.html:103
 #, python-format
 msgid "%(low)s Low, %(info)s Info, %(unknown)s Unknown Vulnerabilities"
-msgstr ""
-"%(low)s Baixa, %(info)s Info, %(unknown)s Vulnerabilidades desconhecidas"
+msgstr "%(low)s Baixa, %(info)s Info, %(unknown)s Vulnerabilidades desconhecidas"
 
 #: dashboard/templates/dashboard/index.html:116
 msgid "Activity Feed"
@@ -548,8 +535,7 @@ msgstr "para"
 
 #: dashboard/templates/dashboard/index.html:145
 msgid "Feed will be automatically generated while the scan is running."
-msgstr ""
-"O feed será gerado automaticamente enquanto a varredura estiver em execução."
+msgstr "O feed será gerado automaticamente enquanto a varredura estiver em execução."
 
 #: dashboard/templates/dashboard/index.html:157
 msgid "Vulnerability Feed"
@@ -559,8 +545,8 @@ msgstr "Feed de vulnerabilidades"
 #: templates/base/_items/subdomain_tab_content.html:171
 #: templates/base/_items/widgets/vulnerability_breakdown_by_severity_chart.html:24
 #: templates/base/_items/widgets/vulnerability_highlights.html:38
-#: templates/report/default.html:563 templates/report/default.html:910
-#: templates/report/modern.html:777
+#: templates/report/default.html:567 templates/report/default.html:940
+#: templates/report/modern.html:782
 msgid "Info"
 msgstr "Info"
 
@@ -568,9 +554,9 @@ msgstr "Info"
 #: templates/base/_items/subdomain_tab_content.html:172
 #: templates/base/_items/widgets/vulnerability_breakdown_by_severity_chart.html:20
 #: templates/base/_items/widgets/vulnerability_highlights.html:40
-#: templates/report/default.html:555 templates/report/default.html:692
-#: templates/report/default.html:902 templates/report/modern.html:773
-#: templates/report/modern.html:897
+#: templates/report/default.html:559 templates/report/default.html:722
+#: templates/report/default.html:932 templates/report/modern.html:778
+#: templates/report/modern.html:923
 msgid "Low"
 msgstr "Baixa"
 
@@ -578,9 +564,9 @@ msgstr "Baixa"
 #: templates/base/_items/subdomain_tab_content.html:173
 #: templates/base/_items/widgets/vulnerability_breakdown_by_severity_chart.html:16
 #: templates/base/_items/widgets/vulnerability_highlights.html:42
-#: templates/report/default.html:547 templates/report/default.html:695
-#: templates/report/default.html:894 templates/report/modern.html:767
-#: templates/report/modern.html:899
+#: templates/report/default.html:551 templates/report/default.html:725
+#: templates/report/default.html:924 templates/report/modern.html:772
+#: templates/report/modern.html:925
 msgid "Medium"
 msgstr "Média"
 
@@ -588,9 +574,9 @@ msgstr "Média"
 #: templates/base/_items/subdomain_tab_content.html:174
 #: templates/base/_items/widgets/vulnerability_breakdown_by_severity_chart.html:12
 #: templates/base/_items/widgets/vulnerability_highlights.html:44
-#: templates/report/default.html:539 templates/report/default.html:698
-#: templates/report/default.html:886 templates/report/modern.html:763
-#: templates/report/modern.html:901
+#: templates/report/default.html:543 templates/report/default.html:728
+#: templates/report/default.html:916 templates/report/modern.html:768
+#: templates/report/modern.html:927
 msgid "High"
 msgstr "Alta"
 
@@ -598,9 +584,9 @@ msgstr "Alta"
 #: templates/base/_items/subdomain_tab_content.html:175
 #: templates/base/_items/widgets/vulnerability_breakdown_by_severity_chart.html:8
 #: templates/base/_items/widgets/vulnerability_highlights.html:46
-#: templates/report/default.html:531 templates/report/default.html:701
-#: templates/report/default.html:878 templates/report/modern.html:759
-#: templates/report/modern.html:903
+#: templates/report/default.html:535 templates/report/default.html:731
+#: templates/report/default.html:908 templates/report/modern.html:764
+#: templates/report/modern.html:929
 msgid "Critical"
 msgstr "Crítica"
 
@@ -613,10 +599,10 @@ msgstr "Crítica"
 #: targetApp/templates/target/test.html:92
 #: templates/base/_items/widgets/vulnerability_breakdown_by_severity_chart.html:28
 #: templates/base/_items/widgets/vulnerability_highlights.html:48
-#: templates/report/default.html:575 templates/report/default.html:686
-#: templates/report/default.html:922 templates/report/default.html:947
-#: templates/report/modern.html:787 templates/report/modern.html:893
-#: templates/report/modern.html:1097
+#: templates/report/default.html:579 templates/report/default.html:716
+#: templates/report/default.html:952 templates/report/default.html:977
+#: templates/report/modern.html:792 templates/report/modern.html:919
+#: templates/report/modern.html:1123
 msgid "Unknown"
 msgstr "Desconhecida"
 
@@ -626,12 +612,8 @@ msgid "detected on %(subdomain)s"
 msgstr "detectada em %(subdomain)s"
 
 #: dashboard/templates/dashboard/index.html:216
-msgid ""
-"Feed will be automatically generated once the vulnerability scan is "
-"completed."
-msgstr ""
-"O feed será gerado automaticamente assim que a varredura de vulnerabilidades"
-" for concluída."
+msgid "Feed will be automatically generated once the vulnerability scan is completed."
+msgstr "O feed será gerado automaticamente assim que a varredura de vulnerabilidades for concluída."
 
 #: dashboard/templates/dashboard/index.html:231
 #: startScan/templates/startScan/detail_scan.html:825
@@ -676,23 +658,16 @@ msgid "Welcome to Suricatoos"
 msgstr "Bem-vindo ao Suricatoos"
 
 #: dashboard/templates/dashboard/onboarding.html:58
-msgid ""
-"Let's set up your environment. Only the <strong>project name</strong> is "
-"required — everything else is optional and can be configured later."
-msgstr ""
-"Vamos configurar seu ambiente. Apenas o <strong>nome do projeto</strong> é "
-"obrigatório — todo o resto é opcional e pode ser configurado depois."
+msgid "Let's set up your environment. Only the <strong>project name</strong> is required — everything else is optional and can be configured later."
+msgstr "Vamos configurar seu ambiente. Apenas o <strong>nome do projeto</strong> é obrigatório — todo o resto é opcional e pode ser configurado depois."
 
 #: dashboard/templates/dashboard/onboarding.html:67
 msgid "Project"
 msgstr "Projeto"
 
 #: dashboard/templates/dashboard/onboarding.html:68
-msgid ""
-"Create your first project to organize and manage your security assessments."
-msgstr ""
-"Crie seu primeiro projeto para organizar e gerenciar suas avaliações de "
-"segurança."
+msgid "Create your first project to organize and manage your security assessments."
+msgstr "Crie seu primeiro projeto para organizar e gerenciar suas avaliações de segurança."
 
 #: dashboard/templates/dashboard/onboarding.html:70
 msgid "Project name"
@@ -703,12 +678,8 @@ msgid "e.g. Acme Pentest 2026"
 msgstr "ex.: Acme Pentest 2026"
 
 #: dashboard/templates/dashboard/onboarding.html:72
-msgid ""
-"Pick a name that identifies the client or engagement. You can rename it "
-"later."
-msgstr ""
-"Escolha um nome que identifique o cliente ou o trabalho. Você pode renomeá-"
-"lo depois."
+msgid "Pick a name that identifies the client or engagement. You can rename it later."
+msgstr "Escolha um nome que identifique o cliente ou o trabalho. Você pode renomeá-lo depois."
 
 #: dashboard/templates/dashboard/onboarding.html:78
 msgid "Additional User"
@@ -720,12 +691,8 @@ msgid "optional"
 msgstr "opcional"
 
 #: dashboard/templates/dashboard/onboarding.html:79
-msgid ""
-"Add an additional user and assign them a role. You can manage users and "
-"their roles anytime in the future."
-msgstr ""
-"Adicione um usuário adicional e atribua a ele um papel. Você pode gerenciar "
-"usuários e seus papéis a qualquer momento no futuro."
+msgid "Add an additional user and assign them a role. You can manage users and their roles anytime in the future."
+msgstr "Adicione um usuário adicional e atribua a ele um papel. Você pode gerenciar usuários e seus papéis a qualquer momento no futuro."
 
 #: dashboard/templates/dashboard/onboarding.html:85
 #: templates/base/login.html:104 templates/base/login.html:106
@@ -734,8 +701,7 @@ msgstr "Senha"
 
 #: dashboard/templates/dashboard/onboarding.html:91
 msgid "Sys Admin — full access, manage users & settings"
-msgstr ""
-"Administrador do Sistema — acesso total, gerencia usuários e configurações"
+msgstr "Administrador do Sistema — acesso total, gerencia usuários e configurações"
 
 #: dashboard/templates/dashboard/onboarding.html:92
 msgid "Penetration Tester — run scans & triage findings"
@@ -782,13 +748,8 @@ msgid "API Keys"
 msgstr "Chaves de API"
 
 #: dashboard/templates/dashboard/onboarding.html:125
-msgid ""
-"These enhance Suricatoos but are not required to start. You can skip this "
-"now and add them anytime under <strong>Settings &rarr; API Vault</strong>."
-msgstr ""
-"Estas aprimoram o Suricatoos, mas não são necessárias para começar. Você "
-"pode pular isto agora e adicioná-las a qualquer momento em "
-"<strong>Configurações &rarr; API Vault</strong>."
+msgid "These enhance Suricatoos but are not required to start. You can skip this now and add them anytime under <strong>Settings &rarr; API Vault</strong>."
+msgstr "Estas aprimoram o Suricatoos, mas não são necessárias para começar. Você pode pular isto agora e adicioná-las a qualquer momento em <strong>Configurações &rarr; API Vault</strong>."
 
 #: dashboard/templates/dashboard/onboarding.html:127
 msgid "OpenAI Key"
@@ -801,12 +762,8 @@ msgid "Enter OpenAI Key"
 msgstr "Insira a chave OpenAI"
 
 #: dashboard/templates/dashboard/onboarding.html:129
-msgid ""
-"Used for generating vulnerability descriptions, remediation, impact, and "
-"report writing using ChatGPT."
-msgstr ""
-"Usada para gerar descrições de vulnerabilidades, remediação, impacto e "
-"redação de relatórios usando o ChatGPT."
+msgid "Used for generating vulnerability descriptions, remediation, impact, and report writing using ChatGPT."
+msgstr "Usada para gerar descrições de vulnerabilidades, remediação, impacto e redação de relatórios usando o ChatGPT."
 
 #: dashboard/templates/dashboard/onboarding.html:132
 msgid "Netlas Key"
@@ -834,9 +791,7 @@ msgstr "Insira a chave Chaos"
 
 #: dashboard/templates/dashboard/onboarding.html:139
 msgid "Enhances reconnaissance capabilities for Public Bug Bounty Programs."
-msgstr ""
-"Aprimora as capacidades de reconhecimento para Programas Públicos de Bug "
-"Bounty."
+msgstr "Aprimora as capacidades de reconhecimento para Programas Públicos de Bug Bounty."
 
 #: dashboard/templates/dashboard/onboarding.html:139
 msgid "Get your API key"
@@ -859,12 +814,8 @@ msgid "Enter HackerOne Token"
 msgstr "Insira o token do HackerOne"
 
 #: dashboard/templates/dashboard/onboarding.html:148
-msgid ""
-"Used for importing targets, bookmarked programs, and submitting automated "
-"vulnerability reports."
-msgstr ""
-"Usado para importar alvos, programas favoritados e enviar relatórios "
-"automatizados de vulnerabilidades."
+msgid "Used for importing targets, bookmarked programs, and submitting automated vulnerability reports."
+msgstr "Usado para importar alvos, programas favoritados e enviar relatórios automatizados de vulnerabilidades."
 
 #: dashboard/templates/dashboard/onboarding.html:148
 msgid "Generate your API Token"
@@ -937,7 +888,7 @@ msgid "Action"
 msgstr "Ação"
 
 #: dashboard/templates/dashboard/projects.html:44
-#: templates/base/_items/top_nav.html:142
+#: templates/base/_items/top_nav.html:143
 msgid "Current Project"
 msgstr "Projeto Atual"
 
@@ -986,9 +937,9 @@ msgstr "Resultados da Busca Para \"%(query)s\""
 #: startScan/templates/startScan/history.html:110
 #: startScan/templates/startScan/subdomains.html:12
 #: targetApp/templates/target/summary.html:39
-#: targetApp/templates/target/test.html:39 templates/report/default.html:498
-#: templates/report/default.html:718 templates/report/modern.html:740
-#: templates/report/modern.html:916
+#: targetApp/templates/target/test.html:39 templates/report/default.html:502
+#: templates/report/default.html:748 templates/report/modern.html:745
+#: templates/report/modern.html:942
 msgid "Subdomains"
 msgstr "Subdomínios"
 
@@ -996,7 +947,7 @@ msgstr "Subdomínios"
 #: startScan/templates/startScan/endpoints.html:12
 #: startScan/templates/startScan/history.html:111
 #: templates/base/_items/subdomain_tab_content.html:157
-#: templates/report/default.html:506 templates/report/modern.html:744
+#: templates/report/default.html:510 templates/report/modern.html:749
 msgid "Endpoints"
 msgstr "Endpoints"
 
@@ -1006,8 +957,8 @@ msgstr "Endpoints"
 #: targetApp/templates/target/summary.html:45
 #: targetApp/templates/target/test.html:45
 #: templates/base/_items/subdomain_tab_content.html:158
-#: templates/base/_items/top_nav.html:52 templates/report/default.html:514
-#: templates/report/default.html:844 templates/report/modern.html:748
+#: templates/base/_items/top_nav.html:52 templates/report/default.html:518
+#: templates/report/default.html:874 templates/report/modern.html:753
 msgid "Vulnerabilities"
 msgstr "Vulnerabilidades"
 
@@ -1128,15 +1079,8 @@ msgid "YAML Configurations"
 msgstr "Configurações YAML"
 
 #: scanEngine/templates/scanEngine/_items/form_engine.html:117
-msgid ""
-"Suricatoos supports YAML based configurations for customizing the scan. The "
-"default settings are given below, you may choose to proceed with the default"
-" settings or configure it according to your choice."
-msgstr ""
-"O Suricatoos suporta configurações baseadas em YAML para personalizar a "
-"varredura. As configurações padrão são apresentadas abaixo; você pode optar "
-"por prosseguir com as configurações padrão ou configurá-las de acordo com "
-"sua preferência."
+msgid "Suricatoos supports YAML based configurations for customizing the scan. The default settings are given below, you may choose to proceed with the default settings or configure it according to your choice."
+msgstr "O Suricatoos suporta configurações baseadas em YAML para personalizar a varredura. As configurações padrão são apresentadas abaixo; você pode optar por prosseguir com as configurações padrão ou configurá-las de acordo com sua preferência."
 
 #: scanEngine/templates/scanEngine/_items/form_engine.html:119
 msgid "Suricatoos YAML Documentation"
@@ -1144,34 +1088,19 @@ msgstr "Documentação YAML do Suricatoos"
 
 #: scanEngine/templates/scanEngine/_items/form_engine.html:120
 msgid "To learn more about YAML config visit the official documentation at"
-msgstr ""
-"Para saber mais sobre a configuração YAML, visite a documentação oficial em"
+msgstr "Para saber mais sobre a configuração YAML, visite a documentação oficial em"
 
 #: scanEngine/templates/scanEngine/_items/form_engine.html:122
 msgid "Note: Invalid YAML configuration may crash scans."
 msgstr "Nota: Configuração YAML inválida pode travar as varreduras."
 
 #: scanEngine/templates/scanEngine/_items/form_engine.html:124
-msgid ""
-"Please, do not modify the configuration unless you know what what you are "
-"doing."
-msgstr ""
-"Por favor, não modifique a configuração a menos que saiba o que está "
-"fazendo."
+msgid "Please, do not modify the configuration unless you know what what you are doing."
+msgstr "Por favor, não modifique a configuração a menos que saiba o que está fazendo."
 
 #: scanEngine/templates/scanEngine/_items/form_engine.html:126
-msgid ""
-"If default YAML configuration doesn't automatically load, <a "
-"href=\"https://raw.githubusercontent.com/williamsouzadelima/suricatoos-"
-"scan/master/default_yaml_config.yaml\" target=\"_blank\">download default "
-"configuration from here</a> and paste it. (Firefox may have issues loading "
-"default YAML configuration.)"
-msgstr ""
-"Se a configuração YAML padrão não carregar automaticamente, <a "
-"href=\"https://raw.githubusercontent.com/williamsouzadelima/suricatoos-"
-"scan/master/default_yaml_config.yaml\" target=\"_blank\">baixe a "
-"configuração padrão aqui</a> e cole-a. (O Firefox pode ter problemas para "
-"carregar a configuração YAML padrão.)"
+msgid "If default YAML configuration doesn't automatically load, <a href=\"https://raw.githubusercontent.com/williamsouzadelima/suricatoos-scan/master/default_yaml_config.yaml\" target=\"_blank\">download default configuration from here</a> and paste it. (Firefox may have issues loading default YAML configuration.)"
+msgstr "Se a configuração YAML padrão não carregar automaticamente, <a href=\"https://raw.githubusercontent.com/williamsouzadelima/suricatoos-scan/master/default_yaml_config.yaml\" target=\"_blank\">baixe a configuração padrão aqui</a> e cole-a. (O Firefox pode ter problemas para carregar a configuração YAML padrão.)"
 
 #: scanEngine/templates/scanEngine/add_engine.html:7
 #: scanEngine/templates/scanEngine/add_engine.html:28
@@ -1195,24 +1124,12 @@ msgid "Scan Engines"
 msgstr "Mecanismos de Varredura"
 
 #: scanEngine/templates/scanEngine/add_engine.html:42
-msgid ""
-"<code>Scan Engines</code> are the most crucial part of Suricatoos. They "
-"define how a <code>scan</code> is performed against a target. <code>Scan "
-"Engines</code> allow you to define the configuration and use it against "
-"multiple targets."
-msgstr ""
-"Os <code>Mecanismos de Varredura</code> são a parte mais crucial do "
-"Suricatoos. Eles definem como uma <code>varredura</code> é realizada contra "
-"um alvo. Os <code>Mecanismos de Varredura</code> permitem que você defina a "
-"configuração e a utilize contra vários alvos."
+msgid "<code>Scan Engines</code> are the most crucial part of Suricatoos. They define how a <code>scan</code> is performed against a target. <code>Scan Engines</code> allow you to define the configuration and use it against multiple targets."
+msgstr "Os <code>Mecanismos de Varredura</code> são a parte mais crucial do Suricatoos. Eles definem como uma <code>varredura</code> é realizada contra um alvo. Os <code>Mecanismos de Varredura</code> permitem que você defina a configuração e a utilize contra vários alvos."
 
 #: scanEngine/templates/scanEngine/add_engine.html:44
-msgid ""
-"YAML configuration allows you fine tuning the engines such as rate, "
-"templates to be used, or configurations to be used."
-msgstr ""
-"A configuração YAML permite ajustar os mecanismos com precisão, como a taxa,"
-" os templates a serem usados ou as configurações a serem utilizadas."
+msgid "YAML configuration allows you fine tuning the engines such as rate, templates to be used, or configurations to be used."
+msgstr "A configuração YAML permite ajustar os mecanismos com precisão, como a taxa, os templates a serem usados ou as configurações a serem utilizadas."
 
 #: scanEngine/templates/scanEngine/index.html:7
 #: startScan/templates/startScan/detail_scan.html:203
@@ -1245,8 +1162,10 @@ msgid "Engine Name"
 msgstr "Nome do Mecanismo"
 
 #: scanEngine/templates/scanEngine/index.html:48
+#: startScan/templates/startScan/detail_scan.html:1199
 #: templates/base/_items/vulnerability_tab_content.html:100
 #: templates/base/_items/widgets/vulnerability_highlights.html:15
+#: templates/report/default.html:665 templates/report/modern.html:876
 msgid "Type"
 msgstr "Tipo"
 
@@ -1329,21 +1248,12 @@ msgid "Interesting Lookup"
 msgstr "Busca Interessante"
 
 #: scanEngine/templates/scanEngine/lookup.html:29
-msgid ""
-"Suricatoos supports lookup for interesting keyword in recon data. This could"
-" be either looking up in subdomains, URLs or in page title."
-msgstr ""
-"O Suricatoos oferece suporte à busca por palavras-chave interessantes nos "
-"dados de reconhecimento. Isso pode ser feito em subdomínios, URLs ou no "
-"título da página."
+msgid "Suricatoos supports lookup for interesting keyword in recon data. This could be either looking up in subdomains, URLs or in page title."
+msgstr "O Suricatoos oferece suporte à busca por palavras-chave interessantes nos dados de reconhecimento. Isso pode ser feito em subdomínios, URLs ou no título da página."
 
 #: scanEngine/templates/scanEngine/lookup.html:30
-msgid ""
-"You can enter the keywords to lookup and Suricatoos will highlight the "
-"matched entries."
-msgstr ""
-"Você pode inserir as palavras-chave a buscar e o Suricatoos destacará as "
-"entradas correspondentes."
+msgid "You can enter the keywords to lookup and Suricatoos will highlight the matched entries."
+msgstr "Você pode inserir as palavras-chave a buscar e o Suricatoos destacará as entradas correspondentes."
 
 #: scanEngine/templates/scanEngine/lookup.html:33
 msgid "Keywords are case insensitive."
@@ -1354,12 +1264,8 @@ msgid "Default Keywords"
 msgstr "Palavras-chave Padrão"
 
 #: scanEngine/templates/scanEngine/lookup.html:36
-msgid ""
-"Suricatoos will use these default keywords to find the interesting "
-"subdomains or URLs from recon data."
-msgstr ""
-"O Suricatoos usará essas palavras-chave padrão para encontrar os subdomínios"
-" ou URLs interessantes nos dados de reconhecimento."
+msgid "Suricatoos will use these default keywords to find the interesting subdomains or URLs from recon data."
+msgstr "O Suricatoos usará essas palavras-chave padrão para encontrar os subdomínios ou URLs interessantes nos dados de reconhecimento."
 
 #: scanEngine/templates/scanEngine/lookup.html:44
 msgid "Custom Keywords"
@@ -1383,16 +1289,16 @@ msgstr "Subdomínios/URLs"
 
 #: scanEngine/templates/scanEngine/lookup.html:59
 #: startScan/templates/startScan/detail_scan.html:1136
-#: startScan/templates/startScan/detail_scan.html:1347
-#: startScan/templates/startScan/detail_scan.html:1397
-#: startScan/templates/startScan/detail_scan.html:1415
+#: startScan/templates/startScan/detail_scan.html:1369
+#: startScan/templates/startScan/detail_scan.html:1419
+#: startScan/templates/startScan/detail_scan.html:1437
 #: templates/base/_items/endpoint_tab_content.html:33
 #: templates/base/_items/endpoint_tab_content.html:56
 #: templates/base/_items/endpoint_tab_content.html:116
 #: templates/base/_items/subdomain_tab_content.html:62
 #: templates/base/_items/subdomain_tab_content.html:137
 #: templates/base/_items/subdomain_toolbar.html:34
-#: templates/report/modern.html:843 templates/report/modern.html:948
+#: templates/report/modern.html:848 templates/report/modern.html:974
 msgid "Page Title"
 msgstr "Título da Página"
 
@@ -1401,11 +1307,8 @@ msgid "Lookup Conditions"
 msgstr "Condições de Busca"
 
 #: scanEngine/templates/scanEngine/lookup.html:62
-msgid ""
-"Suricatoos will lookup the keywords only when below conditions are met."
-msgstr ""
-"O Suricatoos buscará as palavras-chave somente quando as condições abaixo "
-"forem atendidas."
+msgid "Suricatoos will lookup the keywords only when below conditions are met."
+msgstr "O Suricatoos buscará as palavras-chave somente quando as condições abaixo forem atendidas."
 
 #: scanEngine/templates/scanEngine/lookup.html:64
 msgid "Lookup only when"
@@ -1441,17 +1344,8 @@ msgid "Does this tool gathers subdomains?"
 msgstr "Esta ferramenta coleta subdomínios?"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:23
-msgid ""
-"If you have chosen this tool as subdomain gathering tool, you'll be able to "
-"use it in scan engine configuration and provide this tool name inside "
-"<code>uses_tools</code>. If not, you will still be able to use this tool in "
-"our custom scripting engine."
-msgstr ""
-"Se você escolheu esta ferramenta como ferramenta de coleta de subdomínios, "
-"poderá usá-la na configuração do mecanismo de varredura e fornecer o nome "
-"desta ferramenta dentro de <code>uses_tools</code>. Caso contrário, você "
-"ainda poderá usar esta ferramenta em nosso mecanismo de scripts "
-"personalizado."
+msgid "If you have chosen this tool as subdomain gathering tool, you'll be able to use it in scan engine configuration and provide this tool name inside <code>uses_tools</code>. If not, you will still be able to use this tool in our custom scripting engine."
+msgstr "Se você escolheu esta ferramenta como ferramenta de coleta de subdomínios, poderá usá-la na configuração do mecanismo de varredura e fornecer o nome desta ferramenta dentro de <code>uses_tools</code>. Caso contrário, você ainda poderá usar esta ferramenta em nosso mecanismo de scripts personalizado."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:28
 msgid "Github URL"
@@ -1459,9 +1353,7 @@ msgstr "URL do Github"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:30
 msgid "Github URL is required to check the recent releases and updates."
-msgstr ""
-"A URL do Github é necessária para verificar os lançamentos e atualizações "
-"recentes."
+msgstr "A URL do Github é necessária para verificar os lançamentos e atualizações recentes."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:41
 msgid "Tool Logo (URL)"
@@ -1481,7 +1373,7 @@ msgstr "URL da Licença da Ferramenta"
 #: targetApp/templates/organization/list.html:53
 #: targetApp/templates/target/list.html:71
 #: templates/base/_items/vulnerability_tab_content.html:112
-#: templates/report/default.html:991 templates/report/modern.html:1132
+#: templates/report/default.html:1021 templates/report/modern.html:1158
 msgid "Description"
 msgstr "Descrição"
 
@@ -1490,12 +1382,8 @@ msgid "Tool Installation Process"
 msgstr "Processo de Instalação da Ferramenta"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:59
-msgid ""
-"Please note that any commands here will directly execute in shell, so please"
-" be careful of the commands you are using."
-msgstr ""
-"Observe que quaisquer comandos aqui serão executados diretamente no shell, "
-"portanto, tenha cuidado com os comandos que está usando."
+msgid "Please note that any commands here will directly execute in shell, so please be careful of the commands you are using."
+msgstr "Observe que quaisquer comandos aqui serão executados diretamente no shell, portanto, tenha cuidado com os comandos que está usando."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:62
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:79
@@ -1503,28 +1391,16 @@ msgid "Installation Command"
 msgstr "Comando de Instalação"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:66
-msgid ""
-"If the tool has to be installed using github clone, then your installation "
-"command would be"
-msgstr ""
-"Se a ferramenta tiver de ser instalada usando github clone, então seu "
-"comando de instalação seria"
+msgid "If the tool has to be installed using github clone, then your installation command would be"
+msgstr "Se a ferramenta tiver de ser instalada usando github clone, então seu comando de instalação seria"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:71
-msgid ""
-"If the tool has to be installed using go, the your installation command "
-"would be"
-msgstr ""
-"Se a ferramenta tiver de ser instalada usando go, então seu comando de "
-"instalação seria"
+msgid "If the tool has to be installed using go, the your installation command would be"
+msgstr "Se a ferramenta tiver de ser instalada usando go, então seu comando de instalação seria"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:75
-msgid ""
-"Please note that, go get command is no longer supported by go. Instead you "
-"should use go install."
-msgstr ""
-"Observe que o comando go get não é mais suportado pelo go. Em vez disso, "
-"você deve usar go install."
+msgid "Please note that, go get command is no longer supported by go. Instead you should use go install."
+msgstr "Observe que o comando go get não é mais suportado pelo go. Em vez disso, você deve usar go install."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:75
 msgid "Learn why!"
@@ -1535,27 +1411,16 @@ msgid "How does this tool update? (Optional)"
 msgstr "Como esta ferramenta é atualizada? (Opcional)"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:89
-msgid ""
-"If the tool was installed using git clone, it is recommended to use "
-"<code>git pull</code> for updating."
-msgstr ""
-"Se a ferramenta foi instalada usando git clone, recomenda-se usar <code>git "
-"pull</code> para atualizar."
+msgid "If the tool was installed using git clone, it is recommended to use <code>git pull</code> for updating."
+msgstr "Se a ferramenta foi instalada usando git clone, recomenda-se usar <code>git pull</code> para atualizar."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:90
-msgid ""
-"If the tool was installed using go, it is recommended to use the same "
-"command as go install."
-msgstr ""
-"Se a ferramenta foi instalada usando go, recomenda-se usar o mesmo comando "
-"que go install."
+msgid "If the tool was installed using go, it is recommended to use the same command as go install."
+msgstr "Se a ferramenta foi instalada usando go, recomenda-se usar o mesmo comando que go install."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:92
-msgid ""
-"If update command is not provided, you will not be able to update the tools."
-msgstr ""
-"Se o comando de atualização não for fornecido, você não poderá atualizar as "
-"ferramentas."
+msgid "If update command is not provided, you will not be able to update the tools."
+msgstr "Se o comando de atualização não for fornecido, você não poderá atualizar as ferramentas."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:94
 msgid "Update command"
@@ -1566,22 +1431,12 @@ msgid "How do you check the version in this tool? (Optional)"
 msgstr "Como você verifica a versão nesta ferramenta? (Opcional)"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:107
-msgid ""
-"Suricatoos will use this command to check the version of the tool and let "
-"you know if there is any update available. Most tools will display the "
-"version either of these ways"
-msgstr ""
-"O Suricatoos usará este comando para verificar a versão da ferramenta e "
-"informá-lo se houver alguma atualização disponível. A maioria das "
-"ferramentas exibe a versão de uma destas formas"
+msgid "Suricatoos will use this command to check the version of the tool and let you know if there is any update available. Most tools will display the version either of these ways"
+msgstr "O Suricatoos usará este comando para verificar a versão da ferramenta e informá-lo se houver alguma atualização disponível. A maioria das ferramentas exibe a versão de uma destas formas"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:114
-msgid ""
-"You can provide these commands depending on your tool, and Suricatoos will "
-"identify the version number."
-msgstr ""
-"Você pode fornecer esses comandos dependendo da sua ferramenta, e o "
-"Suricatoos identificará o número da versão."
+msgid "You can provide these commands depending on your tool, and Suricatoos will identify the version number."
+msgstr "Você pode fornecer esses comandos dependendo da sua ferramenta, e o Suricatoos identificará o número da versão."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:116
 msgid "Version Lookup Command"
@@ -1589,44 +1444,23 @@ msgstr "Comando de Busca de Versão"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:117
 msgid "(We have auto generated this for you based on your installation steps)"
-msgstr ""
-"(Geramos isto automaticamente para você com base nas suas etapas de "
-"instalação)"
+msgstr "(Geramos isto automaticamente para você com base nas suas etapas de instalação)"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:128
 msgid "Version match regex (Optional)"
 msgstr "Regex de correspondência de versão (Opcional)"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:130
-msgid ""
-"Suricatoos needs version match regex to find out if there is any update "
-"available or not. You can check how the tool displays the version number and"
-" we can generate the regex for you, or you can do that manually as well."
-msgstr ""
-"O Suricatoos precisa do regex de correspondência de versão para descobrir se"
-" há alguma atualização disponível ou não. Você pode verificar como a "
-"ferramenta exibe o número da versão e podemos gerar o regex para você, ou "
-"você também pode fazer isso manualmente."
+msgid "Suricatoos needs version match regex to find out if there is any update available or not. You can check how the tool displays the version number and we can generate the regex for you, or you can do that manually as well."
+msgstr "O Suricatoos precisa do regex de correspondência de versão para descobrir se há alguma atualização disponível ou não. Você pode verificar como a ferramenta exibe o número da versão e podemos gerar o regex para você, ou você também pode fazer isso manualmente."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:132
-msgid ""
-"If version regex is not given, Suricatoos will not be able to check the "
-"updates automatically. However, you can still force update the tools."
-msgstr ""
-"Se o regex de versão não for fornecido, o Suricatoos não conseguirá "
-"verificar as atualizações automaticamente. No entanto, você ainda pode "
-"forçar a atualização das ferramentas."
+msgid "If version regex is not given, Suricatoos will not be able to check the updates automatically. However, you can still force update the tools."
+msgstr "Se o regex de versão não for fornecido, o Suricatoos não conseguirá verificar as atualizações automaticamente. No entanto, você ainda pode forçar a atualização das ferramentas."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:134
-msgid ""
-"Additionally, we can also generate the version regext for you. You can "
-"select how this tool displays the version number. <br>See, how the tool "
-"names the release version. https://github.com/user/tool/releases"
-msgstr ""
-"Além disso, também podemos gerar o regex de versão para você. Você pode "
-"selecionar como esta ferramenta exibe o número da versão. <br>Veja como a "
-"ferramenta nomeia a versão de lançamento. "
-"https://github.com/user/tool/releases"
+msgid "Additionally, we can also generate the version regext for you. You can select how this tool displays the version number. <br>See, how the tool names the release version. https://github.com/user/tool/releases"
+msgstr "Além disso, também podemos gerar o regex de versão para você. Você pode selecionar como esta ferramenta exibe o número da versão. <br>Veja como a ferramenta nomeia a versão de lançamento. https://github.com/user/tool/releases"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:141
 msgid "Version Regex"
@@ -1637,86 +1471,45 @@ msgid "Subdomain Gathering Tool Additional Information"
 msgstr "Informações Adicionais da Ferramenta de Coleta de Subdomínios"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:152
-msgid ""
-"Please note that this subdomain gathering tool must support subdomain output"
-" in the form of txt file."
-msgstr ""
-"Observe que esta ferramenta de coleta de subdomínios deve suportar a saída "
-"de subdomínios no formato de arquivo txt."
+msgid "Please note that this subdomain gathering tool must support subdomain output in the form of txt file."
+msgstr "Observe que esta ferramenta de coleta de subdomínios deve suportar a saída de subdomínios no formato de arquivo txt."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:153
-msgid ""
-"Since you have chosen this tool as subdomain gathering tool, we require "
-"additional information on how this tool runs."
-msgstr ""
-"Como você escolheu esta ferramenta como ferramenta de coleta de subdomínios,"
-" precisamos de informações adicionais sobre como esta ferramenta funciona."
+msgid "Since you have chosen this tool as subdomain gathering tool, we require additional information on how this tool runs."
+msgstr "Como você escolheu esta ferramenta como ferramenta de coleta de subdomínios, precisamos de informações adicionais sobre como esta ferramenta funciona."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:156
-msgid ""
-"Suricatoos needs to know how this tool accepts target and output the "
-"subdomain results."
-msgstr ""
-"O Suricatoos precisa saber como esta ferramenta aceita o alvo e gera os "
-"resultados de subdomínios."
+msgid "Suricatoos needs to know how this tool accepts target and output the subdomain results."
+msgstr "O Suricatoos precisa saber como esta ferramenta aceita o alvo e gera os resultados de subdomínios."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:157
 #, python-brace-format
-msgid ""
-"Use the below syntax wherever required, but remember that "
-"<code>{TARGET}</code> and <code>{OUTPUT}</code> <strong>are mandatory "
-"placeholders</strong>."
-msgstr ""
-"Use a sintaxe abaixo sempre que necessário, mas lembre-se de que "
-"<code>{TARGET}</code> e <code>{OUTPUT}</code> <strong>são marcadores "
-"obrigatórios</strong>."
+msgid "Use the below syntax wherever required, but remember that <code>{TARGET}</code> and <code>{OUTPUT}</code> <strong>are mandatory placeholders</strong>."
+msgstr "Use a sintaxe abaixo sempre que necessário, mas lembre-se de que <code>{TARGET}</code> e <code>{OUTPUT}</code> <strong>são marcadores obrigatórios</strong>."
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:159
 #, python-brace-format
-msgid ""
-"<code>{TARGET}</code> (mandatory), Use this for the command-line arg that "
-"takes in domain as input target. Example. <code>subfinder -d {TARGET}</code>"
-msgstr ""
-"<code>{TARGET}</code> (obrigatório), Use isto para o argumento de linha de "
-"comando que recebe o domínio como alvo de entrada. Exemplo. <code>subfinder "
-"-d {TARGET}</code>"
+msgid "<code>{TARGET}</code> (mandatory), Use this for the command-line arg that takes in domain as input target. Example. <code>subfinder -d {TARGET}</code>"
+msgstr "<code>{TARGET}</code> (obrigatório), Use isto para o argumento de linha de comando que recebe o domínio como alvo de entrada. Exemplo. <code>subfinder -d {TARGET}</code>"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:160
 #, python-brace-format
-msgid ""
-"<code>{OUTPUT}</code> (mandatory), Use this for the command-line arg that "
-"takes the output arg. Example. <code>subfinder -d {TARGET} -o "
-"{OUTPUT}</code>"
-msgstr ""
-"<code>{OUTPUT}</code> (obrigatório), Use isto para o argumento de linha de "
-"comando que recebe o argumento de saída. Exemplo. <code>subfinder -d "
-"{TARGET} -o {OUTPUT}</code>"
+msgid "<code>{OUTPUT}</code> (mandatory), Use this for the command-line arg that takes the output arg. Example. <code>subfinder -d {TARGET} -o {OUTPUT}</code>"
+msgstr "<code>{OUTPUT}</code> (obrigatório), Use isto para o argumento de linha de comando que recebe o argumento de saída. Exemplo. <code>subfinder -d {TARGET} -o {OUTPUT}</code>"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:161
 #, python-brace-format
-msgid ""
-"<code>{PATH}</code>, Use this if your tool is github cloned. Example. "
-"<code>python3 {PATH}/subdomain.py</code>"
-msgstr ""
-"<code>{PATH}</code>, Use isto se sua ferramenta foi clonada do github. "
-"Exemplo. <code>python3 {PATH}/subdomain.py</code>"
+msgid "<code>{PATH}</code>, Use this if your tool is github cloned. Example. <code>python3 {PATH}/subdomain.py</code>"
+msgstr "<code>{PATH}</code>, Use isto se sua ferramenta foi clonada do github. Exemplo. <code>python3 {PATH}/subdomain.py</code>"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:162
 #, python-brace-format
-msgid ""
-"<code>{PROXY}</code>, Use this if your tool supports proxy. Example. "
-"<code>tool_name -p {PROXY}</code>"
-msgstr ""
-"<code>{PROXY}</code>, Use isto se sua ferramenta suporta proxy. Exemplo. "
-"<code>tool_name -p {PROXY}</code>"
+msgid "<code>{PROXY}</code>, Use this if your tool supports proxy. Example. <code>tool_name -p {PROXY}</code>"
+msgstr "<code>{PROXY}</code>, Use isto se sua ferramenta suporta proxy. Exemplo. <code>tool_name -p {PROXY}</code>"
 
 #: scanEngine/templates/scanEngine/settings/_items/external_tool_form.html:164
-msgid ""
-"You can use the combinations of the above syntax and also you can use any "
-"other command-line argument that your tool supports."
-msgstr ""
-"Você pode usar combinações da sintaxe acima e também qualquer outro "
-"argumento de linha de comando que sua ferramenta suporte."
+msgid "You can use the combinations of the above syntax and also you can use any other command-line argument that your tool supports."
+msgstr "Você pode usar combinações da sintaxe acima e também qualquer outro argumento de linha de comando que sua ferramenta suporte."
 
 #: scanEngine/templates/scanEngine/settings/add_tool.html:5
 #: scanEngine/templates/scanEngine/settings/add_tool.html:12
@@ -1741,6 +1534,7 @@ msgid "API Vault"
 msgstr "Cofre de API"
 
 #: scanEngine/templates/scanEngine/settings/api.html:13
+#: scanEngine/templates/scanEngine/settings/branding.html:11
 #: scanEngine/templates/scanEngine/settings/hackerone.html:15
 #: scanEngine/templates/scanEngine/settings/llm_toolkit.html:13
 #: scanEngine/templates/scanEngine/settings/notification.html:16
@@ -1754,46 +1548,24 @@ msgid "Settings"
 msgstr "Configurações"
 
 #: scanEngine/templates/scanEngine/settings/api.html:32
-msgid ""
-"OpenAI keys will be used to generate vulnerability description, remediation,"
-" impact and vulnerability report writing using GPT."
-msgstr ""
-"As chaves da OpenAI serão usadas para gerar descrição da vulnerabilidade, "
-"remediação, impacto e redação de relatórios de vulnerabilidade usando GPT."
+msgid "OpenAI keys will be used to generate vulnerability description, remediation, impact and vulnerability report writing using GPT."
+msgstr "As chaves da OpenAI serão usadas para gerar descrição da vulnerabilidade, remediação, impacto e redação de relatórios de vulnerabilidade usando GPT."
 
 #: scanEngine/templates/scanEngine/settings/api.html:43
-msgid ""
-"This is optional but recommended. Get your API key from <a "
-"href=\"https://platform.openai.com/api-keys\" "
-"target=\"_blank\">https://platform.openai.com/api-keys</a>"
-msgstr ""
-"Isto é opcional, mas recomendado. Obtenha sua chave de API em <a "
-"href=\"https://platform.openai.com/api-keys\" "
-"target=\"_blank\">https://platform.openai.com/api-keys</a>"
+msgid "This is optional but recommended. Get your API key from <a href=\"https://platform.openai.com/api-keys\" target=\"_blank\">https://platform.openai.com/api-keys</a>"
+msgstr "Isto é opcional, mas recomendado. Obtenha sua chave de API em <a href=\"https://platform.openai.com/api-keys\" target=\"_blank\">https://platform.openai.com/api-keys</a>"
 
 #: scanEngine/templates/scanEngine/settings/api.html:47
-msgid ""
-"Netlas keys will be used to get whois information and other OSINT related "
-"data."
-msgstr ""
-"As chaves Netlas serão usadas para obter informações WHOIS e outros dados "
-"relacionados a OSINT."
+msgid "Netlas keys will be used to get whois information and other OSINT related data."
+msgstr "As chaves Netlas serão usadas para obter informações WHOIS e outros dados relacionados a OSINT."
 
 #: scanEngine/templates/scanEngine/settings/api.html:58
-msgid ""
-"This is optional. Get your API key from <a href=\"https://netlas.io\" "
-"target=\"_blank\">https://netlas.io</a>"
-msgstr ""
-"Isto é opcional. Obtenha sua chave de API em <a href=\"https://netlas.io\" "
-"target=\"_blank\">https://netlas.io</a>"
+msgid "This is optional. Get your API key from <a href=\"https://netlas.io\" target=\"_blank\">https://netlas.io</a>"
+msgstr "Isto é opcional. Obtenha sua chave de API em <a href=\"https://netlas.io\" target=\"_blank\">https://netlas.io</a>"
 
 #: scanEngine/templates/scanEngine/settings/api.html:62
-msgid ""
-"GitGuardian keys are used by the ggshield secret scanner (secret_scan "
-"engine) to detect leaked secrets in scan artifacts."
-msgstr ""
-"As chaves GitGuardian são usadas pelo scanner de segredos ggshield (engine "
-"secret_scan) para detectar segredos vazados em artefatos de varredura."
+msgid "GitGuardian keys are used by the ggshield secret scanner (secret_scan engine) to detect leaked secrets in scan artifacts."
+msgstr "As chaves GitGuardian são usadas pelo scanner de segredos ggshield (engine secret_scan) para detectar segredos vazados em artefatos de varredura."
 
 #: scanEngine/templates/scanEngine/settings/api.html:66
 msgid "•••••••••••• (a key is configured — type to replace)"
@@ -1804,42 +1576,20 @@ msgid "Enter GitGuardian Key"
 msgstr "Insira a Chave GitGuardian"
 
 #: scanEngine/templates/scanEngine/settings/api.html:74
-msgid ""
-"This is optional, needed only for ggshield. Get your token from <a "
-"href=\"https://dashboard.gitguardian.com/api/personal-access-tokens\" "
-"target=\"_blank\">GitGuardian</a>"
-msgstr ""
-"Isto é opcional, necessário apenas para o ggshield. Obtenha seu token em <a "
-"href=\"https://dashboard.gitguardian.com/api/personal-access-tokens\" "
-"target=\"_blank\">GitGuardian</a>"
+msgid "This is optional, needed only for ggshield. Get your token from <a href=\"https://dashboard.gitguardian.com/api/personal-access-tokens\" target=\"_blank\">GitGuardian</a>"
+msgstr "Isto é opcional, necessário apenas para o ggshield. Obtenha seu token em <a href=\"https://dashboard.gitguardian.com/api/personal-access-tokens\" target=\"_blank\">GitGuardian</a>"
 
 #: scanEngine/templates/scanEngine/settings/api.html:78
-msgid ""
-"Chaos keys will be used for subdomain enumeration and recon data for Public "
-"Bug Bounty Programs."
-msgstr ""
-"As chaves Chaos serão usadas para enumeração de subdomínios e dados de "
-"reconhecimento para Programas Públicos de Bug Bounty."
+msgid "Chaos keys will be used for subdomain enumeration and recon data for Public Bug Bounty Programs."
+msgstr "As chaves Chaos serão usadas para enumeração de subdomínios e dados de reconhecimento para Programas Públicos de Bug Bounty."
 
 #: scanEngine/templates/scanEngine/settings/api.html:89
-msgid ""
-"This is optional but recommended. Get your API key from <a "
-"href=\"https://cloud.projectdiscovery.io\" "
-"target=\"_blank\">https://cloud.projectdiscovery.io</a>"
-msgstr ""
-"Isto é opcional, mas recomendado. Obtenha sua chave de API em <a "
-"href=\"https://cloud.projectdiscovery.io\" "
-"target=\"_blank\">https://cloud.projectdiscovery.io</a>"
+msgid "This is optional but recommended. Get your API key from <a href=\"https://cloud.projectdiscovery.io\" target=\"_blank\">https://cloud.projectdiscovery.io</a>"
+msgstr "Isto é opcional, mas recomendado. Obtenha sua chave de API em <a href=\"https://cloud.projectdiscovery.io\" target=\"_blank\">https://cloud.projectdiscovery.io</a>"
 
 #: scanEngine/templates/scanEngine/settings/api.html:95
-msgid ""
-"Hackerone Keys will be used to import targets, bookmarked programs, and "
-"submit automated vulnerability report to Hackerone. This is a bug bounty "
-"specific feature."
-msgstr ""
-"As chaves do HackerOne serão usadas para importar alvos, programas "
-"favoritados e enviar relatórios de vulnerabilidade automatizados ao "
-"HackerOne. Este é um recurso específico de bug bounty."
+msgid "Hackerone Keys will be used to import targets, bookmarked programs, and submit automated vulnerability report to Hackerone. This is a bug bounty specific feature."
+msgstr "As chaves do HackerOne serão usadas para importar alvos, programas favoritados e enviar relatórios de vulnerabilidade automatizados ao HackerOne. Este é um recurso específico de bug bounty."
 
 #: scanEngine/templates/scanEngine/settings/api.html:97
 msgid "Hackerone Username (Not email)"
@@ -1850,12 +1600,8 @@ msgid "Enter Hackerone Username"
 msgstr "Insira o Nome de Usuário do HackerOne"
 
 #: scanEngine/templates/scanEngine/settings/api.html:101
-msgid ""
-"Generate your <a href=\"https://hackerone.com/settings/api_token/edit\" "
-"target=\"_blank\">API Token from here <i class=\"fe-external-link\"></i></a>"
-msgstr ""
-"Gere seu <a href=\"https://hackerone.com/settings/api_token/edit\" "
-"target=\"_blank\">Token de API aqui <i class=\"fe-external-link\"></i></a>"
+msgid "Generate your <a href=\"https://hackerone.com/settings/api_token/edit\" target=\"_blank\">API Token from here <i class=\"fe-external-link\"></i></a>"
+msgstr "Gere seu <a href=\"https://hackerone.com/settings/api_token/edit\" target=\"_blank\">Token de API aqui <i class=\"fe-external-link\"></i></a>"
 
 #: scanEngine/templates/scanEngine/settings/api.html:103
 msgid "Enter Hackerone Key"
@@ -1866,16 +1612,8 @@ msgid "Enter Hackerone Token"
 msgstr "Insira o Token do HackerOne"
 
 #: scanEngine/templates/scanEngine/settings/api.html:110
-msgid ""
-"This is optional but recommended for bug hunters. Get your API key from <a "
-"href=\"https://api.hackerone.com/getting-started-hacker-api/#getting-"
-"started-hacker-api\" class=\"text-primary\" target=\"_blank\">Hackerone "
-"Documentation</a>"
-msgstr ""
-"Isto é opcional, mas recomendado para caçadores de bugs. Obtenha sua chave "
-"de API na <a href=\"https://api.hackerone.com/getting-started-hacker-"
-"api/#getting-started-hacker-api\" class=\"text-primary\" "
-"target=\"_blank\">Documentação do HackerOne</a>"
+msgid "This is optional but recommended for bug hunters. Get your API key from <a href=\"https://api.hackerone.com/getting-started-hacker-api/#getting-started-hacker-api\" class=\"text-primary\" target=\"_blank\">Hackerone Documentation</a>"
+msgstr "Isto é opcional, mas recomendado para caçadores de bugs. Obtenha sua chave de API na <a href=\"https://api.hackerone.com/getting-started-hacker-api/#getting-started-hacker-api\" class=\"text-primary\" target=\"_blank\">Documentação do HackerOne</a>"
 
 #: scanEngine/templates/scanEngine/settings/api.html:113
 msgid "Test my hackerone keys"
@@ -1885,53 +1623,95 @@ msgstr "Testar minhas chaves do HackerOne"
 msgid "Update API Keys"
 msgstr "Atualizar Chaves de API"
 
+#: scanEngine/templates/scanEngine/settings/branding.html:7
+#: scanEngine/templates/scanEngine/settings/branding.html:16
+#: templates/base/_items/top_nav.html:129
+msgid "Branding (White-label)"
+msgstr "Identidade Visual (White-label)"
+
+#: scanEngine/templates/scanEngine/settings/branding.html:12
+#, fuzzy
+#| msgid "Pending"
+msgid "Branding"
+msgstr "Pendente"
+
+#: scanEngine/templates/scanEngine/settings/branding.html:24
+msgid "White-label branding"
+msgstr "Identidade visual white-label"
+
+#: scanEngine/templates/scanEngine/settings/branding.html:25
+msgid "Replace the Suricatoos logo, favicon and name across the whole application (top bar, login and favicon) and in the PDF reports. Leave a field empty to keep the bundled Suricatoos default. SVG, PNG, JPG, WEBP and GIF are accepted (favicon also accepts ICO)."
+msgstr "Substitua o logo, o favicon e o nome do Suricatoos em toda a aplicação (barra superior, login e favicon) e nos relatórios PDF. Deixe um campo vazio para manter o padrão Suricatoos. São aceitos SVG, PNG, JPG, WEBP e GIF (o favicon também aceita ICO)."
+
+#: scanEngine/templates/scanEngine/settings/branding.html:31
+#, fuzzy
+#| msgid "Domain name"
+msgid "Brand name"
+msgstr "Nome de domínio"
+
+#: scanEngine/templates/scanEngine/settings/branding.html:33
+msgid "Shown in the collapsed top bar and used as the report attribution."
+msgstr "Exibido na barra superior recolhida e usado como atribuição no relatório."
+
+#: scanEngine/templates/scanEngine/settings/branding.html:40
+msgid "Logo — dark ink (for light background)"
+msgstr "Logo — tinta escura (para fundo claro)"
+
+#: scanEngine/templates/scanEngine/settings/branding.html:45
+msgid "Used on light surfaces and in PDF reports."
+msgstr "Usado em superfícies claras e nos relatórios PDF."
+
+#: scanEngine/templates/scanEngine/settings/branding.html:49
+msgid "Logo — light ink (for dark background)"
+msgstr "Logo — tinta clara (para fundo escuro)"
+
+#: scanEngine/templates/scanEngine/settings/branding.html:54
+msgid "Used on the dark sidebar / dark theme."
+msgstr "Usado na barra lateral escura / tema escuro."
+
+#: scanEngine/templates/scanEngine/settings/branding.html:58
+msgid "Favicon"
+msgstr "Favicon"
+
+#: scanEngine/templates/scanEngine/settings/branding.html:63
+msgid "Browser tab icon (32x32 recommended)."
+msgstr "Ícone da aba do navegador (32x32 recomendado)."
+
+#: scanEngine/templates/scanEngine/settings/branding.html:75
+#, fuzzy
+#| msgid "Scan Findings"
+msgid "Save branding"
+msgstr "Resultados da Varredura"
+
 #: scanEngine/templates/scanEngine/settings/hackerone.html:7
-#: templates/base/_items/top_nav.html:134
+#: templates/base/_items/top_nav.html:135
 msgid "Hackerone Settings"
 msgstr "Configurações do HackerOne"
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:16
 #: scanEngine/templates/scanEngine/settings/hackerone.html:20
 msgid "Hackerone Automatic Vulnerability Report Settings"
-msgstr ""
-"Configurações de Relatório Automático de Vulnerabilidades do HackerOne"
+msgstr "Configurações de Relatório Automático de Vulnerabilidades do HackerOne"
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:29
 msgid "Use this feature with caution! Please do not spam triagers!"
-msgstr ""
-"Use este recurso com cautela! Por favor, não envie spam aos triadores!"
+msgstr "Use este recurso com cautela! Por favor, não envie spam aos triadores!"
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:30
-msgid ""
-"We do not allow sending vulnerability report for low severity and "
-"informational vulnerabilities to avoid spamming triagers!"
-msgstr ""
-"Não permitimos o envio de relatórios de vulnerabilidade para "
-"vulnerabilidades de baixa severidade e informativas para evitar spam aos "
-"triadores!"
+msgid "We do not allow sending vulnerability report for low severity and informational vulnerabilities to avoid spamming triagers!"
+msgstr "Não permitimos o envio de relatórios de vulnerabilidade para vulnerabilidades de baixa severidade e informativas para evitar spam aos triadores!"
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:31
-msgid ""
-"You can send them manually from Vulnerability Section inside Suricatoos."
-msgstr ""
-"Você pode enviá-los manualmente na Seção de Vulnerabilidades dentro do "
-"Suricatoos."
+msgid "You can send them manually from Vulnerability Section inside Suricatoos."
+msgstr "Você pode enviá-los manualmente na Seção de Vulnerabilidades dentro do Suricatoos."
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:34
-msgid ""
-"Suricatoos Automatically Reports vulnerabilities to your bug bounty programs"
-" on Hackerone, if any vulnerabilities are identified."
-msgstr ""
-"O Suricatoos relata automaticamente vulnerabilidades aos seus programas de "
-"bug bounty no HackerOne, caso alguma vulnerabilidade seja identificada."
+msgid "Suricatoos Automatically Reports vulnerabilities to your bug bounty programs on Hackerone, if any vulnerabilities are identified."
+msgstr "O Suricatoos relata automaticamente vulnerabilidades aos seus programas de bug bounty no HackerOne, caso alguma vulnerabilidade seja identificada."
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:36
-msgid ""
-"A valid Hackerone API token and username is required. You can set api keys "
-"from API Vault Section"
-msgstr ""
-"É necessário um token de API e nome de usuário válidos do HackerOne. Você "
-"pode definir as chaves de API na Seção Cofre de API"
+msgid "A valid Hackerone API token and username is required. You can set api keys from API Vault Section"
+msgstr "É necessário um token de API e nome de usuário válidos do HackerOne. Você pode definir as chaves de API na Seção Cofre de API"
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:40
 msgid "Automated Vulnerability Report Submission"
@@ -1939,8 +1719,7 @@ msgstr "Envio Automatizado de Relatório de Vulnerabilidade"
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:41
 msgid "Enable Automated Vulnerability Report Submission to Hackerone"
-msgstr ""
-"Ativar Envio Automatizado de Relatório de Vulnerabilidade ao HackerOne"
+msgstr "Ativar Envio Automatizado de Relatório de Vulnerabilidade ao HackerOne"
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:42
 msgid "Report Vulnerability to hackerone when"
@@ -1963,13 +1742,8 @@ msgid "Vulnerability Report Template"
 msgstr "Modelo de Relatório de Vulnerabilidade"
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:59
-msgid ""
-"You can customize the vulnerability report template using markdown language."
-" Replace the below syntax wherever you require. Curly braces are must!"
-msgstr ""
-"Você pode personalizar o modelo de relatório de vulnerabilidade usando a "
-"linguagem markdown. Substitua a sintaxe abaixo sempre que necessário. As "
-"chaves são obrigatórias!"
+msgid "You can customize the vulnerability report template using markdown language. Replace the below syntax wherever you require. Curly braces are must!"
+msgstr "Você pode personalizar o modelo de relatório de vulnerabilidade usando a linguagem markdown. Substitua a sintaxe abaixo sempre que necessário. As chaves são obrigatórias!"
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:62
 msgid "Vulnerability Title/Name."
@@ -2006,44 +1780,20 @@ msgid "LLM Toolkit (Beta)"
 msgstr "Kit de Ferramentas LLM (Beta)"
 
 #: scanEngine/templates/scanEngine/settings/llm_toolkit.html:26
-msgid ""
-"<b>LLM Toolkit</b> includes the ability to download new LLMs, view available"
-" models, and delete models no longer needed, and also choose between various"
-" models."
-msgstr ""
-"O <b>Kit de Ferramentas LLM</b> inclui a capacidade de baixar novos LLMs, "
-"visualizar modelos disponíveis e excluir modelos que não são mais "
-"necessários, além de escolher entre vários modelos."
+msgid "<b>LLM Toolkit</b> includes the ability to download new LLMs, view available models, and delete models no longer needed, and also choose between various models."
+msgstr "O <b>Kit de Ferramentas LLM</b> inclui a capacidade de baixar novos LLMs, visualizar modelos disponíveis e excluir modelos que não são mais necessários, além de escolher entre vários modelos."
 
 #: scanEngine/templates/scanEngine/settings/llm_toolkit.html:28
-msgid ""
-"Suricatoos makes use of various LLMs to enhance reporting process. Using "
-"various LLM AI Models penetration testers will be able to to generate "
-"detailed, insightful penetration testing reports."
-msgstr ""
-"O Suricatoos utiliza vários LLMs para aprimorar o processo de geração de "
-"relatórios. Usando vários Modelos de IA LLM, os pentesters poderão gerar "
-"relatórios de teste de penetração detalhados e perspicazes."
+msgid "Suricatoos makes use of various LLMs to enhance reporting process. Using various LLM AI Models penetration testers will be able to to generate detailed, insightful penetration testing reports."
+msgstr "O Suricatoos utiliza vários LLMs para aprimorar o processo de geração de relatórios. Usando vários Modelos de IA LLM, os pentesters poderão gerar relatórios de teste de penetração detalhados e perspicazes."
 
 #: scanEngine/templates/scanEngine/settings/llm_toolkit.html:30
-msgid ""
-"If you are using custom LLM models, it is expected that response time are "
-"much slower in CPU. We recommend using GPU for better performance. Models "
-"such as llama2, or llama3 requires significant computation and GPU are "
-"required. <b>Having only CPU will result in slow response time.</b>"
-msgstr ""
-"Se você estiver usando modelos LLM personalizados, espera-se que o tempo de "
-"resposta seja muito mais lento na CPU. Recomendamos usar GPU para melhor "
-"desempenho. Modelos como llama2 ou llama3 exigem computação significativa e "
-"requerem GPU. <b>Ter apenas CPU resultará em tempo de resposta lento.</b>"
+msgid "If you are using custom LLM models, it is expected that response time are much slower in CPU. We recommend using GPU for better performance. Models such as llama2, or llama3 requires significant computation and GPU are required. <b>Having only CPU will result in slow response time.</b>"
+msgstr "Se você estiver usando modelos LLM personalizados, espera-se que o tempo de resposta seja muito mais lento na CPU. Recomendamos usar GPU para melhor desempenho. Modelos como llama2 ou llama3 exigem computação significativa e requerem GPU. <b>Ter apenas CPU resultará em tempo de resposta lento.</b>"
 
 #: scanEngine/templates/scanEngine/settings/llm_toolkit.html:32
-msgid ""
-"OpenAI GPT models do not run locally, hence the requirement of GPU is not "
-"necessary."
-msgstr ""
-"Os modelos GPT da OpenAI não são executados localmente, portanto o requisito"
-" de GPU não é necessário."
+msgid "OpenAI GPT models do not run locally, hence the requirement of GPU is not necessary."
+msgstr "Os modelos GPT da OpenAI não são executados localmente, portanto o requisito de GPU não é necessário."
 
 #: scanEngine/templates/scanEngine/settings/llm_toolkit.html:39
 msgid "Add new model"
@@ -2059,12 +1809,8 @@ msgid "Warning:"
 msgstr "Aviso:"
 
 #: scanEngine/templates/scanEngine/settings/llm_toolkit.html:45
-msgid ""
-"GPT model is currently selected and requires API key to be set. Please set "
-"the API key in the"
-msgstr ""
-"O modelo GPT está atualmente selecionado e requer a configuração da chave de"
-" API. Por favor, defina a chave de API no"
+msgid "GPT model is currently selected and requires API key to be set. Please set the API key in the"
+msgstr "O modelo GPT está atualmente selecionado e requer a configuração da chave de API. Por favor, defina a chave de API no"
 
 #: scanEngine/templates/scanEngine/settings/llm_toolkit.html:45
 msgid "API Vault."
@@ -2107,17 +1853,13 @@ msgid "Family"
 msgstr "Família"
 
 #: scanEngine/templates/scanEngine/settings/llm_toolkit.html:99
-msgid ""
-"No LLM Models are installed. You can install models using the 'Add New LLM' "
-"button."
-msgstr ""
-"Nenhum modelo LLM está instalado. Você pode instalar modelos usando o botão "
-"'Add New LLM'."
+msgid "No LLM Models are installed. You can install models using the 'Add New LLM' button."
+msgstr "Nenhum modelo LLM está instalado. Você pode instalar modelos usando o botão 'Add New LLM'."
 
 #: scanEngine/templates/scanEngine/settings/notification.html:6
 #: scanEngine/templates/scanEngine/settings/notification.html:17
 #: scanEngine/templates/scanEngine/settings/notification.html:21
-#: templates/base/_items/top_nav.html:136
+#: templates/base/_items/top_nav.html:137
 msgid "Notification Settings"
 msgstr "Configurações de notificação"
 
@@ -2153,9 +1895,7 @@ msgstr "Enviar-me notificação para"
 
 #: scanEngine/templates/scanEngine/settings/notification.html:158
 msgid "Scan related updates (e.g. Scan initiated, Scan completed)"
-msgstr ""
-"Atualizações relacionadas à varredura (ex.: varredura iniciada, varredura "
-"concluída)"
+msgstr "Atualizações relacionadas à varredura (ex.: varredura iniciada, varredura concluída)"
 
 #: scanEngine/templates/scanEngine/settings/notification.html:161
 msgid "Interesting subdomains"
@@ -2174,12 +1914,8 @@ msgid "Subdomain changes"
 msgstr "Alterações de subdomínios"
 
 #: scanEngine/templates/scanEngine/settings/notification.html:173
-msgid ""
-"(e.g. when new Subdomains are discovered or subdomains are no longer "
-"available)"
-msgstr ""
-"(ex.: quando novos subdomínios são descobertos ou subdomínios deixam de "
-"estar disponíveis)"
+msgid "(e.g. when new Subdomains are discovered or subdomains are no longer available)"
+msgstr "(ex.: quando novos subdomínios são descobertos ou subdomínios deixam de estar disponíveis)"
 
 #: scanEngine/templates/scanEngine/settings/notification.html:179
 #: scanEngine/templates/scanEngine/settings/notification.html:194
@@ -2213,9 +1949,7 @@ msgstr "Salvar e testar notificação"
 
 #: scanEngine/templates/scanEngine/settings/notification.html:213
 msgid "*Once saved, a test message will be sent to all the enabled services."
-msgstr ""
-"*Após salvar, uma mensagem de teste será enviada a todos os serviços "
-"habilitados."
+msgstr "*Após salvar, uma mensagem de teste será enviada a todos os serviços habilitados."
 
 #: scanEngine/templates/scanEngine/settings/proxy.html:6
 #: scanEngine/templates/scanEngine/settings/proxy.html:14
@@ -2233,14 +1967,8 @@ msgstr ""
 "          Isso resulta em resultados de reconhecimento não confiáveis. Suponha que você execute o Nuclei em um determinado alvo com todos os templates: é provável que seu IP seja banido devido à quantidade de requisições feitas pelo Nuclei."
 
 #: scanEngine/templates/scanEngine/settings/proxy.html:30
-msgid ""
-"And this is especially true for dorking and other OSINT Suricatoos does. "
-"After certain dorking attempts Google is likely to ban your IP for certain "
-"period of time."
-msgstr ""
-"E isso é especialmente verdadeiro para dorking e outras atividades de OSINT "
-"que o Suricatoos realiza. Após certas tentativas de dorking, é provável que "
-"o Google bane o seu IP por um determinado período de tempo."
+msgid "And this is especially true for dorking and other OSINT Suricatoos does. After certain dorking attempts Google is likely to ban your IP for certain period of time."
+msgstr "E isso é especialmente verdadeiro para dorking e outras atividades de OSINT que o Suricatoos realiza. Após certas tentativas de dorking, é provável que o Google bane o seu IP por um determinado período de tempo."
 
 #: scanEngine/templates/scanEngine/settings/proxy.html:33
 msgid "Using proxies is recommended."
@@ -2255,12 +1983,8 @@ msgid "Proxy List"
 msgstr "Lista de proxies"
 
 #: scanEngine/templates/scanEngine/settings/proxy.html:42
-msgid ""
-"You can enter as many proxies as you want, Suricatoos will <span "
-"class=\"text-primary\">randomly</span> pick one among them during the scan."
-msgstr ""
-"Você pode inserir quantos proxies quiser; o Suricatoos escolherá <span "
-"class=\"text-primary\">aleatoriamente</span> um deles durante a varredura."
+msgid "You can enter as many proxies as you want, Suricatoos will <span class=\"text-primary\">randomly</span> pick one among them during the scan."
+msgstr "Você pode inserir quantos proxies quiser; o Suricatoos escolherá <span class=\"text-primary\">aleatoriamente</span> um deles durante a varredura."
 
 #: scanEngine/templates/scanEngine/settings/proxy.html:43
 msgid "Separate the proxies by new line."
@@ -2281,23 +2005,12 @@ msgid "Suricatoos PDF Report Settings"
 msgstr "Configurações do relatório PDF do Suricatoos"
 
 #: scanEngine/templates/scanEngine/settings/report.html:31
-msgid ""
-"Suricatoos allows you to generate PDF report. PDF reports are fully "
-"customizable. While downloading PDF Report, you can choose whether to "
-"download Vulnerability Report or Reconnaissance Report or both."
-msgstr ""
-"O Suricatoos permite gerar relatórios em PDF. Os relatórios PDF são "
-"totalmente personalizáveis. Ao baixar o relatório PDF, você pode escolher se"
-" deseja baixar o relatório de vulnerabilidades, o relatório de "
-"reconhecimento ou ambos."
+msgid "Suricatoos allows you to generate PDF report. PDF reports are fully customizable. While downloading PDF Report, you can choose whether to download Vulnerability Report or Reconnaissance Report or both."
+msgstr "O Suricatoos permite gerar relatórios em PDF. Os relatórios PDF são totalmente personalizáveis. Ao baixar o relatório PDF, você pode escolher se deseja baixar o relatório de vulnerabilidades, o relatório de reconhecimento ou ambos."
 
 #: scanEngine/templates/scanEngine/settings/report.html:32
-msgid ""
-"This section allows you to customize the report, such as colors, and "
-"sections to include in the report."
-msgstr ""
-"Esta seção permite personalizar o relatório, como cores e seções a incluir "
-"no relatório."
+msgid "This section allows you to customize the report, such as colors, and sections to include in the report."
+msgstr "Esta seção permite personalizar o relatório, como cores e seções a incluir no relatório."
 
 #: scanEngine/templates/scanEngine/settings/report.html:36
 msgid "Color"
@@ -2308,12 +2021,8 @@ msgid "Primary Color"
 msgstr "Cor primária"
 
 #: scanEngine/templates/scanEngine/settings/report.html:42
-msgid ""
-"(Primary Color is the color used for the Main Title, Footer Background and "
-"Page Counters.)"
-msgstr ""
-"(A cor primária é a cor usada para o título principal, o fundo do rodapé e "
-"os contadores de página.)"
+msgid "(Primary Color is the color used for the Main Title, Footer Background and Page Counters.)"
+msgstr "(A cor primária é a cor usada para o título principal, o fundo do rodapé e os contadores de página.)"
 
 #: scanEngine/templates/scanEngine/settings/report.html:53
 msgid "Secondary Color"
@@ -2348,12 +2057,8 @@ msgid "Show Footer Text?"
 msgstr "Exibir texto de rodapé?"
 
 #: scanEngine/templates/scanEngine/settings/report.html:90
-msgid ""
-"This could be copyright text, or year of generation and the placement for "
-"footer text is bottom left."
-msgstr ""
-"Pode ser um texto de direitos autorais ou o ano de geração; o texto do "
-"rodapé é posicionado no canto inferior esquerdo."
+msgid "This could be copyright text, or year of generation and the placement for footer text is bottom left."
+msgstr "Pode ser um texto de direitos autorais ou o ano de geração; o texto do rodapé é posicionado no canto inferior esquerdo."
 
 #: scanEngine/templates/scanEngine/settings/report.html:91
 msgid "Footer Text"
@@ -2372,27 +2077,16 @@ msgid "Show Executive Summary?"
 msgstr "Exibir resumo executivo?"
 
 #: scanEngine/templates/scanEngine/settings/report.html:106
-msgid ""
-"If turned on, Suricatoos will include Executive Summary in the report. You "
-"can customize the executive summary section."
-msgstr ""
-"Se ativado, o Suricatoos incluirá o resumo executivo no relatório. Você pode"
-" personalizar a seção de resumo executivo."
+msgid "If turned on, Suricatoos will include Executive Summary in the report. You can customize the executive summary section."
+msgstr "Se ativado, o Suricatoos incluirá o resumo executivo no relatório. Você pode personalizar a seção de resumo executivo."
 
 #: scanEngine/templates/scanEngine/settings/report.html:108
-msgid ""
-"Please note that, the Executive Summary section will appear before quick "
-"summary."
-msgstr ""
-"Observe que a seção de resumo executivo aparecerá antes do resumo rápido."
+msgid "Please note that, the Executive Summary section will appear before quick summary."
+msgstr "Observe que a seção de resumo executivo aparecerá antes do resumo rápido."
 
 #: scanEngine/templates/scanEngine/settings/report.html:110
-msgid ""
-"You can customize the executive summary and methodology template using "
-"markdown. Replace the below syntax wherever you require."
-msgstr ""
-"Você pode personalizar o resumo executivo e o modelo de metodologia usando "
-"markdown. Substitua a sintaxe abaixo onde for necessário."
+msgid "You can customize the executive summary and methodology template using markdown. Replace the below syntax wherever you require."
+msgstr "Você pode personalizar o resumo executivo e o modelo de metodologia usando markdown. Substitua a sintaxe abaixo onde for necessário."
 
 #: scanEngine/templates/scanEngine/settings/report.html:110
 msgid "Curly braces are must!"
@@ -2448,8 +2142,7 @@ msgstr "Número total de vulnerabilidades informativas identificadas."
 
 #: scanEngine/templates/scanEngine/settings/report.html:124
 msgid "Total number of Vulnerabilities with Unknown Severity identified."
-msgstr ""
-"Número total de vulnerabilidades de severidade desconhecida identificadas."
+msgstr "Número total de vulnerabilidades de severidade desconhecida identificadas."
 
 #: scanEngine/templates/scanEngine/settings/report.html:129
 msgid "Save Report Settings"
@@ -2469,12 +2162,8 @@ msgstr "Zona de perigo"
 
 #: scanEngine/templates/scanEngine/settings/suricatoos.html:30
 #, python-format
-msgid ""
-"Total Storage: <b>%(total)s Gb</b> Used Space: <b>%(used)s Gb</b> Free "
-"Space: <b>%(free)s Gb</b>"
-msgstr ""
-"Armazenamento total: <b>%(total)s Gb</b> Espaço usado: <b>%(used)s Gb</b> "
-"Espaço livre: <b>%(free)s Gb</b>"
+msgid "Total Storage: <b>%(total)s Gb</b> Used Space: <b>%(used)s Gb</b> Free Space: <b>%(free)s Gb</b>"
+msgstr "Armazenamento total: <b>%(total)s Gb</b> Espaço usado: <b>%(used)s Gb</b> Espaço livre: <b>%(free)s Gb</b>"
 
 #: scanEngine/templates/scanEngine/settings/suricatoos.html:38
 msgid "Delete all scan results"
@@ -2482,17 +2171,11 @@ msgstr "Excluir todos os resultados de varredura"
 
 #: scanEngine/templates/scanEngine/settings/suricatoos.html:41
 msgid "Once you delete all scan results, there is no going back."
-msgstr ""
-"Depois de excluir todos os resultados de varredura, não há como voltar "
-"atrás."
+msgstr "Depois de excluir todos os resultados de varredura, não há como voltar atrás."
 
 #: scanEngine/templates/scanEngine/settings/suricatoos.html:42
-msgid ""
-"This will delete all the scan history and also screenshots and likely to "
-"free up disk space."
-msgstr ""
-"Isso excluirá todo o histórico de varreduras e também as capturas de tela, "
-"provavelmente liberando espaço em disco."
+msgid "This will delete all the scan history and also screenshots and likely to free up disk space."
+msgstr "Isso excluirá todo o histórico de varreduras e também as capturas de tela, provavelmente liberando espaço em disco."
 
 #: scanEngine/templates/scanEngine/settings/suricatoos.html:46
 msgid "Delete All Scan Results"
@@ -2503,17 +2186,12 @@ msgid "Delete all Screenshots"
 msgstr "Excluir todas as capturas de tela"
 
 #: scanEngine/templates/scanEngine/settings/suricatoos.html:56
-msgid ""
-"Once you delete all screenshots, you are likely to free up some disk space."
-msgstr ""
-"Depois de excluir todas as capturas de tela, você provavelmente liberará "
-"algum espaço em disco."
+msgid "Once you delete all screenshots, you are likely to free up some disk space."
+msgstr "Depois de excluir todas as capturas de tela, você provavelmente liberará algum espaço em disco."
 
 #: scanEngine/templates/scanEngine/settings/suricatoos.html:57
 msgid "Scan history will not be able to show any screenshots after deleted."
-msgstr ""
-"O histórico de varreduras não poderá exibir capturas de tela após a "
-"exclusão."
+msgstr "O histórico de varreduras não poderá exibir capturas de tela após a exclusão."
 
 #: scanEngine/templates/scanEngine/settings/suricatoos.html:61
 msgid "Delete All Screenshots"
@@ -2533,24 +2211,16 @@ msgid "GF Patterns"
 msgstr "Padrões do GF"
 
 #: scanEngine/templates/scanEngine/settings/tool.html:28
-msgid ""
-"This section lets you upload custom gf patterns. You can find more "
-"information about the"
-msgstr ""
-"Esta seção permite enviar padrões gf personalizados. Você pode encontrar "
-"mais informações sobre o"
+msgid "This section lets you upload custom gf patterns. You can find more information about the"
+msgstr "Esta seção permite enviar padrões gf personalizados. Você pode encontrar mais informações sobre o"
 
 #: scanEngine/templates/scanEngine/settings/tool.html:28
 msgid "GF Tool here."
 msgstr "ferramenta GF aqui."
 
 #: scanEngine/templates/scanEngine/settings/tool.html:30
-msgid ""
-"Please note that only json files are supported and the name of the pattern "
-"will be the filename."
-msgstr ""
-"Observe que apenas arquivos json são suportados e o nome do padrão será o "
-"nome do arquivo."
+msgid "Please note that only json files are supported and the name of the pattern will be the filename."
+msgstr "Observe que apenas arquivos json são suportados e o nome do padrão será o nome do arquivo."
 
 #: scanEngine/templates/scanEngine/settings/tool.html:31
 msgid "If the pattern name is"
@@ -2600,8 +2270,7 @@ msgstr "Esta seção permite modificar"
 #: scanEngine/templates/scanEngine/settings/tool.html:142
 #: scanEngine/templates/scanEngine/settings/tool.html:157
 msgid "config file. You can find more information about the"
-msgstr ""
-"o arquivo de configuração. Você pode encontrar mais informações sobre o"
+msgstr "o arquivo de configuração. Você pode encontrar mais informações sobre o"
 
 #: scanEngine/templates/scanEngine/settings/tool.html:54
 msgid "Subfinder config here."
@@ -2643,24 +2312,16 @@ msgid "Nuclei Config File"
 msgstr "Arquivo de configuração do nuclei"
 
 #: scanEngine/templates/scanEngine/settings/tool.html:100
-msgid ""
-"This section lets you upload Nuclei templates. You can find more information"
-" about the"
-msgstr ""
-"Esta seção permite enviar templates do nuclei. Você pode encontrar mais "
-"informações sobre o"
+msgid "This section lets you upload Nuclei templates. You can find more information about the"
+msgstr "Esta seção permite enviar templates do nuclei. Você pode encontrar mais informações sobre o"
 
 #: scanEngine/templates/scanEngine/settings/tool.html:100
 msgid "Nuclei Templates here."
 msgstr "Templates do Nuclei aqui."
 
 #: scanEngine/templates/scanEngine/settings/tool.html:101
-msgid ""
-"Please note that only YAML files are supported and the name of the pattern "
-"will be the filename."
-msgstr ""
-"Observe que apenas arquivos YAML são suportados e o nome do padrão será o "
-"nome do arquivo."
+msgid "Please note that only YAML files are supported and the name of the pattern will be the filename."
+msgstr "Observe que apenas arquivos YAML são suportados e o nome do padrão será o nome do arquivo."
 
 #: scanEngine/templates/scanEngine/settings/tool.html:102
 msgid "If the template name is"
@@ -2691,12 +2352,8 @@ msgid "Upload Nuclei Template YAML"
 msgstr "Enviar YAML de template do Nuclei"
 
 #: scanEngine/templates/scanEngine/settings/tool.html:126
-msgid ""
-"This section lets you configure Nuclei config file. You can find more "
-"information about the"
-msgstr ""
-"Esta seção permite configurar o arquivo de configuração do Nuclei. Você pode"
-" encontrar mais informações sobre o"
+msgid "This section lets you configure Nuclei config file. You can find more information about the"
+msgstr "Esta seção permite configurar o arquivo de configuração do Nuclei. Você pode encontrar mais informações sobre o"
 
 #: scanEngine/templates/scanEngine/settings/tool.html:126
 msgid "Nuclei config here."
@@ -2819,12 +2476,8 @@ msgid "Add New Wordlist for Bruteforce"
 msgstr "Adicionar nova wordlist para bruteforce"
 
 #: scanEngine/templates/scanEngine/wordlist/add.html:27
-msgid ""
-"Wordlist can be used for directory bruteforce or subdomain bruteforce. "
-"Instructions on how to use the wordlist are"
-msgstr ""
-"A wordlist pode ser usada para bruteforce de diretórios ou bruteforce de "
-"subdomínios. As instruções sobre como usar a wordlist estão"
+msgid "Wordlist can be used for directory bruteforce or subdomain bruteforce. Instructions on how to use the wordlist are"
+msgstr "A wordlist pode ser usada para bruteforce de diretórios ou bruteforce de subdomínios. As instruções sobre como usar a wordlist estão"
 
 #: scanEngine/templates/scanEngine/wordlist/add.html:27
 msgid "found here"
@@ -2840,26 +2493,16 @@ msgid "Short Name"
 msgstr "Nome curto"
 
 #: scanEngine/templates/scanEngine/wordlist/add.html:43
-msgid ""
-"Please keep the short names without spaces, like my-wordlist or my_wordlist."
-" The short names will be later used to reference wordlist in the YAML "
-"settings."
-msgstr ""
-"Mantenha os nomes curtos sem espaços, como my-wordlist ou my_wordlist. Os "
-"nomes curtos serão usados posteriormente para referenciar a wordlist nas "
-"configurações YAML."
+msgid "Please keep the short names without spaces, like my-wordlist or my_wordlist. The short names will be later used to reference wordlist in the YAML settings."
+msgstr "Mantenha os nomes curtos sem espaços, como my-wordlist ou my_wordlist. Os nomes curtos serão usados posteriormente para referenciar a wordlist nas configurações YAML."
 
 #: scanEngine/templates/scanEngine/wordlist/add.html:46
 msgid "Select the wordlist file"
 msgstr "Selecione o arquivo de wordlist"
 
 #: scanEngine/templates/scanEngine/wordlist/add.html:47
-msgid ""
-"Your wordlist must be a *.txt file and wordlists must be separated by a new "
-"line."
-msgstr ""
-"Sua wordlist deve ser um arquivo *.txt e as entradas devem ser separadas por"
-" uma nova linha."
+msgid "Your wordlist must be a *.txt file and wordlists must be separated by a new line."
+msgstr "Sua wordlist deve ser um arquivo *.txt e as entradas devem ser separadas por uma nova linha."
 
 #: scanEngine/templates/scanEngine/wordlist/add.html:50
 msgid "Choose *.txt file"
@@ -2954,9 +2597,7 @@ msgstr "Configuração do theHarvester atualizada!"
 
 #: scanEngine/views.py:321
 msgid "Notification Settings updated successfully and test message was sent."
-msgstr ""
-"Configurações de notificação atualizadas com sucesso e mensagem de teste "
-"enviada."
+msgstr "Configurações de notificação atualizadas com sucesso e mensagem de teste enviada."
 
 #: scanEngine/views.py:356
 msgid "Proxies updated."
@@ -2970,11 +2611,17 @@ msgstr "Configurações do HackerOne atualizadas."
 msgid "Report Settings updated."
 msgstr "Configurações de relatório atualizadas."
 
-#: scanEngine/views.py:608
+#: scanEngine/views.py:469
+#, fuzzy
+#| msgid "Report Settings updated."
+msgid "Branding settings updated."
+msgstr "Configurações de relatório atualizadas."
+
+#: scanEngine/views.py:634
 msgid "External Tool Successfully Added!"
 msgstr "Ferramenta externa adicionada com sucesso!"
 
-#: scanEngine/views.py:628
+#: scanEngine/views.py:654
 msgid "Tool modified successfully"
 msgstr "Ferramenta modificada com sucesso"
 
@@ -3109,12 +2756,8 @@ msgstr "Dicas!"
 
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:61
 #: startScan/templates/startScan/_items/start_scan_wizard.html:23
-msgid ""
-"You do not have any custom scan engines. Would you like to create your own "
-"scan engine?"
-msgstr ""
-"Você não possui nenhum motor de varredura personalizado. Deseja criar o seu "
-"próprio motor de varredura?"
+msgid "You do not have any custom scan engines. Would you like to create your own scan engine?"
+msgstr "Você não possui nenhum motor de varredura personalizado. Deseja criar o seu próprio motor de varredura?"
 
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:62
 #: startScan/templates/startScan/_items/start_scan_wizard.html:24
@@ -3133,21 +2776,13 @@ msgstr "Importar subdomínios (opcional)"
 
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:70
 #, python-format
-msgid ""
-"You can import subdomains for <b>%(name)s</b> using your private recon "
-"tools."
-msgstr ""
-"Você pode importar subdomínios de <b>%(name)s</b> usando suas próprias "
-"ferramentas privadas de reconhecimento."
+msgid "You can import subdomains for <b>%(name)s</b> using your private recon tools."
+msgstr "Você pode importar subdomínios de <b>%(name)s</b> usando suas próprias ferramentas privadas de reconhecimento."
 
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:73
 #, python-format
-msgid ""
-"Separate the subdomains using <b>new line</b>. If the subdomain does not "
-"belong to <b>%(name)s</b> it will be skipped."
-msgstr ""
-"Separe os subdomínios usando <b>nova linha</b>. Se o subdomínio não "
-"pertencer a <b>%(name)s</b>, ele será ignorado."
+msgid "Separate the subdomains using <b>new line</b>. If the subdomain does not belong to <b>%(name)s</b> it will be skipped."
+msgstr "Separe os subdomínios usando <b>nova linha</b>. Se o subdomínio não pertencer a <b>%(name)s</b>, ele será ignorado."
 
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:75
 #: startScan/templates/startScan/_items/start_scan_wizard.html:38
@@ -3162,24 +2797,13 @@ msgstr "Subdomínios fora do escopo (opcional)"
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:80
 #: startScan/templates/startScan/_items/start_scan_wizard.html:48
 #, python-format
-msgid ""
-"Specify subdomains of <strong>%(name)s</strong> to exclude from scanning. "
-"These subdomains will be omitted from all subsequent scans, including URL "
-"discovery and vulnerability assessments."
-msgstr ""
-"Especifique os subdomínios de <strong>%(name)s</strong> a serem excluídos da"
-" varredura. Esses subdomínios serão omitidos de todas as varreduras "
-"subsequentes, incluindo a descoberta de URLs e as avaliações de "
-"vulnerabilidades."
+msgid "Specify subdomains of <strong>%(name)s</strong> to exclude from scanning. These subdomains will be omitted from all subsequent scans, including URL discovery and vulnerability assessments."
+msgstr "Especifique os subdomínios de <strong>%(name)s</strong> a serem excluídos da varredura. Esses subdomínios serão omitidos de todas as varreduras subsequentes, incluindo a descoberta de URLs e as avaliações de vulnerabilidades."
 
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:81
 #: startScan/templates/startScan/_items/start_scan_wizard.html:49
-msgid ""
-"Enter one subdomain or pattern per line. Both plain text and regex patterns "
-"are supported."
-msgstr ""
-"Insira um subdomínio ou padrão por linha. São aceitos tanto texto simples "
-"quanto padrões regex."
+msgid "Enter one subdomain or pattern per line. Both plain text and regex patterns are supported."
+msgstr "Insira um subdomínio ou padrão por linha. São aceitos tanto texto simples quanto padrões regex."
 
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:81
 #: startScan/templates/startScan/_items/start_scan_wizard.html:49
@@ -3249,14 +2873,8 @@ msgstr "Caminhos excluídos (opcional)"
 
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:107
 #: startScan/templates/startScan/_items/start_scan_wizard.html:83
-msgid ""
-"Enter paths or regex patterns to exclude from the scan. Type a path or "
-"pattern and press Enter to add it. Supports both exact path matching and "
-"regex patterns. Examples:"
-msgstr ""
-"Insira caminhos ou padrões regex a serem excluídos da varredura. Digite um "
-"caminho ou padrão e pressione Enter para adicioná-lo. Há suporte tanto para "
-"correspondência exata de caminho quanto para padrões regex. Exemplos:"
+msgid "Enter paths or regex patterns to exclude from the scan. Type a path or pattern and press Enter to add it. Supports both exact path matching and regex patterns. Examples:"
+msgstr "Insira caminhos ou padrões regex a serem excluídos da varredura. Digite um caminho ou padrão e pressione Enter para adicioná-lo. Há suporte tanto para correspondência exata de caminho quanto para padrões regex. Exemplos:"
 
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:108
 #: startScan/templates/startScan/_items/start_scan_wizard.html:84
@@ -3285,15 +2903,8 @@ msgstr "Recursos estáticos:"
 
 #: startScan/templates/startScan/_items/schedule_scan_wizard.html:114
 #: startScan/templates/startScan/_items/start_scan_wizard.html:90
-msgid ""
-"Note: Use regex patterns carefully. While exclusions can speed up scans, be "
-"cautious not to exclude critical areas that may contain vulnerabilities. "
-"Test your patterns to ensure they match as intended."
-msgstr ""
-"Nota: Use padrões regex com cuidado. Embora as exclusões possam acelerar as "
-"varreduras, tenha cuidado para não excluir áreas críticas que possam conter "
-"vulnerabilidades. Teste seus padrões para garantir que correspondam conforme"
-" o esperado."
+msgid "Note: Use regex patterns carefully. While exclusions can speed up scans, be cautious not to exclude critical areas that may contain vulnerabilities. Test your patterns to ensure they match as intended."
+msgstr "Nota: Use padrões regex com cuidado. Embora as exclusões possam acelerar as varreduras, tenha cuidado para não excluir áreas críticas que possam conter vulnerabilidades. Teste seus padrões para garantir que correspondam conforme o esperado."
 
 #: startScan/templates/startScan/_items/start_scan_wizard.html:7
 #, python-format
@@ -3301,51 +2912,27 @@ msgid "Initiating multiple scan for %(count)s targets: "
 msgstr "Iniciando varredura múltipla para %(count)s alvos: "
 
 #: startScan/templates/startScan/_items/start_scan_wizard.html:20
-msgid ""
-"The <strong>default engine</strong> is pre-selected &mdash; just continue, "
-"or pick another below."
-msgstr ""
-"O <strong>mecanismo padrão</strong> está pré-selecionado &mdash; basta "
-"continuar ou escolher outro abaixo."
+msgid "The <strong>default engine</strong> is pre-selected &mdash; just continue, or pick another below."
+msgstr "O <strong>mecanismo padrão</strong> está pré-selecionado &mdash; basta continuar ou escolher outro abaixo."
 
 #: startScan/templates/startScan/_items/start_scan_wizard.html:33
 #, python-format
-msgid ""
-"You can import subdomains for <strong>%(name)s</strong> discovered through "
-"your private reconnaissance tools."
-msgstr ""
-"Você pode importar subdomínios de <strong>%(name)s</strong> descobertos por "
-"meio de suas ferramentas privadas de reconhecimento."
+msgid "You can import subdomains for <strong>%(name)s</strong> discovered through your private reconnaissance tools."
+msgstr "Você pode importar subdomínios de <strong>%(name)s</strong> descobertos por meio de suas ferramentas privadas de reconhecimento."
 
 #: startScan/templates/startScan/_items/start_scan_wizard.html:36
 #, python-format
-msgid ""
-"Enter one subdomain per line. Subdomains not belonging to "
-"<strong>%(name)s</strong> will be automatically skipped."
-msgstr ""
-"Insira um subdomínio por linha. Subdomínios que não pertencem a "
-"<strong>%(name)s</strong> serão automaticamente ignorados."
+msgid "Enter one subdomain per line. Subdomains not belonging to <strong>%(name)s</strong> will be automatically skipped."
+msgstr "Insira um subdomínio por linha. Subdomínios que não pertencem a <strong>%(name)s</strong> serão automaticamente ignorados."
 
 #: startScan/templates/startScan/_items/start_scan_wizard.html:74
-msgid ""
-"Defines where the scan should begin. Leave blank to scan from the root (/) "
-"and include all subdomains."
-msgstr ""
-"Define onde a varredura deve começar. Deixe em branco para varrer a partir "
-"da raiz (/) e incluir todos os subdomínios."
+msgid "Defines where the scan should begin. Leave blank to scan from the root (/) and include all subdomains."
+msgstr "Define onde a varredura deve começar. Deixe em branco para varrer a partir da raiz (/) e incluir todos os subdomínios."
 
 #: startScan/templates/startScan/_items/start_scan_wizard.html:76
 #, python-format
-msgid ""
-"If a path is provided (e.g., /home), the scan will focus only on that path "
-"and its subpaths, skipping subdomain scanning. For example, entering '/home'"
-" for %(name)s will scan https://%(name)s/home, but not other parts of "
-"%(name)s or its subdomains."
-msgstr ""
-"Se um caminho for fornecido (por exemplo, /home), a varredura focará apenas "
-"nesse caminho e em seus subcaminhos, ignorando a varredura de subdomínios. "
-"Por exemplo, inserir '/home' para %(name)s irá varrer https://%(name)s/home,"
-" mas não outras partes de %(name)s ou seus subdomínios."
+msgid "If a path is provided (e.g., /home), the scan will focus only on that path and its subpaths, skipping subdomain scanning. For example, entering '/home' for %(name)s will scan https://%(name)s/home, but not other parts of %(name)s or its subdomains."
+msgstr "Se um caminho for fornecido (por exemplo, /home), a varredura focará apenas nesse caminho e em seus subcaminhos, ignorando a varredura de subdomínios. Por exemplo, inserir '/home' para %(name)s irá varrer https://%(name)s/home, mas não outras partes de %(name)s ou seus subdomínios."
 
 #: startScan/templates/startScan/detail_scan.html:8
 msgid "Detailed Scan"
@@ -3354,8 +2941,7 @@ msgstr "Varredura Detalhada"
 #: startScan/templates/startScan/detail_scan.html:26
 #: startScan/templates/startScan/history.html:15
 #: startScan/templates/startScan/subscan_history.html:15
-#: templates/base/_items/right_bar.html:9
-#: templates/base/_items/top_nav.html:41
+#: templates/base/_items/right_bar.html:9 templates/base/_items/top_nav.html:41
 msgid "Scan History"
 msgstr "Histórico de Varreduras"
 
@@ -3374,9 +2960,7 @@ msgstr "Esta varredura falhou."
 
 #: startScan/templates/startScan/detail_scan.html:39
 msgid "One or more tasks did not complete &mdash; check the logs for details."
-msgstr ""
-"Uma ou mais tarefas não foram concluídas &mdash; verifique os logs para mais"
-" detalhes."
+msgstr "Uma ou mais tarefas não foram concluídas &mdash; verifique os logs para mais detalhes."
 
 #: startScan/templates/startScan/detail_scan.html:40
 msgid "View Logs"
@@ -3486,7 +3070,7 @@ msgid "Download Important Subdomains"
 msgstr "Baixar Subdomínios Importantes"
 
 #: startScan/templates/startScan/detail_scan.html:151
-#: startScan/templates/startScan/detail_scan.html:1339
+#: startScan/templates/startScan/detail_scan.html:1361
 #: templates/base/_items/subdomain_tab_content.html:111
 #: templates/base/_items/subdomain_tab_content.html:117
 #: templates/base/_items/subdomain_tab_content.html:123
@@ -3497,7 +3081,7 @@ msgid "Download Interesting Subdomains"
 msgstr "Baixar Subdomínios Interessantes"
 
 #: startScan/templates/startScan/detail_scan.html:152
-#: startScan/templates/startScan/detail_scan.html:1366
+#: startScan/templates/startScan/detail_scan.html:1388
 msgid "Download Interesting Endpoints"
 msgstr "Baixar Endpoints Interessantes"
 
@@ -3557,7 +3141,7 @@ msgid "Scan not yet started."
 msgstr "Varredura ainda não iniciada."
 
 #: startScan/templates/startScan/detail_scan.html:214
-#: templates/report/default.html:598 templates/report/modern.html:807
+#: templates/report/default.html:602 templates/report/modern.html:812
 msgid "Completed in < 1 minutes"
 msgstr "Concluída em < 1 minuto"
 
@@ -3665,8 +3249,7 @@ msgstr "Histórico de subvarreduras de"
 #: targetApp/templates/target/summary.html:209
 #: targetApp/templates/target/test.html:155
 msgid "Total Subdomains Discovered by Suricatoos during this scan"
-msgstr ""
-"Total de subdomínios descobertos pelo Suricatoos durante esta varredura"
+msgstr "Total de subdomínios descobertos pelo Suricatoos durante esta varredura"
 
 #: startScan/templates/startScan/detail_scan.html:363
 #: targetApp/templates/target/summary.html:210
@@ -3675,12 +3258,8 @@ msgid "Subdomains Discovered"
 msgstr "Subdomínios descobertos"
 
 #: startScan/templates/startScan/detail_scan.html:374
-msgid ""
-"Total Endpoints discovered by Suricatoos during this scan. This includes any"
-" URLs discovered."
-msgstr ""
-"Total de endpoints descobertos pelo Suricatoos durante esta varredura. Isso "
-"inclui quaisquer URLs descobertas."
+msgid "Total Endpoints discovered by Suricatoos during this scan. This includes any URLs discovered."
+msgstr "Total de endpoints descobertos pelo Suricatoos durante esta varredura. Isso inclui quaisquer URLs descobertas."
 
 #: startScan/templates/startScan/detail_scan.html:375
 #: targetApp/templates/target/summary.html:222
@@ -3689,51 +3268,36 @@ msgid "Endpoints Discovered"
 msgstr "Endpoints descobertos"
 
 #: startScan/templates/startScan/detail_scan.html:386
-msgid ""
-"Total Vulnerabilities discovered by Suricatoos. This will be populated only "
-"if vulnerability scan is performed during this scan."
-msgstr ""
-"Total de vulnerabilidades descobertas pelo Suricatoos. Isso será preenchido "
-"apenas se uma varredura de vulnerabilidades for realizada durante esta "
-"varredura."
+msgid "Total Vulnerabilities discovered by Suricatoos. This will be populated only if vulnerability scan is performed during this scan."
+msgstr "Total de vulnerabilidades descobertas pelo Suricatoos. Isso será preenchido apenas se uma varredura de vulnerabilidades for realizada durante esta varredura."
 
 #: startScan/templates/startScan/detail_scan.html:387
 #: targetApp/templates/target/summary.html:234
-#: targetApp/templates/target/test.html:180 templates/report/default.html:863
-#: templates/report/modern.html:714 templates/report/modern.html:1075
+#: targetApp/templates/target/test.html:180 templates/report/default.html:893
+#: templates/report/modern.html:719 templates/report/modern.html:1101
 msgid "Vulnerabilities Discovered"
 msgstr "Vulnerabilidades descobertas"
 
 #: startScan/templates/startScan/detail_scan.html:393
 #, python-format
 msgid "%(low)s Low, %(info)s Info, and %(unknown)s Unknown Vulnerabilities"
-msgstr ""
-"%(low)s baixas, %(info)s informativas e %(unknown)s desconhecidas "
-"vulnerabilidades"
+msgstr "%(low)s baixas, %(info)s informativas e %(unknown)s desconhecidas vulnerabilidades"
 
 #: startScan/templates/startScan/detail_scan.html:396
 msgid "No vulnerabilities found."
 msgstr "Nenhuma vulnerabilidade encontrada."
 
 #: startScan/templates/startScan/detail_scan.html:406
-msgid ""
-"Leaked secrets discovered by the secret scan engine (gitleaks / ggshield). "
-"Values are masked."
-msgstr ""
-"Segredos vazados descobertos pelo mecanismo de varredura de segredos "
-"(gitleaks / ggshield). Os valores estão mascarados."
+msgid "Leaked secrets discovered by the secret scan engine (gitleaks / ggshield). Values are masked."
+msgstr "Segredos vazados descobertos pelo mecanismo de varredura de segredos (gitleaks / ggshield). Os valores estão mascarados."
 
 #: startScan/templates/startScan/detail_scan.html:407
 msgid "Secrets Discovered"
 msgstr "Segredos descobertos"
 
 #: startScan/templates/startScan/detail_scan.html:410
-msgid ""
-"Hardcoded secrets found in scan artifacts. Values are masked &mdash; the raw"
-" secret is never stored."
-msgstr ""
-"Segredos embutidos no código encontrados nos artefatos da varredura. Os "
-"valores estão mascarados &mdash; o segredo bruto nunca é armazenado."
+msgid "Hardcoded secrets found in scan artifacts. Values are masked &mdash; the raw secret is never stored."
+msgstr "Segredos embutidos no código encontrados nos artefatos da varredura. Os valores estão mascarados &mdash; o segredo bruto nunca é armazenado."
 
 #: startScan/templates/startScan/detail_scan.html:412
 msgid "No leaked secrets found."
@@ -3777,8 +3341,7 @@ msgstr "Confira!"
 #: startScan/templates/startScan/detail_scan.html:455
 #, python-format
 msgid "Suricatoos identified %(count)s domains related to %(domain)s."
-msgstr ""
-"O Suricatoos identificou %(count)s domínios relacionados a %(domain)s."
+msgstr "O Suricatoos identificou %(count)s domínios relacionados a %(domain)s."
 
 #: startScan/templates/startScan/detail_scan.html:463
 #, python-format
@@ -4004,7 +3567,7 @@ msgstr "%(count)s IPs históricos"
 #: startScan/templates/startScan/detail_scan.html:755
 #: targetApp/templates/target/summary.html:495
 #: templates/base/_items/subdomain_tab_content.html:161
-#: templates/report/default.html:759 templates/report/modern.html:994
+#: templates/report/default.html:789 templates/report/modern.html:1020
 msgid "IP"
 msgstr "IP"
 
@@ -4104,7 +3667,7 @@ msgstr "Descrição da tarefa"
 
 #: startScan/templates/startScan/detail_scan.html:937
 #: targetApp/templates/target/summary.html:675
-#: templates/report/default.html:754
+#: templates/report/default.html:784
 msgid "IP Addresses"
 msgstr "Endereços IP"
 
@@ -4167,15 +3730,15 @@ msgid "Filter Screenshots"
 msgstr "Filtrar capturas de tela"
 
 #: startScan/templates/startScan/detail_scan.html:1060
-#: startScan/templates/startScan/detail_scan.html:1348
-#: startScan/templates/startScan/detail_scan.html:1375
+#: startScan/templates/startScan/detail_scan.html:1370
+#: startScan/templates/startScan/detail_scan.html:1397
 #: templates/base/_items/endpoint_tab_content.html:39
 #: templates/base/_items/endpoint_tab_content.html:50
 #: templates/base/_items/subdomain_tab_content.html:56
 #: templates/base/_items/subdomain_tab_content.html:143
 #: templates/base/_items/subdomain_toolbar.html:28
-#: templates/report/default.html:621 templates/report/default.html:734
-#: templates/report/modern.html:844 templates/report/modern.html:949
+#: templates/report/default.html:625 templates/report/default.html:764
+#: templates/report/modern.html:849 templates/report/modern.html:975
 msgid "HTTP Status"
 msgstr "Status HTTP"
 
@@ -4211,17 +3774,17 @@ msgid "Display"
 msgstr "Exibir"
 
 #: startScan/templates/startScan/detail_scan.html:1134
-#: startScan/templates/startScan/detail_scan.html:1346
-#: startScan/templates/startScan/detail_scan.html:1396
-#: startScan/templates/startScan/detail_scan.html:1414
+#: startScan/templates/startScan/detail_scan.html:1368
+#: startScan/templates/startScan/detail_scan.html:1418
+#: startScan/templates/startScan/detail_scan.html:1436
 #: templates/base/_items/subdomain_tab_content.html:156
-#: templates/report/default.html:615 templates/report/default.html:728
-#: templates/report/modern.html:842 templates/report/modern.html:947
+#: templates/report/default.html:619 templates/report/default.html:758
+#: templates/report/modern.html:847 templates/report/modern.html:973
 msgid "Subdomain"
 msgstr "Subdomínio"
 
 #: startScan/templates/startScan/detail_scan.html:1138
-#: startScan/templates/startScan/detail_scan.html:1350
+#: startScan/templates/startScan/detail_scan.html:1372
 #: templates/base/_items/endpoint_tab_content.html:114
 #: templates/base/_items/subdomain_tab_content.html:168
 msgid "HTTP URL"
@@ -4236,13 +3799,8 @@ msgid "Leaked Secrets"
 msgstr "Segredos vazados"
 
 #: startScan/templates/startScan/detail_scan.html:1163
-msgid ""
-"Secrets discovered by gitleaks / ggshield in the collected scan artifacts. "
-"Values are masked &mdash; the raw secret is never stored."
-msgstr ""
-"Segredos descobertos por gitleaks / ggshield nos artefatos de varredura "
-"coletados. Os valores são mascarados &mdash; o segredo bruto nunca é "
-"armazenado."
+msgid "Secrets discovered by gitleaks / ggshield in the collected scan artifacts. Values are masked &mdash; the raw secret is never stored."
+msgstr "Segredos descobertos por gitleaks / ggshield nos artefatos de varredura coletados. Os valores são mascarados &mdash; o segredo bruto nunca é armazenado."
 
 #: startScan/templates/startScan/detail_scan.html:1167
 #: templates/base/_items/vulnerability_tab_content.html:99
@@ -4266,7 +3824,7 @@ msgstr "Linha"
 #: templates/base/_items/vulnerability_tab_content.html:76
 #: templates/base/_items/vulnerability_tab_content.html:107
 #: templates/base/_items/widgets/vulnerability_highlights.html:17
-#: templates/report/default.html:670 templates/report/modern.html:882
+#: templates/report/default.html:700 templates/report/modern.html:908
 msgid "Severity"
 msgstr "Severidade"
 
@@ -4274,92 +3832,110 @@ msgstr "Severidade"
 msgid "Secret (masked)"
 msgstr "Segredo (mascarado)"
 
-#: startScan/templates/startScan/detail_scan.html:1188
+#: startScan/templates/startScan/detail_scan.html:1192
+#: templates/report/default.html:659 templates/report/modern.html:871
+msgid "OSINT Intelligence"
+msgstr "Inteligência OSINT"
+
+#: startScan/templates/startScan/detail_scan.html:1193
+msgid "(passive — SpiderFoot/theHarvester)"
+msgstr "(passivo — SpiderFoot/theHarvester)"
+
+#: startScan/templates/startScan/detail_scan.html:1198
+#: templates/report/default.html:664 templates/report/modern.html:875
+#, fuzzy
+#| msgid "Tool Category"
+msgid "Category"
+msgstr "Categoria da Ferramenta"
+
+#: startScan/templates/startScan/detail_scan.html:1200
+#: templates/report/default.html:666 templates/report/modern.html:877
+msgid "Data"
+msgstr ""
+
+#: startScan/templates/startScan/detail_scan.html:1210
 msgid "Dorking Results"
 msgstr "Resultados de Dorking"
 
-#: startScan/templates/startScan/detail_scan.html:1210
+#: startScan/templates/startScan/detail_scan.html:1232
 #, python-format
 msgid "Employees/People associated with %(domain_name)s"
 msgstr "Funcionários/Pessoas associados a %(domain_name)s"
 
-#: startScan/templates/startScan/detail_scan.html:1215
+#: startScan/templates/startScan/detail_scan.html:1237
 msgid "Employee Name"
 msgstr "Nome do funcionário"
 
-#: startScan/templates/startScan/detail_scan.html:1216
+#: startScan/templates/startScan/detail_scan.html:1238
 msgid "Designation"
 msgstr "Cargo"
 
-#: startScan/templates/startScan/detail_scan.html:1232
+#: startScan/templates/startScan/detail_scan.html:1254
 msgid "Discovered Email addresses"
 msgstr "Endereços de e-mail descobertos"
 
-#: startScan/templates/startScan/detail_scan.html:1237
+#: startScan/templates/startScan/detail_scan.html:1259
 msgid "Email Address"
 msgstr "Endereço de e-mail"
 
-#: startScan/templates/startScan/detail_scan.html:1238
+#: startScan/templates/startScan/detail_scan.html:1260
 msgid "Exposed Credentials"
 msgstr "Credenciais expostas"
 
-#: startScan/templates/startScan/detail_scan.html:1254
+#: startScan/templates/startScan/detail_scan.html:1276
 msgid "Discovered Metadata"
 msgstr "Metadados descobertos"
 
-#: startScan/templates/startScan/detail_scan.html:1259
+#: startScan/templates/startScan/detail_scan.html:1281
 msgid "Document"
 msgstr "Documento"
 
-#: startScan/templates/startScan/detail_scan.html:1260
+#: startScan/templates/startScan/detail_scan.html:1282
 msgid "User"
 msgstr "Usuário"
 
-#: startScan/templates/startScan/detail_scan.html:1261
+#: startScan/templates/startScan/detail_scan.html:1283
 msgid "Metadata"
 msgstr "Metadados"
 
-#: startScan/templates/startScan/detail_scan.html:1285
+#: startScan/templates/startScan/detail_scan.html:1307
 msgid "Expand all nodes"
 msgstr "Expandir todos os nós"
 
-#: startScan/templates/startScan/detail_scan.html:1294
+#: startScan/templates/startScan/detail_scan.html:1316
 msgid "Download Visualization as png"
 msgstr "Baixar visualização como png"
 
-#: startScan/templates/startScan/detail_scan.html:1304
+#: startScan/templates/startScan/detail_scan.html:1326
 #: templates/base/_items/center_spinner.html:4
 msgid "Loading..."
 msgstr "Carregando..."
 
-#: startScan/templates/startScan/detail_scan.html:1307
+#: startScan/templates/startScan/detail_scan.html:1329
 msgid "Loading Recon Visualization..."
 msgstr "Carregando visualização de reconhecimento..."
 
-#: startScan/templates/startScan/detail_scan.html:1316
+#: startScan/templates/startScan/detail_scan.html:1338
 msgid "*Subdomains highlighted with green are 20X (OK) HTTP status"
 msgstr "*Subdomínios destacados em verde possuem status HTTP 20X (OK)"
 
-#: startScan/templates/startScan/detail_scan.html:1317
+#: startScan/templates/startScan/detail_scan.html:1339
 msgid "*Subdomains highlighted with orange are 30X (Redirect) HTTP status"
-msgstr ""
-"*Subdomínios destacados em laranja possuem status HTTP 30X "
-"(Redirecionamento)"
+msgstr "*Subdomínios destacados em laranja possuem status HTTP 30X (Redirecionamento)"
 
-#: startScan/templates/startScan/detail_scan.html:1318
+#: startScan/templates/startScan/detail_scan.html:1340
 msgid "*Subdomains highlighted with red are 40X (Not found) HTTP status"
-msgstr ""
-"*Subdomínios destacados em vermelho possuem status HTTP 40X (Não encontrado)"
+msgstr "*Subdomínios destacados em vermelho possuem status HTTP 40X (Não encontrado)"
 
-#: startScan/templates/startScan/detail_scan.html:1342
-#: templates/report/modern.html:833
+#: startScan/templates/startScan/detail_scan.html:1364
+#: templates/report/modern.html:838
 msgid "Interesting Subdomains"
 msgstr "Subdomínios interessantes"
 
-#: startScan/templates/startScan/detail_scan.html:1349
-#: startScan/templates/startScan/detail_scan.html:1376
-#: startScan/templates/startScan/detail_scan.html:1399
-#: startScan/templates/startScan/detail_scan.html:1417
+#: startScan/templates/startScan/detail_scan.html:1371
+#: startScan/templates/startScan/detail_scan.html:1398
+#: startScan/templates/startScan/detail_scan.html:1421
+#: startScan/templates/startScan/detail_scan.html:1439
 #: templates/base/_items/endpoint_tab_content.html:74
 #: templates/base/_items/endpoint_tab_content.html:119
 #: templates/base/_items/subdomain_tab_content.html:80
@@ -4368,34 +3944,34 @@ msgstr "Subdomínios interessantes"
 msgid "Content Length"
 msgstr "Tamanho do conteúdo"
 
-#: startScan/templates/startScan/detail_scan.html:1351
+#: startScan/templates/startScan/detail_scan.html:1373
 msgid "Tech Stack"
 msgstr "Pilha de tecnologias"
 
-#: startScan/templates/startScan/detail_scan.html:1369
+#: startScan/templates/startScan/detail_scan.html:1391
 msgid "Interesting Endpoints"
 msgstr "Endpoints interessantes"
 
-#: startScan/templates/startScan/detail_scan.html:1373
+#: startScan/templates/startScan/detail_scan.html:1395
 msgid "URL"
 msgstr "URL"
 
-#: startScan/templates/startScan/detail_scan.html:1374
+#: startScan/templates/startScan/detail_scan.html:1396
 #: templates/base/_items/subdomain_tab_content.html:160
 #: templates/base/_items/vulnerability_tab_content.html:102
 msgid "Title"
 msgstr "Título"
 
-#: startScan/templates/startScan/detail_scan.html:1392
+#: startScan/templates/startScan/detail_scan.html:1414
 msgid "Subdomain Changes"
 msgstr "Alterações de subdomínio"
 
-#: startScan/templates/startScan/detail_scan.html:1400
-#: startScan/templates/startScan/detail_scan.html:1418
+#: startScan/templates/startScan/detail_scan.html:1422
+#: startScan/templates/startScan/detail_scan.html:1440
 msgid "Change"
 msgstr "Alteração"
 
-#: startScan/templates/startScan/detail_scan.html:1410
+#: startScan/templates/startScan/detail_scan.html:1432
 msgid "Endpoint Changes"
 msgstr "Alterações de endpoint"
 
@@ -4492,15 +4068,12 @@ msgstr "Caminho:"
 #: startScan/templates/startScan/subscan_history.html:99
 #, python-format
 msgid "Domain %(domain_name)s belongs to organization %(organization_name)s"
-msgstr ""
-"O domínio %(domain_name)s pertence à organização %(organization_name)s"
+msgstr "O domínio %(domain_name)s pertence à organização %(organization_name)s"
 
 #: startScan/templates/startScan/history.html:112
 #, python-format
-msgid ""
-"%(critical)s Critical, %(high)s High, %(medium)s Medium Vulnerabilities"
-msgstr ""
-"%(critical)s Críticas, %(high)s Altas, %(medium)s Médias Vulnerabilidades"
+msgid "%(critical)s Critical, %(high)s High, %(medium)s Medium Vulnerabilities"
+msgstr "%(critical)s Críticas, %(high)s Altas, %(medium)s Médias Vulnerabilidades"
 
 #: startScan/templates/startScan/history.html:125
 #: startScan/templates/startScan/subscan_history.html:115
@@ -4577,14 +4150,13 @@ msgid "Complete Overview"
 msgstr "Visão Geral Completa"
 
 #: startScan/templates/startScan/history.html:249
-#: templates/report/default.html:495 templates/report/modern.html:737
+#: templates/report/default.html:499 templates/report/modern.html:742
 msgid "Reconnaissance"
 msgstr "Reconhecimento"
 
 #: startScan/templates/startScan/history.html:250
 msgid "Report containing detailed overview of discovered assets only"
-msgstr ""
-"Relatório contendo apenas uma visão geral detalhada dos ativos descobertos"
+msgstr "Relatório contendo apenas uma visão geral detalhada dos ativos descobertos"
 
 #: startScan/templates/startScan/history.html:254
 msgid "Asset Mapping"
@@ -4760,73 +4332,73 @@ msgstr "Excluir Subvarredura"
 msgid "All Vulnerabilities"
 msgstr "Todas as Vulnerabilidades"
 
-#: startScan/views.py:302
+#: startScan/views.py:306
 #, python-format
 msgid "Scan Started for %(name)s"
 msgstr "Varredura Iniciada para %(name)s"
 
-#: startScan/views.py:400
+#: startScan/views.py:404
 msgid "Scan Started for multiple targets"
 msgstr "Varredura iniciada para múltiplos alvos"
 
-#: startScan/views.py:491
+#: startScan/views.py:495
 msgid "Scan history successfully deleted!"
 msgstr "Histórico de varreduras excluído com sucesso!"
 
-#: startScan/views.py:498 startScan/views.py:713
+#: startScan/views.py:502 startScan/views.py:717
 msgid "Oops! something went wrong!"
 msgstr "Ops! algo deu errado!"
 
-#: startScan/views.py:530
+#: startScan/views.py:534
 msgid "Scan successfully stopped!"
 msgstr "Varredura parada com sucesso!"
 
-#: startScan/views.py:538
+#: startScan/views.py:542
 #, python-format
 msgid "Scan failed to stop ! Error: %(error)s"
 msgstr "Falha ao parar a varredura! Erro: %(error)s"
 
-#: startScan/views.py:569
+#: startScan/views.py:573
 msgid "Multiple scans successfully stopped!"
 msgstr "Múltiplas varreduras paradas com sucesso!"
 
-#: startScan/views.py:576
+#: startScan/views.py:580
 #, python-format
 msgid "Scans failed to stop ! Error: %(error)s"
 msgstr "Falha ao parar as varreduras! Erro: %(error)s"
 
-#: startScan/views.py:663
+#: startScan/views.py:667
 #, python-format
 msgid "Scan Scheduled for %(name)s"
 msgstr "Varredura Agendada para %(name)s"
 
-#: startScan/views.py:707
+#: startScan/views.py:711
 msgid "Scheduled Scan successfully deleted!"
 msgstr "Varredura agendada excluída com sucesso!"
 
-#: startScan/views.py:731
+#: startScan/views.py:735
 msgid "Multiple scheduled scans successfully deleted!"
 msgstr "Múltiplas varreduras agendadas excluídas com sucesso!"
 
-#: startScan/views.py:760
+#: startScan/views.py:764
 msgid "All Scan History successfully deleted!"
 msgstr "Todo o histórico de varreduras excluído com sucesso!"
 
-#: startScan/views.py:772
+#: startScan/views.py:776
 msgid "Screenshots successfully deleted!"
 msgstr "Capturas de tela excluídas com sucesso!"
 
-#: startScan/views.py:830
+#: startScan/views.py:834
 #, python-format
 msgid "Scan Started for %(ndomains)s domains in organization %(name)s"
 msgstr "Varredura Iniciada para %(ndomains)s domínios na organização %(name)s"
 
-#: startScan/views.py:941
+#: startScan/views.py:945
 #, python-format
 msgid "Scan started for %(ndomains)s domains in organization %(name)s"
 msgstr "Varredura iniciada para %(ndomains)s domínios na organização %(name)s"
 
-#: startScan/views.py:973
+#: startScan/views.py:977
 msgid "Multiple scans successfully deleted!"
 msgstr "Múltiplas varreduras excluídas com sucesso!"
 
@@ -4844,16 +4416,8 @@ msgid "Add Organization"
 msgstr "Adicionar organização"
 
 #: targetApp/templates/organization/add.html:29
-msgid ""
-"Organizations can be used to bundle the targets, an organization can have "
-"multiple targets. You will be able to scan the organizations just like the "
-"targets, but scanning the organization will allow you to scan all the "
-"targets within the organization together."
-msgstr ""
-"As organizações podem ser usadas para agrupar os alvos; uma organização pode"
-" ter múltiplos alvos. Você poderá varrer as organizações assim como os "
-"alvos, mas varrer a organização permitirá varrer todos os alvos dentro da "
-"organização ao mesmo tempo."
+msgid "Organizations can be used to bundle the targets, an organization can have multiple targets. You will be able to scan the organizations just like the targets, but scanning the organization will allow you to scan all the targets within the organization together."
+msgstr "As organizações podem ser usadas para agrupar os alvos; uma organização pode ter múltiplos alvos. Você poderá varrer as organizações assim como os alvos, mas varrer a organização permitirá varrer todos os alvos dentro da organização ao mesmo tempo."
 
 #: targetApp/templates/organization/add.html:34
 #: targetApp/templates/organization/update.html:32
@@ -4949,12 +4513,8 @@ msgid "Import from CSV"
 msgstr "Importar de CSV"
 
 #: targetApp/templates/target/add.html:62
-msgid ""
-"Please enter your Target IP address, Suricatoos will look for the <b>A</b> "
-"records and resolve them to the domains."
-msgstr ""
-"Insira o endereço IP do alvo; o Suricatoos buscará os registros <b>A</b> e "
-"os resolverá para os domínios."
+msgid "Please enter your Target IP address, Suricatoos will look for the <b>A</b> records and resolve them to the domains."
+msgstr "Insira o endereço IP do alvo; o Suricatoos buscará os registros <b>A</b> e os resolverá para os domínios."
 
 #: targetApp/templates/target/add.html:64
 msgid "IP Address or CIDR"
@@ -4990,25 +4550,12 @@ msgstr "Handle da equipe do alvo no HackerOne"
 
 #: targetApp/templates/target/add.html:88
 #: targetApp/templates/target/add.html:114
-msgid ""
-"This is used to send vulnerability reports to the HackerOne Program "
-"automatically. Team handle can be found from the program URL, <a "
-"href=\"https://hackerone.com/team_handle\">https://hackerone.com/team_handle</a>"
-msgstr ""
-"Isto é usado para enviar relatórios de vulnerabilidade ao programa do "
-"HackerOne automaticamente. O handle da equipe pode ser encontrado na URL do "
-"programa, <a "
-"href=\"https://hackerone.com/team_handle\">https://hackerone.com/team_handle</a>"
+msgid "This is used to send vulnerability reports to the HackerOne Program automatically. Team handle can be found from the program URL, <a href=\"https://hackerone.com/team_handle\">https://hackerone.com/team_handle</a>"
+msgstr "Isto é usado para enviar relatórios de vulnerabilidade ao programa do HackerOne automaticamente. O handle da equipe pode ser encontrado na URL do programa, <a href=\"https://hackerone.com/team_handle\">https://hackerone.com/team_handle</a>"
 
 #: targetApp/templates/target/add.html:102
-msgid ""
-"You can add one or more targets. If you are adding multiple targets, "
-"separate them using new line. If the subdomain already exists, it will be "
-"skipped."
-msgstr ""
-"Você pode adicionar um ou mais alvos. Se estiver adicionando múltiplos "
-"alvos, separe-os usando uma nova linha. Se o subdomínio já existir, ele será"
-" ignorado."
+msgid "You can add one or more targets. If you are adding multiple targets, separate them using new line. If the subdomain already exists, it will be skipped."
+msgstr "Você pode adicionar um ou mais alvos. Se estiver adicionando múltiplos alvos, separe-os usando uma nova linha. Se o subdomínio já existir, ele será ignorado."
 
 #: targetApp/templates/target/add.html:104
 msgid "Enter one or more domains (one per line) to enable."
@@ -5028,26 +4575,15 @@ msgstr "Adicionar 0 alvo"
 
 #: targetApp/templates/target/add.html:131
 msgid "Your txt file must have list of domains separated by a new line."
-msgstr ""
-"Seu arquivo txt deve conter uma lista de domínios separados por nova linha."
+msgstr "Seu arquivo txt deve conter uma lista de domínios separados por nova linha."
 
 #: targetApp/templates/target/add.html:133
-msgid ""
-"By default all domains imported from txt will have no description and no "
-"organization. If you choose to import multiple domains with description "
-"and/or organization, csv import is recommended."
-msgstr ""
-"Por padrão, todos os domínios importados de txt não terão descrição nem "
-"organização. Se você optar por importar múltiplos domínios com descrição "
-"e/ou organização, recomenda-se a importação por csv."
+msgid "By default all domains imported from txt will have no description and no organization. If you choose to import multiple domains with description and/or organization, csv import is recommended."
+msgstr "Por padrão, todos os domínios importados de txt não terão descrição nem organização. Se você optar por importar múltiplos domínios com descrição e/ou organização, recomenda-se a importação por csv."
 
 #: targetApp/templates/target/add.html:150
-msgid ""
-"Your csv file must be in the format of <strong>domain, description, "
-"organization</strong> separated by a new line."
-msgstr ""
-"Seu arquivo csv deve estar no formato <strong>domínio, descrição, "
-"organização</strong> separados por nova linha."
+msgid "Your csv file must be in the format of <strong>domain, description, organization</strong> separated by a new line."
+msgstr "Seu arquivo csv deve estar no formato <strong>domínio, descrição, organização</strong> separados por nova linha."
 
 #: targetApp/templates/target/list.html:8
 msgid "List all targets"
@@ -5097,21 +4633,13 @@ msgstr "Linha do tempo da varredura"
 
 #: targetApp/templates/target/summary.html:66
 #, python-format
-msgid ""
-"Target <span class=\"badge badge-soft-primary\">%(target_name)s</span> has "
-"been scanned <b>%(scan_count)s</b> times."
-msgstr ""
-"O alvo <span class=\"badge badge-soft-primary\">%(target_name)s</span> foi "
-"varrido <b>%(scan_count)s</b> vezes."
+msgid "Target <span class=\"badge badge-soft-primary\">%(target_name)s</span> has been scanned <b>%(scan_count)s</b> times."
+msgstr "O alvo <span class=\"badge badge-soft-primary\">%(target_name)s</span> foi varrido <b>%(scan_count)s</b> vezes."
 
 #: targetApp/templates/target/summary.html:70
 #, python-format
-msgid ""
-"The most recent scan was performed on <span class=\"text-"
-"primary\">&nbsp;%(scan_date)s , %(scan_date_natural)s</span>"
-msgstr ""
-"A varredura mais recente foi realizada em <span class=\"text-"
-"primary\">&nbsp;%(scan_date)s , %(scan_date_natural)s</span>"
+msgid "The most recent scan was performed on <span class=\"text-primary\">&nbsp;%(scan_date)s , %(scan_date_natural)s</span>"
+msgstr "A varredura mais recente foi realizada em <span class=\"text-primary\">&nbsp;%(scan_date)s , %(scan_date_natural)s</span>"
 
 #: targetApp/templates/target/summary.html:102
 #, python-format
@@ -5158,21 +4686,13 @@ msgstr "%(count)s varreduras esta semana"
 
 #: targetApp/templates/target/summary.html:221
 #: targetApp/templates/target/test.html:167
-msgid ""
-"Total Endpoints discovered for this target. This includes any URLs "
-"discovered."
-msgstr ""
-"Total de endpoints descobertos para este alvo. Isto inclui quaisquer URLs "
-"descobertas."
+msgid "Total Endpoints discovered for this target. This includes any URLs discovered."
+msgstr "Total de endpoints descobertos para este alvo. Isto inclui quaisquer URLs descobertas."
 
 #: targetApp/templates/target/summary.html:233
 #: targetApp/templates/target/test.html:179
-msgid ""
-"Total Vulnerabilities discovered for this target. This will be populated "
-"only if vulnerability scan is performed during any scan."
-msgstr ""
-"Total de vulnerabilidades descobertas para este alvo. Será preenchido apenas"
-" se a varredura de vulnerabilidades for realizada durante alguma varredura."
+msgid "Total Vulnerabilities discovered for this target. This will be populated only if vulnerability scan is performed during any scan."
+msgstr "Total de vulnerabilidades descobertas para este alvo. Será preenchido apenas se a varredura de vulnerabilidades for realizada durante alguma varredura."
 
 #: targetApp/templates/target/summary.html:239
 #, python-format
@@ -5181,20 +4701,12 @@ msgstr "%(low)s baixas, %(info)s vulnerabilidades informativas"
 
 #: targetApp/templates/target/summary.html:270
 #, python-format
-msgid ""
-"WHOIS Record Has not been fetched, would you like to <a href=\"javascript: "
-"fetch_whois('%(target)s', true);\">fetch it now?</a>"
-msgstr ""
-"O registro WHOIS não foi obtido, deseja <a href=\"javascript: "
-"fetch_whois('%(target)s', true);\">obtê-lo agora?</a>"
+msgid "WHOIS Record Has not been fetched, would you like to <a href=\"javascript: fetch_whois('%(target)s', true);\">fetch it now?</a>"
+msgstr "O registro WHOIS não foi obtido, deseja <a href=\"javascript: fetch_whois('%(target)s', true);\">obtê-lo agora?</a>"
 
 #: targetApp/templates/target/summary.html:278
-msgid ""
-"WHOIS Records have been fetched, please <a "
-"href=\"javascript:location.reload();\">reload the page.</a>"
-msgstr ""
-"Os registros WHOIS foram obtidos, por favor <a "
-"href=\"javascript:location.reload();\">recarregue a página.</a>"
+msgid "WHOIS Records have been fetched, please <a href=\"javascript:location.reload();\">reload the page.</a>"
+msgstr "Os registros WHOIS foram obtidos, por favor <a href=\"javascript:location.reload();\">recarregue a página.</a>"
 
 #: targetApp/templates/target/summary.html:392
 #: targetApp/templates/target/summary.html:436
@@ -5209,21 +4721,13 @@ msgstr ""
 
 #: targetApp/templates/target/test.html:66
 #, python-format
-msgid ""
-"Target <span class=\"badge badge-soft-primary\">%(name)s</span> has been "
-"scanned <b>%(scan_count)s</b> times."
-msgstr ""
-"O alvo <span class=\"badge badge-soft-primary\">%(name)s</span> foi varrido "
-"<b>%(scan_count)s</b> vezes."
+msgid "Target <span class=\"badge badge-soft-primary\">%(name)s</span> has been scanned <b>%(scan_count)s</b> times."
+msgstr "O alvo <span class=\"badge badge-soft-primary\">%(name)s</span> foi varrido <b>%(scan_count)s</b> vezes."
 
 #: targetApp/templates/target/test.html:70
 #, python-format
-msgid ""
-"The most recent scan was performed on <span class=\"text-"
-"primary\">&nbsp;%(date)s , %(natural)s</span>"
-msgstr ""
-"A varredura mais recente foi realizada em <span class=\"text-"
-"primary\">&nbsp;%(date)s , %(natural)s</span>"
+msgid "The most recent scan was performed on <span class=\"text-primary\">&nbsp;%(date)s , %(natural)s</span>"
+msgstr "A varredura mais recente foi realizada em <span class=\"text-primary\">&nbsp;%(date)s , %(natural)s</span>"
 
 #: targetApp/templates/target/test.html:98
 #, python-format
@@ -5296,14 +4800,8 @@ msgid "Domain name"
 msgstr "Nome de domínio"
 
 #: targetApp/templates/target/update.html:52
-msgid ""
-"This is used to send vulnerability reports to the HackerOne Program "
-"automatically. Team handle can be found from the program URL, "
-"hackerone.com/team_handle."
-msgstr ""
-"Isto é usado para enviar relatórios de vulnerabilidades ao programa do "
-"HackerOne automaticamente. O identificador da equipe pode ser encontrado na "
-"URL do programa, hackerone.com/team_handle."
+msgid "This is used to send vulnerability reports to the HackerOne Program automatically. Team handle can be found from the program URL, hackerone.com/team_handle."
+msgstr "Isto é usado para enviar relatórios de vulnerabilidades ao programa do HackerOne automaticamente. O identificador da equipe pode ser encontrado na URL do programa, hackerone.com/team_handle."
 
 #: targetApp/views.py:100
 #, python-format
@@ -5333,12 +4831,8 @@ msgid "Exception while adding domain: %(error)s"
 msgstr "Exceção ao adicionar o domínio: %(error)s"
 
 #: targetApp/views.py:294
-msgid ""
-"Oops! Could not import any targets, either targets already exists or is not "
-"a valid target."
-msgstr ""
-"Ops! Não foi possível importar nenhum alvo, ou os alvos já existem ou não "
-"são válidos."
+msgid "Oops! Could not import any targets, either targets already exists or is not a valid target."
+msgstr "Ops! Não foi possível importar nenhum alvo, ou os alvos já existem ou não são válidos."
 
 #: targetApp/views.py:298
 #, python-format
@@ -5382,10 +4876,8 @@ msgid "Organization %(name)s modified!"
 msgstr "Organização %(name)s modificada!"
 
 #: templates/404.html:34
-msgid ""
-"Oops-a-Daisy! You've Found Our Top-Secret Interdimensional Rabbit Hole!"
-msgstr ""
-"Opa! Você encontrou nossa toca de coelho interdimensional ultrassecreta!"
+msgid "Oops-a-Daisy! You've Found Our Top-Secret Interdimensional Rabbit Hole!"
+msgstr "Opa! Você encontrou nossa toca de coelho interdimensional ultrassecreta!"
 
 #: templates/404.html:35
 msgid "Back to Dashboard"
@@ -5619,7 +5111,7 @@ msgid "Language"
 msgstr "Idioma"
 
 #: templates/base/_items/top_bar.html:160
-#: templates/base/_items/top_nav.html:132
+#: templates/base/_items/top_nav.html:133
 msgid "Notifications"
 msgstr "Notificações"
 
@@ -5745,7 +5237,7 @@ msgid "Vulnerability Grouping"
 msgstr "Agrupamento de vulnerabilidades"
 
 #: templates/base/_items/vulnerability_tab_content.html:70
-#: templates/report/default.html:664 templates/report/modern.html:880
+#: templates/report/default.html:694 templates/report/modern.html:906
 msgid "Vulnerability Name"
 msgstr "Nome da vulnerabilidade"
 
@@ -5787,7 +5279,7 @@ msgid "Matcher Name"
 msgstr "Nome do matcher"
 
 #: templates/base/_items/widgets/vulnerability_breakdown_by_severity_chart.html:4
-#: templates/report/default.html:875
+#: templates/report/default.html:905
 msgid "Vulnerability Breakdown by Severity"
 msgstr "Detalhamento de vulnerabilidades por severidade"
 
@@ -5827,9 +5319,7 @@ msgstr "Saiba como criar uma conta no Suricatoos."
 
 #: templates/base/login.html:91
 msgid "If you have any issues or feature request, feel free to"
-msgstr ""
-"Se você tiver algum problema ou solicitação de recurso, sinta-se à vontade "
-"para"
+msgstr "Se você tiver algum problema ou solicitação de recurso, sinta-se à vontade para"
 
 #: templates/base/login.html:91
 msgid "raise issue on Github."
@@ -5841,9 +5331,7 @@ msgstr "Ops! Nome de usuário ou senha inválidos."
 
 #: templates/base/login.html:117
 msgid "Please note, both password and username are case-sensitive."
-msgstr ""
-"Observe que tanto a senha quanto o nome de usuário diferenciam maiúsculas de"
-" minúsculas."
+msgstr "Observe que tanto a senha quanto o nome de usuário diferenciam maiúsculas de minúsculas."
 
 #: templates/base/login.html:122
 msgid "Log In"
@@ -5862,121 +5350,108 @@ msgid "You have been successfully logged out!"
 msgstr "Você saiu com sucesso!"
 
 #: templates/base/logout.html:34
-msgid ""
-"For any issues or feature request, please feel free to <a "
-"href='https://github.com/williamsouzadelima/suricatoos-scan/issues' "
-"class=\"text-info\">raise issue on github</a>"
-msgstr ""
-"Para qualquer problema ou solicitação de recurso, sinta-se à vontade para <a"
-" href='https://github.com/williamsouzadelima/suricatoos-scan/issues' "
-"class=\"text-info\">abrir uma issue no github</a>"
+msgid "For any issues or feature request, please feel free to <a href='https://github.com/williamsouzadelima/suricatoos-scan/issues' class=\"text-info\">raise issue on github</a>"
+msgstr "Para qualquer problema ou solicitação de recurso, sinta-se à vontade para <a href='https://github.com/williamsouzadelima/suricatoos-scan/issues' class=\"text-info\">abrir uma issue no github</a>"
 
 #: templates/report/default.html:5 templates/report/modern.html:6
 msgid "Report"
 msgstr "Relatório"
 
-#: templates/report/default.html:444 templates/report/modern.html:675
+#: templates/report/default.html:448 templates/report/modern.html:678
 msgid "Generated by"
 msgstr "Gerado por"
 
-#: templates/report/default.html:452
+#: templates/report/default.html:456
 msgid "Table of contents"
 msgstr "Sumário"
 
-#: templates/report/default.html:481
+#: templates/report/default.html:485
 msgid "Executive summary"
 msgstr "Resumo executivo"
 
-#: templates/report/default.html:488 templates/report/modern.html:695
-#: templates/report/modern.html:729
+#: templates/report/default.html:492 templates/report/modern.html:700
+#: templates/report/modern.html:734
 msgid "Quick Summary"
 msgstr "Resumo rápido"
 
-#: templates/report/default.html:489
+#: templates/report/default.html:493
 #, python-format
-msgid ""
-"This section contains quick summary of scan performed on <span "
-"class=\"primary-color\">%(domain)s</span>"
-msgstr ""
-"Esta seção contém um resumo rápido da varredura realizada em <span "
-"class=\"primary-color\">%(domain)s</span>"
+msgid "This section contains quick summary of scan performed on <span class=\"primary-color\">%(domain)s</span>"
+msgstr "Esta seção contém um resumo rápido da varredura realizada em <span class=\"primary-color\">%(domain)s</span>"
 
-#: templates/report/default.html:528 templates/report/modern.html:756
+#: templates/report/default.html:532 templates/report/modern.html:761
 msgid "Vulnerability Summary"
 msgstr "Resumo de vulnerabilidades"
 
-#: templates/report/default.html:587
+#: templates/report/default.html:591
 msgid "Timeline of the Assessment"
 msgstr "Linha do tempo da avaliação"
 
-#: templates/report/default.html:589
+#: templates/report/default.html:593
 msgid "Scan started on:"
 msgstr "Varredura iniciada em:"
 
-#: templates/report/default.html:591 templates/report/modern.html:800
+#: templates/report/default.html:595 templates/report/modern.html:805
 msgid "Total time taken:"
 msgstr "Tempo total decorrido:"
 
-#: templates/report/default.html:598 templates/report/modern.html:809
+#: templates/report/default.html:602 templates/report/modern.html:814
 #, python-format
 msgid "Completed in %(elapsed)s"
 msgstr "Concluído em %(elapsed)s"
 
-#: templates/report/default.html:598
+#: templates/report/default.html:602
 msgid "Aborted in"
 msgstr "Abortado em"
 
-#: templates/report/default.html:600 templates/report/modern.html:816
+#: templates/report/default.html:604 templates/report/modern.html:821
 msgid "Report Generated on:"
 msgstr "Relatório gerado em:"
 
-#: templates/report/default.html:607
+#: templates/report/default.html:611
 msgid "Interesting Recon Data"
 msgstr "Dados de reconhecimento interessantes"
 
-#: templates/report/default.html:608
+#: templates/report/default.html:612
 #, python-format
-msgid ""
-"Listed below are the %(count)s interesting subdomains identified on <span "
-"class=\"primary-color\">%(domain)s</span>"
-msgstr ""
-"Abaixo estão listados os %(count)s subdomínios interessantes identificados "
-"em <span class=\"primary-color\">%(domain)s</span>"
+msgid "Listed below are the %(count)s interesting subdomains identified on <span class=\"primary-color\">%(domain)s</span>"
+msgstr "Abaixo estão listados os %(count)s subdomínios interessantes identificados em <span class=\"primary-color\">%(domain)s</span>"
 
-#: templates/report/default.html:618 templates/report/default.html:731
+#: templates/report/default.html:622 templates/report/default.html:761
 msgid "Page title"
 msgstr "Título da página"
 
-#: templates/report/default.html:655 templates/report/modern.html:867
+#: templates/report/default.html:660
+#, python-format
+msgid "Passive intelligence gathered for <span class=\"primary-color\">%(domain)s</span> (malicious/blacklisted assets are flagged)."
+msgstr "Inteligência passiva coletada para <span class=\"primary-color\">%(domain)s</span> (ativos maliciosos/em blacklist são destacados)."
+
+#: templates/report/default.html:685 templates/report/modern.html:893
 msgid "Summary of Vulnerabilities Identified"
 msgstr "Resumo das vulnerabilidades identificadas"
 
-#: templates/report/default.html:657 templates/report/modern.html:874
+#: templates/report/default.html:687 templates/report/modern.html:900
 #, python-format
-msgid ""
-"Listed below are the vulnerabilities identified on <span class=\"primary-"
-"color\">%(domain)s</span>"
-msgstr ""
-"Abaixo estão listadas as vulnerabilidades identificadas em <span "
-"class=\"primary-color\">%(domain)s</span>"
+msgid "Listed below are the vulnerabilities identified on <span class=\"primary-color\">%(domain)s</span>"
+msgstr "Abaixo estão listadas as vulnerabilidades identificadas em <span class=\"primary-color\">%(domain)s</span>"
 
-#: templates/report/default.html:667
+#: templates/report/default.html:697
 msgid "Times Identified"
 msgstr "Vezes identificada"
 
-#: templates/report/default.html:689 templates/report/modern.html:895
+#: templates/report/default.html:719 templates/report/modern.html:921
 msgid "Informational"
 msgstr "Informativo"
 
-#: templates/report/default.html:707
+#: templates/report/default.html:737
 msgid "No Vulnerabilities were Discovered."
 msgstr "Nenhuma vulnerabilidade foi descoberta."
 
-#: templates/report/default.html:717 templates/report/modern.html:914
+#: templates/report/default.html:747 templates/report/modern.html:940
 msgid "Discovered Assets"
 msgstr "Ativos descobertos"
 
-#: templates/report/default.html:720
+#: templates/report/default.html:750
 #, python-format
 msgid ""
 "During the reconnaissance phase, %(count)s subdomains were discovered.\n"
@@ -5987,63 +5462,54 @@ msgstr ""
 "          Dos %(count)s subdomínios, %(alive)s retornaram status HTTP 200.\n"
 "          %(interesting)s subdomínios interessantes também foram identificados com base nas palavras-chave de interesse utilizadas."
 
-#: templates/report/default.html:724
+#: templates/report/default.html:754
 #, python-format
-msgid ""
-"%(count)s subdomains identified on <span class=\"primary-"
-"color\">%(domain)s</span>"
-msgstr ""
-"%(count)s subdomínios identificados em <span class=\"primary-"
-"color\">%(domain)s</span>"
+msgid "%(count)s subdomains identified on <span class=\"primary-color\">%(domain)s</span>"
+msgstr "%(count)s subdomínios identificados em <span class=\"primary-color\">%(domain)s</span>"
 
-#: templates/report/default.html:755
+#: templates/report/default.html:785
 #, python-format
-msgid ""
-"%(count)s IP Addresses were identified on <span class=\"primary-"
-"color\">%(domain)s</span>"
-msgstr ""
-"%(count)s endereços IP foram identificados em <span class=\"primary-"
-"color\">%(domain)s</span>"
+msgid "%(count)s IP Addresses were identified on <span class=\"primary-color\">%(domain)s</span>"
+msgstr "%(count)s endereços IP foram identificados em <span class=\"primary-color\">%(domain)s</span>"
 
-#: templates/report/default.html:762 templates/report/modern.html:995
+#: templates/report/default.html:792 templates/report/modern.html:1021
 msgid "Open Ports"
 msgstr "Portas abertas"
 
-#: templates/report/default.html:765 templates/report/modern.html:997
+#: templates/report/default.html:795 templates/report/modern.html:1023
 msgid "Remarks"
 msgstr "Observações"
 
-#: templates/report/default.html:780
+#: templates/report/default.html:810
 msgid "CDN IP Address"
 msgstr "Endereço IP do CDN"
 
-#: templates/report/default.html:796 templates/report/modern.html:708
-#: templates/report/modern.html:1023
+#: templates/report/default.html:826 templates/report/modern.html:713
+#: templates/report/modern.html:1049
 msgid "Reconnaissance Findings"
 msgstr "Descobertas do reconhecimento"
 
-#: templates/report/default.html:809
+#: templates/report/default.html:839
 msgid "N/A"
 msgstr "N/D"
 
-#: templates/report/default.html:816
+#: templates/report/default.html:846
 msgid "Page Title:"
 msgstr "Título da página:"
 
-#: templates/report/default.html:822
+#: templates/report/default.html:852
 msgid "IP Address:"
 msgstr "Endereço IP:"
 
-#: templates/report/default.html:828
+#: templates/report/default.html:858
 msgid "Open Ports:"
 msgstr "Portas abertas:"
 
-#: templates/report/default.html:865
+#: templates/report/default.html:895
 msgid "This section reports the security issues found during the audit."
-msgstr ""
-"Esta seção relata os problemas de segurança encontrados durante a auditoria."
+msgstr "Esta seção relata os problemas de segurança encontrados durante a auditoria."
 
-#: templates/report/default.html:867
+#: templates/report/default.html:897
 #, python-format
 msgid ""
 "A Total of %(total)s were discovered in %(domain)s,\n"
@@ -6056,11 +5522,11 @@ msgstr ""
 "          %(high)s deles eram de Severidade Alta,\n"
 "          %(medium)s deles eram de severidade Média,"
 
-#: templates/report/default.html:871
+#: templates/report/default.html:901
 msgid "of them were Low severity, and"
 msgstr "deles eram de severidade Baixa, e"
 
-#: templates/report/default.html:872
+#: templates/report/default.html:902
 #, python-format
 msgid ""
 "%(info)s of them were Informational.\n"
@@ -6069,94 +5535,94 @@ msgstr ""
 "%(info)s deles eram Informativos.\n"
 "          %(unknown)s deles eram de Severidade Desconhecida."
 
-#: templates/report/default.html:943 templates/report/modern.html:1092
+#: templates/report/default.html:973 templates/report/modern.html:1118
 #, python-format
 msgid "in %(grouper)s"
 msgstr "em %(grouper)s"
 
-#: templates/report/default.html:950 templates/report/modern.html:1099
+#: templates/report/default.html:980 templates/report/modern.html:1125
 msgid "INFO"
 msgstr "INFO"
 
-#: templates/report/default.html:953 templates/report/modern.html:1101
+#: templates/report/default.html:983 templates/report/modern.html:1127
 msgid "LOW"
 msgstr "BAIXA"
 
-#: templates/report/default.html:956 templates/report/modern.html:1103
+#: templates/report/default.html:986 templates/report/modern.html:1129
 msgid "MEDIUM"
 msgstr "MÉDIA"
 
-#: templates/report/default.html:959 templates/report/modern.html:1105
+#: templates/report/default.html:989 templates/report/modern.html:1131
 msgid "HIGH"
 msgstr "ALTA"
 
-#: templates/report/default.html:962 templates/report/modern.html:1107
+#: templates/report/default.html:992 templates/report/modern.html:1133
 msgid "CRITICAL"
 msgstr "CRÍTICA"
 
-#: templates/report/default.html:967
+#: templates/report/default.html:997
 #, python-format
 msgid "Vulnerability Source: %(source)s"
 msgstr "Fonte da vulnerabilidade: %(source)s"
 
-#: templates/report/default.html:969
+#: templates/report/default.html:999
 msgid "Vulnerability Classification"
 msgstr "Classificação da vulnerabilidade"
 
-#: templates/report/default.html:971
+#: templates/report/default.html:1001
 #, python-format
 msgid "CVSS Metrics: %(metrics)s"
 msgstr "Métricas CVSS: %(metrics)s"
 
-#: templates/report/default.html:975
+#: templates/report/default.html:1005
 msgid "CVSS Score:"
 msgstr "Pontuação CVSS:"
 
-#: templates/report/default.html:979
+#: templates/report/default.html:1009
 msgid "CVE IDs"
 msgstr "IDs de CVE"
 
-#: templates/report/default.html:984
+#: templates/report/default.html:1014
 msgid "CWE IDs"
 msgstr "IDs de CWE"
 
-#: templates/report/default.html:996 templates/report/modern.html:1140
+#: templates/report/default.html:1026 templates/report/modern.html:1166
 msgid "Impact"
 msgstr "Impacto"
 
-#: templates/report/default.html:1001 templates/report/modern.html:1148
+#: templates/report/default.html:1031 templates/report/modern.html:1174
 msgid "Remediation"
 msgstr "Remediação"
 
-#: templates/report/default.html:1005
+#: templates/report/default.html:1035
 msgid "Vulnerable URL(s)"
 msgstr "URL(s) vulnerável(is)"
 
-#: templates/report/default.html:1027 templates/report/modern.html:1158
+#: templates/report/default.html:1057 templates/report/modern.html:1184
 msgid "References"
 msgstr "Referências"
 
-#: templates/report/default.html:1046 templates/report/modern.html:1176
+#: templates/report/default.html:1076 templates/report/modern.html:1202
 msgid "END OF REPORT"
 msgstr "FIM DO RELATÓRIO"
 
-#: templates/report/modern.html:686
+#: templates/report/modern.html:691
 msgid "Table of Contents"
 msgstr "Sumário"
 
-#: templates/report/modern.html:690 templates/report/modern.html:723
+#: templates/report/modern.html:695 templates/report/modern.html:728
 msgid "Executive Summary"
 msgstr "Resumo executivo"
 
-#: templates/report/modern.html:699 templates/report/modern.html:796
+#: templates/report/modern.html:704 templates/report/modern.html:801
 msgid "Assessment Timeline"
 msgstr "Cronograma da avaliação"
 
-#: templates/report/modern.html:703 templates/report/modern.html:821
+#: templates/report/modern.html:708 templates/report/modern.html:826
 msgid "Summary of Findings"
 msgstr "Resumo dos achados"
 
-#: templates/report/modern.html:731
+#: templates/report/modern.html:736
 #, python-format
 msgid ""
 "This section contains quick summary of scan performed on\n"
@@ -6165,12 +5631,12 @@ msgstr ""
 "Esta seção contém um resumo rápido da varredura realizada em\n"
 "                <span class=\"primary-color\">%(domain)s</span>"
 
-#: templates/report/modern.html:798
+#: templates/report/modern.html:803
 #, python-format
 msgid "Scan started on: %(start_date)s"
 msgstr "Varredura iniciada em: %(start_date)s"
 
-#: templates/report/modern.html:812
+#: templates/report/modern.html:817
 #, python-format
 msgid ""
 "Aborted in\n"
@@ -6179,187 +5645,122 @@ msgstr ""
 "Abortada em\n"
 "                        %(elapsed)s"
 
-#: templates/report/modern.html:823
+#: templates/report/modern.html:828
 msgid "This section provides a summary of the findings."
 msgstr "Esta seção fornece um resumo dos achados."
 
-#: templates/report/modern.html:825
+#: templates/report/modern.html:830
 msgid "Subdomains Breakdown by HTTP Status"
 msgstr "Distribuição de subdomínios por status HTTP"
 
-#: templates/report/modern.html:829
+#: templates/report/modern.html:834
 msgid "Vulnerabilities Breakdown by Severity"
 msgstr "Distribuição de vulnerabilidades por severidade"
 
-#: templates/report/modern.html:836
+#: templates/report/modern.html:841
 #, python-format
-msgid ""
-"Listed below are the interesting subdomains identified on <span "
-"class=\"primary-color\">%(domain)s</span>"
-msgstr ""
-"Listados abaixo estão os subdomínios interessantes identificados em <span "
-"class=\"primary-color\">%(domain)s</span>"
+msgid "Listed below are the interesting subdomains identified on <span class=\"primary-color\">%(domain)s</span>"
+msgstr "Listados abaixo estão os subdomínios interessantes identificados em <span class=\"primary-color\">%(domain)s</span>"
 
-#: templates/report/modern.html:862
+#: templates/report/modern.html:867
 #, python-format
-msgid ""
-"No interesting subdomains were identified on <span "
-"class=\"primary\">%(domain)s</span>"
-msgstr ""
-"Nenhum subdomínio interessante foi identificado em <span "
-"class=\"primary\">%(domain)s</span>"
+msgid "No interesting subdomains were identified on <span class=\"primary\">%(domain)s</span>"
+msgstr "Nenhum subdomínio interessante foi identificado em <span class=\"primary\">%(domain)s</span>"
 
-#: templates/report/modern.html:870
+#: templates/report/modern.html:896
 #, python-format
-msgid ""
-"No vulnerabilities were identified on <span "
-"class=\"primary\">%(domain)s</span>"
-msgstr ""
-"Nenhuma vulnerabilidade foi identificada em <span "
-"class=\"primary\">%(domain)s</span>"
+msgid "No vulnerabilities were identified on <span class=\"primary\">%(domain)s</span>"
+msgstr "Nenhuma vulnerabilidade foi identificada em <span class=\"primary\">%(domain)s</span>"
 
-#: templates/report/modern.html:881
+#: templates/report/modern.html:907
 msgid "Instances"
 msgstr "Instâncias"
 
-#: templates/report/modern.html:915
-msgid ""
-"This section provides a list of assets discovered during the reconnaissance "
-"phase."
-msgstr ""
-"Esta seção fornece uma lista dos ativos descobertos durante a fase de "
-"reconhecimento."
+#: templates/report/modern.html:941
+msgid "This section provides a list of assets discovered during the reconnaissance phase."
+msgstr "Esta seção fornece uma lista dos ativos descobertos durante a fase de reconhecimento."
 
-#: templates/report/modern.html:917
-msgid ""
-"During the reconnaissance phase, our subdomain enumeration process revealed:"
-msgstr ""
-"Durante a fase de reconhecimento, nosso processo de enumeração de "
-"subdomínios revelou:"
+#: templates/report/modern.html:943
+msgid "During the reconnaissance phase, our subdomain enumeration process revealed:"
+msgstr "Durante a fase de reconhecimento, nosso processo de enumeração de subdomínios revelou:"
 
-#: templates/report/modern.html:920
+#: templates/report/modern.html:946
 msgid "Total Subdomains:"
 msgstr "Total de subdomínios:"
 
-#: templates/report/modern.html:922
-msgid ""
-"This extensive list provides a comprehensive view of the target's online "
-"footprint."
-msgstr ""
-"Esta lista extensa fornece uma visão abrangente da pegada online do alvo."
+#: templates/report/modern.html:948
+msgid "This extensive list provides a comprehensive view of the target's online footprint."
+msgstr "Esta lista extensa fornece uma visão abrangente da pegada online do alvo."
 
-#: templates/report/modern.html:926
+#: templates/report/modern.html:952
 msgid "Active Subdomains:"
 msgstr "Subdomínios ativos:"
 
-#: templates/report/modern.html:928
-msgid ""
-"These subdomains returned an HTTP status 200 (OK), indicating live web "
-"assets."
-msgstr ""
-"Esses subdomínios retornaram um status HTTP 200 (OK), indicando ativos web "
-"ativos."
+#: templates/report/modern.html:954
+msgid "These subdomains returned an HTTP status 200 (OK), indicating live web assets."
+msgstr "Esses subdomínios retornaram um status HTTP 200 (OK), indicando ativos web ativos."
 
-#: templates/report/modern.html:932
+#: templates/report/modern.html:958
 msgid "Interesting Subdomains:"
 msgstr "Subdomínios interessantes:"
 
-#: templates/report/modern.html:935
-msgid ""
-"High-priority subdomains identified through keyword analysis (e.g., admin, "
-"api, test), suggesting a focused investigation."
-msgstr ""
-"Subdomínios de alta prioridade identificados por análise de palavras-chave "
-"(por exemplo, admin, api, test), sugerindo uma investigação focada."
+#: templates/report/modern.html:961
+msgid "High-priority subdomains identified through keyword analysis (e.g., admin, api, test), suggesting a focused investigation."
+msgstr "Subdomínios de alta prioridade identificados por análise de palavras-chave (por exemplo, admin, api, test), sugerindo uma investigação focada."
 
-#: templates/report/modern.html:941
+#: templates/report/modern.html:967
 #, python-format
-msgid ""
-"%(count)s subdomains identified on <span class=\"primary\">%(domain)s</span>"
-msgstr ""
-"%(count)s subdomínios identificados em <span "
-"class=\"primary\">%(domain)s</span>"
+msgid "%(count)s subdomains identified on <span class=\"primary\">%(domain)s</span>"
+msgstr "%(count)s subdomínios identificados em <span class=\"primary\">%(domain)s</span>"
 
-#: templates/report/modern.html:952
+#: templates/report/modern.html:978
 msgid "Vulnerabilities Count"
 msgstr "Contagem de vulnerabilidades"
 
-#: templates/report/modern.html:978
+#: templates/report/modern.html:1004
 msgid "IP Assets"
 msgstr "Ativos de IP"
 
-#: templates/report/modern.html:979
-msgid ""
-"In addition to subdomains, various IP assets associated with the target "
-"infrastructure were also identified:"
-msgstr ""
-"Além dos subdomínios, também foram identificados diversos ativos de IP "
-"associados à infraestrutura do alvo:"
+#: templates/report/modern.html:1005
+msgid "In addition to subdomains, various IP assets associated with the target infrastructure were also identified:"
+msgstr "Além dos subdomínios, também foram identificados diversos ativos de IP associados à infraestrutura do alvo:"
 
-#: templates/report/modern.html:982
+#: templates/report/modern.html:1008
 msgid "Total IP Addresses:"
 msgstr "Total de endereços IP:"
 
-#: templates/report/modern.html:985
-msgid ""
-"This represents the range of unique IP addresses associated with the "
-"discovered subdomains and other network assets."
-msgstr ""
-"Isso representa o conjunto de endereços IP exclusivos associados aos "
-"subdomínios descobertos e a outros ativos de rede."
+#: templates/report/modern.html:1011
+msgid "This represents the range of unique IP addresses associated with the discovered subdomains and other network assets."
+msgstr "Isso representa o conjunto de endereços IP exclusivos associados aos subdomínios descobertos e a outros ativos de rede."
 
-#: templates/report/modern.html:996
+#: templates/report/modern.html:1022
 msgid "Geo Location"
 msgstr "Geolocalização"
 
-#: templates/report/modern.html:1024
-msgid ""
-"This section contains list of all the subdomains identified during the "
-"reconnaissance phase."
-msgstr ""
-"Esta seção contém a lista de todos os subdomínios identificados durante a "
-"fase de reconhecimento."
+#: templates/report/modern.html:1050
+msgid "This section contains list of all the subdomains identified during the reconnaissance phase."
+msgstr "Esta seção contém a lista de todos os subdomínios identificados durante a fase de reconhecimento."
 
-#: templates/report/modern.html:1037
+#: templates/report/modern.html:1063
 msgid "IP Addresses:"
 msgstr "Endereços IP:"
 
-#: templates/report/modern.html:1055
+#: templates/report/modern.html:1081
 msgid "Vulnerabilities:"
 msgstr "Vulnerabilidades:"
 
-#: templates/report/modern.html:1077
-msgid ""
-"This section details the security vulnerabilities identified during our "
-"penetration testing engagement. Each finding is documented with its "
-"description, potential impact, and recommended remediation steps."
-msgstr ""
-"Esta seção detalha as vulnerabilidades de segurança identificadas durante "
-"nosso trabalho de teste de intrusão. Cada achado é documentado com sua "
-"descrição, impacto potencial e etapas de remediação recomendadas."
+#: templates/report/modern.html:1103
+msgid "This section details the security vulnerabilities identified during our penetration testing engagement. Each finding is documented with its description, potential impact, and recommended remediation steps."
+msgstr "Esta seção detalha as vulnerabilidades de segurança identificadas durante nosso trabalho de teste de intrusão. Cada achado é documentado com sua descrição, impacto potencial e etapas de remediação recomendadas."
 
-#: templates/report/modern.html:1079
-msgid ""
-"Vulnerabilities are categorized by severity (Critical, High, Medium, Low, "
-"Info) to prioritize remediation efforts. This assessment is based on the "
-"potential impact to confidentiality, integrity, and availability of the "
-"systems and data."
-msgstr ""
-"As vulnerabilidades são categorizadas por severidade (Crítica, Alta, Média, "
-"Baixa, Info) para priorizar os esforços de remediação. Esta avaliação "
-"baseia-se no impacto potencial sobre a confidencialidade, integridade e "
-"disponibilidade dos sistemas e dados."
+#: templates/report/modern.html:1105
+msgid "Vulnerabilities are categorized by severity (Critical, High, Medium, Low, Info) to prioritize remediation efforts. This assessment is based on the potential impact to confidentiality, integrity, and availability of the systems and data."
+msgstr "As vulnerabilidades são categorizadas por severidade (Crítica, Alta, Média, Baixa, Info) para priorizar os esforços de remediação. Esta avaliação baseia-se no impacto potencial sobre a confidencialidade, integridade e disponibilidade dos sistemas e dados."
 
-#: templates/report/modern.html:1081
-msgid ""
-"The information presented here is crucial for understanding your current "
-"security posture and should guide your remediation strategy to enhance "
-"overall security."
-msgstr ""
-"As informações apresentadas aqui são cruciais para compreender sua postura "
-"de segurança atual e devem orientar sua estratégia de remediação para "
-"aprimorar a segurança geral."
+#: templates/report/modern.html:1107
+msgid "The information presented here is crucial for understanding your current security posture and should guide your remediation strategy to enhance overall security."
+msgstr "As informações apresentadas aqui são cruciais para compreender sua postura de segurança atual e devem orientar sua estratégia de remediação para aprimorar a segurança geral."
 
-#: templates/report/modern.html:1153
+#: templates/report/modern.html:1179
 msgid "Vulnerable URLs"
 msgstr "URLs vulneráveis"

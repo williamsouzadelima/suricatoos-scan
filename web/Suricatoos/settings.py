@@ -85,6 +85,8 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     'rest_framework',
     'rest_framework_datatables',
+    'rest_framework_simplejwt.token_blacklist',
+    'corsheaders',
     'dashboard.apps.DashboardConfig',
     'targetApp.apps.TargetappConfig',
     'scanEngine.apps.ScanengineConfig',
@@ -98,6 +100,8 @@ INSTALLED_APPS = [
 ]
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    # CorsMiddleware must sit high (before CommonMiddleware) to answer preflight.
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
@@ -122,11 +126,24 @@ TEMPLATES = [
                 'Suricatoos.context_processors.projects',
                 'Suricatoos.context_processors.version_context',
                 'Suricatoos.context_processors.user_preferences',
+                'Suricatoos.context_processors.branding',
             ],
     },
 }]
 ROOT_URLCONF = 'Suricatoos.urls'
 REST_FRAMEWORK = {
+    # JWT for the SPA / external clients; Session kept so the existing
+    # template-driven (DataTables) API calls keep working unchanged.
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ),
+    # /api/ is exempted from LoginRequiredMiddleware below (so JWT clients aren't
+    # 302'd to /login before DRF auth runs); require auth at the DRF layer instead
+    # so endpoints without an explicit permission_classes are never public.
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
     'DEFAULT_RENDERER_CLASSES': (
         'rest_framework.renderers.JSONRenderer',
         'rest_framework.renderers.BrowsableAPIRenderer',
@@ -140,6 +157,29 @@ REST_FRAMEWORK = {
     ),
     'PAGE_SIZE': 500,
 }
+
+# --- SPA / external-client API foundation ---
+from datetime import timedelta
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': True,
+    # Blacklist the old refresh token on rotation and on explicit logout
+    # (token_blacklist app) so a leaked/rotated refresh token can be revoked
+    # server-side instead of staying valid for its full 7-day lifetime.
+    'BLACKLIST_AFTER_ROTATION': True,
+}
+# CORS: dev SPA runs on the Vite server (different origin); production serves the
+# built SPA same-origin. Origins are env-driven; default to the Vite dev server.
+CORS_ALLOWED_ORIGINS = env.list(
+    'CORS_ALLOWED_ORIGINS',
+    default=['http://localhost:5173', 'http://127.0.0.1:5173'])
+# The SPA authenticates with a Bearer header (not cookies), so credentialed CORS
+# is unnecessary. Keeping it False avoids arming cross-origin cookie exfiltration
+# if CORS_ALLOWED_ORIGINS is ever broadened. Override via env only if a future
+# cookie-based cross-origin client genuinely needs it.
+CORS_ALLOW_CREDENTIALS = env.bool('CORS_ALLOW_CREDENTIALS', default=False)
+
 WSGI_APPLICATION = 'Suricatoos.wsgi.application'
 
 # Password validation
@@ -194,6 +234,23 @@ STATICFILES_DIRS = [
 
 LOGIN_REQUIRED_IGNORE_VIEW_NAMES = [
     'login',
+    # JWT endpoints must be reachable without a session (chicken-and-egg).
+    'token_obtain_pair',
+    'token_refresh',
+    'token_blacklist',
+    # White-label logo/favicon must render on the unauthenticated login page.
+    # The view serves only files referenced by the branding model (no path
+    # traversal), so exposing it without a session is safe.
+    'branding_asset',
+]
+
+# Let DRF own auth on the whole API surface: LoginRequiredMiddleware would 302
+# JWT clients to /login before DRF's JWTAuthentication runs. DEFAULT_PERMISSION_CLASSES
+# (IsAuthenticated) keeps these endpoints protected at the DRF layer.
+LOGIN_REQUIRED_IGNORE_PATHS = [
+    r'^/api/.*$',
+    # SPA shell + its assets: the SPA handles its own JWT auth in the browser.
+    r'^/app(/.*)?$',
 ]
 
 LOGIN_URL = 'login'

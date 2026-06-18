@@ -81,6 +81,10 @@ urlpatterns = [
         views.report_settings,
         name='report_settings'),
     path(
+        '<slug:slug>/branding_settings',
+        views.branding_settings,
+        name='branding_settings'),
+    path(
         '<slug:slug>/testHackerone/',
         views.test_hackerone,
         name='testHackerone'

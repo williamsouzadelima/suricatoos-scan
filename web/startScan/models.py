@@ -496,6 +496,30 @@ class Vulnerability(models.Model):
 	request = models.TextField(blank=True, null=True)
 	response = models.TextField(blank=True, null=True)
 	is_gpt_used = models.BooleanField(null=True, blank=True, default=False)
+
+	# --- Validation layer (anti false-positive) ---
+	# Findings are re-tested after the scan (native re-run of the originating tool).
+	# Hard rule: an execution failure NEVER becomes false_positive (it's error/needs_review).
+	VALIDATION_NOT_VALIDATED = 'not_validated'
+	VALIDATION_CONFIRMED = 'confirmed'
+	VALIDATION_FALSE_POSITIVE = 'false_positive'
+	VALIDATION_NEEDS_REVIEW = 'needs_review'
+	VALIDATION_ERROR = 'error'
+	VALIDATION_STATUS_CHOICES = (
+		(VALIDATION_NOT_VALIDATED, 'Not validated'),
+		(VALIDATION_CONFIRMED, 'Confirmed'),
+		(VALIDATION_FALSE_POSITIVE, 'False positive'),
+		(VALIDATION_NEEDS_REVIEW, 'Needs review'),
+		(VALIDATION_ERROR, 'Validation error'),
+	)
+	validation_status = models.CharField(
+		max_length=20,
+		choices=VALIDATION_STATUS_CHOICES,
+		default=VALIDATION_NOT_VALIDATED,
+		null=True, blank=True)
+	validated_date = models.DateTimeField(null=True, blank=True)
+	validation_evidence = models.TextField(null=True, blank=True)
+
 	# used for subscans
 	vuln_subscan_ids = models.ManyToManyField('SubScan', related_name='vuln_subscan_ids', blank=True)
 
@@ -706,3 +730,47 @@ class LeakedSecret(models.Model):
 
 	def __str__(self):
 		return f'{self.source}:{self.rule_id}'
+
+
+class OsintResult(models.Model):
+	"""Generic OSINT intelligence (mainly from SpiderFoot) that doesn't fit the
+	typed OSINT models (Email/Employee/Dork/Metadata). One row per finding,
+	grouped by `bucket`, exposed read-only via the API. Mirrors the flat
+	LeakedSecret pattern instead of exploding into one model per event family."""
+	BUCKET_MALICIOUS = 'malicious'
+	BUCKET_CODE_REPOS = 'code_repos'
+	BUCKET_INFRA_DNS = 'infra_dns'
+	BUCKET_NETBLOCK_ASN = 'netblock_asn'
+	BUCKET_AFFILIATES = 'affiliates'
+	BUCKET_COHOSTED = 'cohosted'
+	BUCKET_GEO = 'geo'
+	BUCKET_WEB_TECH = 'web_tech'
+	BUCKET_OTHER = 'other'
+	BUCKET_CHOICES = (
+		(BUCKET_MALICIOUS, 'Malicious / Blacklisted'),
+		(BUCKET_CODE_REPOS, 'Public Code Repositories'),
+		(BUCKET_INFRA_DNS, 'DNS & Email Posture'),
+		(BUCKET_NETBLOCK_ASN, 'Netblock / ASN'),
+		(BUCKET_AFFILIATES, 'Affiliates'),
+		(BUCKET_COHOSTED, 'Co-Hosted Sites'),
+		(BUCKET_GEO, 'Geolocation'),
+		(BUCKET_WEB_TECH, 'Web Technology'),
+		(BUCKET_OTHER, 'Other'),
+	)
+
+	id = models.AutoField(primary_key=True)
+	scan_history = models.ForeignKey(ScanHistory, on_delete=models.CASCADE, null=True, blank=True)
+	target_domain = models.ForeignKey(Domain, on_delete=models.CASCADE, null=True, blank=True)
+	source = models.CharField(max_length=50, null=True, blank=True)
+	bucket = models.CharField(max_length=50, choices=BUCKET_CHOICES, null=True, blank=True)
+	# the raw SpiderFoot event label, e.g. "Malicious IP Address"
+	event_type = models.CharField(max_length=200, null=True, blank=True)
+	data = models.CharField(max_length=2000, null=True, blank=True)
+	# optional context (e.g. SpiderFoot module / parent event)
+	extra = models.CharField(max_length=2000, null=True, blank=True)
+	is_malicious = models.BooleanField(default=False)
+	severity = models.IntegerField(default=0)
+	discovered_date = models.DateTimeField(null=True, blank=True)
+
+	def __str__(self):
+		return f'{self.bucket}:{self.event_type}:{self.data}'

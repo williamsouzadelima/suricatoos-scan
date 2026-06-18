@@ -1,0 +1,81 @@
+{# DO NOT AUTO INDENT #}
+{% extends 'base/base.html' %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}
+{% trans "Branding (White-label)" %}
+{% endblock title %}
+
+{% block breadcrumb_title %}
+<li class="breadcrumb-item"><a href="#">{% trans "Settings" %}</a></li>
+<li class="breadcrumb-item active">{% trans "Branding" %}</li>
+{% endblock breadcrumb_title %}
+
+{% block page_title %}
+{% trans "Branding (White-label)" %}
+{% endblock page_title %}
+
+{% block main_content %}
+<div class="row">
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body">
+        <h4 class="header-title">{% trans "White-label branding" %}</h4>
+        <p>{% trans "Replace the Suricatoos logo, favicon and name across the whole application (top bar, login and favicon) and in the PDF reports. Leave a field empty to keep the bundled Suricatoos default. SVG, PNG, JPG, WEBP and GIF are accepted (favicon also accepts ICO)." %}</p>
+
+        <form method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+
+          <div class="mb-4" style="max-width: 480px;">
+            <label class="form-label"><b>{% trans "Brand name" %}</b></label>
+            {{ form.brand_name }}
+            <small class="text-muted">{% trans "Shown in the collapsed top bar and used as the report attribution." %}</small>
+          </div>
+
+          <hr>
+
+          <div class="row">
+            <div class="col-md-4 mb-4">
+              <label class="form-label"><b>{% trans "Logo — dark ink (for light background)" %}</b></label>
+              <div class="mb-2 p-3 text-center rounded" style="background:#ffffff; border:1px solid #e5e7eb;">
+                <img src="{{ branding.logo_dark_url }}" alt="logo dark" style="max-height:48px; max-width:100%;">
+              </div>
+              {{ form.logo_dark }}
+              <small class="text-muted">{% trans "Used on light surfaces and in PDF reports." %}</small>
+            </div>
+
+            <div class="col-md-4 mb-4">
+              <label class="form-label"><b>{% trans "Logo — light ink (for dark background)" %}</b></label>
+              <div class="mb-2 p-3 text-center rounded" style="background:#111827; border:1px solid #374151;">
+                <img src="{{ branding.logo_light_url }}" alt="logo light" style="max-height:48px; max-width:100%;">
+              </div>
+              {{ form.logo_light }}
+              <small class="text-muted">{% trans "Used on the dark sidebar / dark theme." %}</small>
+            </div>
+
+            <div class="col-md-4 mb-4">
+              <label class="form-label"><b>{% trans "Favicon" %}</b></label>
+              <div class="mb-2 p-3 text-center rounded" style="background:#ffffff; border:1px solid #e5e7eb;">
+                <img src="{{ branding.favicon_url }}" alt="favicon" style="max-height:48px; max-width:48px;">
+              </div>
+              {{ form.favicon }}
+              <small class="text-muted">{% trans "Browser tab icon (32x32 recommended)." %}</small>
+            </div>
+          </div>
+
+          {% if form.errors %}
+          <div class="alert alert-danger">
+            {% for field, errors in form.errors.items %}
+              <div><b>{{ field }}</b>: {{ errors|join:", " }}</div>
+            {% endfor %}
+          </div>
+          {% endif %}
+
+          <button type="submit" class="btn btn-primary mt-2">{% trans "Save branding" %}</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock main_content %}

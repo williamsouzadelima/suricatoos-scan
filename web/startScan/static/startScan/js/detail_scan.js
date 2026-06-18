@@ -825,6 +825,44 @@ function get_employees(scan_id){
 }
 
 
+function get_osint_results(scan_id){
+	$("#osint_intel_card").hide();
+	$.getJSON(`/api/listOsintResults/?scan_history=${scan_id}&format=json`, function(data) {
+		// router viewset may paginate (data.results) or return a plain list
+		var rows = data['results'] || data;
+		$('#osint-intel-count').empty();
+		$('#osint-intel-table-body').empty();
+		if (!rows || rows.length === 0) {
+			return;
+		}
+		$("#osint_intel_card").show();
+		var labels = {
+			malicious: 'Malicious / Blacklisted', code_repos: 'Public Code Repos',
+			infra_dns: 'DNS & Email', netblock_asn: 'Netblock / ASN',
+			affiliates: 'Affiliates', cohosted: 'Co-Hosted', geo: 'Geolocation',
+			web_tech: 'Web Tech', other: 'Other'
+		};
+		var mal = 0;
+		for (var i = 0; i < rows.length; i++) {
+			var r = rows[i];
+			var rid = get_randid();
+			var badge_class = r['is_malicious'] ? 'badge-soft-danger' : 'badge-soft-secondary';
+			if (r['is_malicious']) { mal++; }
+			var cat = labels[r['bucket']] || r['bucket'] || '—';
+			$('#osint-intel-table-body').append(`<tr id="${rid}"></tr>`);
+			$(`#${rid}`).append(`<td class="td-content"><span class="badge ${badge_class}">${htmlEncode(cat)}</span></td>`);
+			$(`#${rid}`).append(`<td class="td-content">${htmlEncode(r['event_type'] || '')}</td>`);
+			$(`#${rid}`).append(`<td class="td-content">${htmlEncode(r['data'] || '')}</td>`);
+		}
+		var summary = `<span class="badge badge-soft-primary">${rows.length}</span>`;
+		if (mal > 0) {
+			summary += ` <span class="badge badge-soft-danger">${mal} malicious</span>`;
+		}
+		$('#osint-intel-count').html(summary);
+	});
+}
+
+
 function get_dorks(scan_id){
 	$("#dorking_result_card").hide();
 	$.getJSON(`/api/queryDorks/?scan_id=${scan_id}&format=json`, function(data) {

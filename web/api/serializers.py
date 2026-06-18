@@ -790,6 +790,107 @@ class LeakedSecretSerializer(serializers.ModelSerializer):
 		]
 
 
+class OsintResultSerializer(serializers.ModelSerializer):
+
+	class Meta:
+		model = OsintResult
+		fields = [
+			'id', 'scan_history', 'target_domain', 'source', 'bucket',
+			'event_type', 'data', 'extra', 'is_malicious', 'severity',
+			'discovered_date',
+		]
+
+
+class VulnSpaSerializer(serializers.ModelSerializer):
+	"""Lean vulnerability shape for the SPA table (clean REST, no DataTables wrap)."""
+
+	class Meta:
+		model = Vulnerability
+		fields = [
+			'id', 'name', 'severity', 'source', 'type', 'http_url',
+			'cvss_score', 'open_status', 'validation_status', 'is_gpt_used',
+			'template_id', 'discovered_date',
+		]
+
+
+class ProjectSpaSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = Project
+		fields = ['id', 'name', 'slug']
+
+
+class TargetSpaSerializer(serializers.ModelSerializer):
+	"""Lean target/domain shape for the SPA targets table."""
+	class Meta:
+		model = Domain
+		fields = ['id', 'name', 'insert_date', 'start_scan_date']
+
+
+class SubdomainSpaSerializer(serializers.ModelSerializer):
+	"""Lean subdomain shape for the SPA table."""
+
+	class Meta:
+		model = Subdomain
+		fields = [
+			'id', 'name', 'http_status', 'http_url', 'page_title', 'webserver',
+			'content_length', 'is_important', 'cdn_name', 'discovered_date',
+		]
+
+
+class ScanSpaSerializer(serializers.ModelSerializer):
+	"""Lean scan-history shape for the SPA scans list. subdomain_count/
+	vulnerability_count come from queryset annotations (SpaScanViewSet) so the
+	list doesn't fire 2 COUNT queries per row."""
+	domain_name = serializers.CharField(source='domain.name', read_only=True)
+	engine_name = serializers.CharField(source='scan_type.engine_name', read_only=True)
+	subdomain_count = serializers.IntegerField(read_only=True)
+	vulnerability_count = serializers.IntegerField(read_only=True)
+
+	class Meta:
+		model = ScanHistory
+		fields = [
+			'id', 'domain_name', 'engine_name', 'scan_status',
+			'start_scan_date', 'stop_scan_date', 'subdomain_count',
+			'vulnerability_count',
+		]
+
+
+class ScanActivitySpaSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = ScanActivity
+		fields = ['id', 'title', 'name', 'status', 'time', 'error_message']
+
+
+class ScanDetailSerializer(ScanSpaSerializer):
+	"""Scan retrieve: list fields + activities timeline + extra counts/progress."""
+	endpoint_count = serializers.SerializerMethodField()
+	osint_count = serializers.SerializerMethodField()
+	progress = serializers.SerializerMethodField()
+	activities = serializers.SerializerMethodField()
+
+	class Meta(ScanSpaSerializer.Meta):
+		fields = ScanSpaSerializer.Meta.fields + ['endpoint_count', 'osint_count', 'progress', 'activities']
+
+	def get_endpoint_count(self, obj):
+		return EndPoint.objects.filter(scan_history=obj).count()
+
+	def get_osint_count(self, obj):
+		return OsintResult.objects.filter(scan_history=obj).count()
+
+	def get_progress(self, obj):
+		try:
+			# get_progress() returns None for a just-started scan (0 steps done);
+			# coerce to 0 so the SPA renders a valid 0% bar instead of "null%".
+			val = obj.get_progress()
+			return val if val is not None else 0
+		except Exception:
+			return 0
+
+	def get_activities(self, obj):
+		acts = ScanActivity.objects.filter(scan_of=obj).order_by('id')
+		return ScanActivitySpaSerializer(acts, many=True).data
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:
