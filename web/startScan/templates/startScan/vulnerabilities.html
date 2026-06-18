@@ -1,14 +1,15 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 {% load humanize %}
 {% load custom_tags %}
 {% block title %}
-All Vulnerabilities
+{% trans "All Vulnerabilities" %}
 {% endblock title %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item"><a href="{% url 'dashboardIndex' current_project.slug %}">Dashboard</a></li>
-<li class="breadcrumb-item active">Vulnerabilities</li>
+<li class="breadcrumb-item"><a href="{% url 'dashboardIndex' current_project.slug %}">{% trans "Dashboard" %}</a></li>
+<li class="breadcrumb-item active">{% trans "Vulnerabilities" %}</li>
 {% endblock breadcrumb_title %}
 
 {% block custom_js_css_link %}

@@ -39,6 +39,7 @@ RUN apt install -y --no-install-recommends \
     geoip-bin \
     geoip-database \
     gcc \
+    gettext \
     git \
     libpq-dev \
     libpango-1.0-0 \

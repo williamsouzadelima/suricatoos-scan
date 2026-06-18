@@ -1,9 +1,10 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 {% load permission_tags %}
 
 {% block title %}
-Schedule Scan
+{% trans "Schedule Scan" %}
 {% endblock title %}
 
 
@@ -15,13 +16,13 @@ Schedule Scan
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item"><a href="{% url 'list_target' current_project.slug %}">Target</a></li>
-<li class="breadcrumb-item active">Schedule Scan</li>
+<li class="breadcrumb-item"><a href="{% url 'list_target' current_project.slug %}">{% trans "Target" %}</a></li>
+<li class="breadcrumb-item active">{% trans "Schedule Scan" %}</li>
 <li class="breadcrumb-item active" aria-current="page">{{domain.name}}</li>
 {% endblock breadcrumb_title %}
 
 {% block page_title %}
-Scheduling scan for {{domain.name}}
+{% blocktrans with name=domain.name %}Scheduling scan for {{ name }}{% endblocktrans %}
 {% endblock page_title %}
 
 {% block main_content %}

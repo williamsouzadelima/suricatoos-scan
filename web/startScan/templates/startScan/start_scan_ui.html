@@ -1,8 +1,9 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 
 {% block title %}
-Start Scan
+{% trans "Start Scan" %}
 {% endblock title %}
 
 
@@ -13,13 +14,13 @@ Start Scan
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item"><a href="{% url 'list_target' current_project.slug %}">Target</a></li>
-<li class="breadcrumb-item active">Initiate Scan</li>
+<li class="breadcrumb-item"><a href="{% url 'list_target' current_project.slug %}">{% trans "Target" %}</a></li>
+<li class="breadcrumb-item active">{% trans "Initiate Scan" %}</li>
 <li class="breadcrumb-item active" aria-current="page">{{domain.name}}</li>
 {% endblock breadcrumb_title %}
 
 {% block page_title %}
-Initiating scan for {{domain.name}}
+{% blocktrans with name=domain.name %}Initiating scan for {{ name }}{% endblocktrans %}
 {% endblock page_title %}
 
 {% block main_content %}

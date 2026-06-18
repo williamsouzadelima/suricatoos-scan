@@ -18,6 +18,7 @@ from rest_framework.status import HTTP_400_BAD_REQUEST, HTTP_204_NO_CONTENT, HTT
 from rest_framework.decorators import action
 from django.core.exceptions import ObjectDoesNotExist
 from django.core.cache import cache
+from django.utils.translation import gettext_lazy as _
 
 from dashboard.models import *
 from recon_note.models import *
@@ -186,7 +187,7 @@ class HackerOneProgramViewSet(viewsets.ViewSet):
 
 				return Response(program_details)
 			else:
-				return Response({"error": "Program not found"}, status=status.HTTP_404_NOT_FOUND)
+				return Response({"error": _("Program not found")}, status=status.HTTP_404_NOT_FOUND)
 		except Exception as e:
 			return self.handle_exception(e)
 
@@ -216,11 +217,11 @@ class HackerOneProgramViewSet(viewsets.ViewSet):
 		try:
 			project_slug = request.query_params.get('project_slug')
 			if not project_slug:
-				return Response({"error": "Project slug is required"}, status=status.HTTP_400_BAD_REQUEST)
+				return Response({"error": _("Project slug is required")}, status=status.HTTP_400_BAD_REQUEST)
 			handles = request.data.get('handles', [])
 
 			if not handles:
-				return Response({"error": "No program handles provided"}, status=status.HTTP_400_BAD_REQUEST)
+				return Response({"error": _("No program handles provided")}, status=status.HTTP_400_BAD_REQUEST)
 
 			import_hackerone_programs_task.delay(handles, project_slug)
 
@@ -233,7 +234,7 @@ class HackerOneProgramViewSet(viewsets.ViewSet):
 				status='info'
 			)
 
-			return Response({"message": f"Import process for {len(handles)} program(s) has begun."}, status=status.HTTP_202_ACCEPTED)
+			return Response({"message": _("Import process for %(count)s program(s) has begun.") % {'count': len(handles)}}, status=status.HTTP_202_ACCEPTED)
 		except Exception as e:
 			return self.handle_exception(e)
 	
@@ -242,7 +243,7 @@ class HackerOneProgramViewSet(viewsets.ViewSet):
 		try:
 			project_slug = request.query_params.get('project_slug')
 			if not project_slug:
-				return Response({"error": "Project slug is required"}, status=status.HTTP_400_BAD_REQUEST)
+				return Response({"error": _("Project slug is required")}, status=status.HTTP_400_BAD_REQUEST)
 
 			sync_bookmarked_programs_task.delay(project_slug)
 
@@ -255,15 +256,15 @@ class HackerOneProgramViewSet(viewsets.ViewSet):
 				status='info'
 			)
 
-			return Response({"message": "Sync process for bookmarked programs has begun."}, status=status.HTTP_202_ACCEPTED)
+			return Response({"message": _("Sync process for bookmarked programs has begun.")}, status=status.HTTP_202_ACCEPTED)
 		except Exception as e:
 			return self.handle_exception(e)
 
 	def handle_exception(self, exc):
 		if isinstance(exc, ObjectDoesNotExist):
-			return Response({"error": "HackerOne API credentials not configured"}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+			return Response({"error": _("HackerOne API credentials not configured")}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 		elif str(exc) == "Invalid API credentials":
-			return Response({"error": "Invalid HackerOne API credentials"}, status=status.HTTP_401_UNAUTHORIZED)
+			return Response({"error": _("Invalid HackerOne API credentials")}, status=status.HTTP_401_UNAUTHORIZED)
 		else:
 			return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -418,14 +419,14 @@ class GPTAttackSuggestion(APIView):
 		if not subdomain_id:
 			return Response({
 				'status': False,
-				'error': 'Missing GET param Subdomain `subdomain_id`'
+				'error': _('Missing GET param Subdomain `subdomain_id`')
 			})
 		try:
 			subdomain = Subdomain.objects.get(id=subdomain_id)
 		except Exception as e:
 			return Response({
 				'status': False,
-				'error': 'Subdomain not found with id ' + subdomain_id
+				'error': _('Subdomain not found with id %(id)s') % {'id': subdomain_id}
 			})
 		if subdomain.attack_surface:
 			return Response({
@@ -469,7 +470,7 @@ class LLMVulnerabilityReportGenerator(APIView):
 		if not vulnerability_id:
 			return Response({
 				'status': False,
-				'error': 'Missing GET param Vulnerability `id`'
+				'error': _('Missing GET param Vulnerability `id`')
 			})
 		task = llm_vulnerability_description.apply_async(args=(vulnerability_id,))
 		response = task.wait()
@@ -575,9 +576,9 @@ class WafDetector(APIView):
 
 		# validate url as a first step to avoid command injection
 		if not (validators.url(url) or validators.domain(url)):
-			response['message'] = 'Invalid Domain/URL provided!'
+			response['message'] = _('Invalid Domain/URL provided!')
 			return Response(response)
-		
+
 		wafw00f_command = f'wafw00f {url}'
 		_, output = run_command(wafw00f_command, remove_ansi_sequence=True)
 		regex = r"behind (.*?) WAF"
@@ -586,7 +587,7 @@ class WafDetector(APIView):
 			response['status'] = True
 			response['results'] = group.group(1)
 		else:
-			response['message'] = 'Could not detect any WAF!'
+			response['message'] = _('Could not detect any WAF!')
 
 		return Response(response)
 
@@ -616,7 +617,7 @@ class UniversalSearch(APIView):
 		response['status'] = False
 
 		if not query:
-			response['message'] = 'No query parameter provided!'
+			response['message'] = _('No query parameter provided!')
 			return Response(response)
 
 		response['results'] = {}
@@ -854,15 +855,15 @@ class CVEDetails(APIView):
 		cve_id = req.query_params.get('cve_id')
 
 		if not cve_id:
-			return Response({'status': False, 'message': 'CVE ID not provided'})
+			return Response({'status': False, 'message': _('CVE ID not provided')})
 
 		response = requests.get('https://cve.circl.lu/api/cve/' + cve_id)
 
 		if response.status_code != 200:
-			return  Response({'status': False, 'message': 'Unknown Error Occured!'})
+			return  Response({'status': False, 'message': _('Unknown Error Occured!')})
 
 		if not response.json():
-			return  Response({'status': False, 'message': 'CVE ID does not exists.'})
+			return  Response({'status': False, 'message': _('CVE ID does not exists.')})
 
 		return Response({'status': True, 'result': response.json()})
 
@@ -909,7 +910,7 @@ class ToggleSubdomainImportantStatus(APIView):
 
 		subdomain_id = data.get('subdomain_id')
 
-		response = {'status': False, 'message': 'No subdomain_id provided'}
+		response = {'status': False, 'message': _('No subdomain_id provided')}
 
 		name = Subdomain.objects.get(id=subdomain_id)
 		name.is_important = not name.is_important
@@ -940,7 +941,7 @@ class AddTarget(APIView):
 
 		# Validate domain name
 		if not validators.domain(domain_name):
-			return Response({'status': False, 'message': 'Invalid domain or IP'})
+			return Response({'status': False, 'message': _('Invalid domain or IP')})
 
 		status = bulk_import_targets(
 			targets=[{
@@ -955,13 +956,13 @@ class AddTarget(APIView):
 		if status:
 			return Response({
 				'status': True,
-				'message': 'Domain successfully added as target !',
+				'message': _('Domain successfully added as target !'),
 				'domain_name': domain_name,
 				# 'domain_id': domain.id
 			})
 		return Response({
 			'status': False,
-			'message': 'Failed to add as target !'
+			'message': _('Failed to add as target !')
 		})
 
 
@@ -974,7 +975,7 @@ class FetchSubscanResults(APIView):
 		if not subscan.exists():
 			return Response({
 				'status': False,
-				'error': f'Subscan {subscan_id} does not exist'
+				'error': _('Subscan %(id)s does not exist') % {'id': subscan_id}
 			})
 
 		subscan_data = SubScanResultSerializer(subscan.first(), many=False).data
@@ -1301,7 +1302,7 @@ class UninstallTool(APIView):
 
 
 		if tool.is_default:
-			return Response({'status': False, 'message': 'Default tools can not be uninstalled'})
+			return Response({'status': False, 'message': _('Default tools can not be uninstalled')})
 
 		# check install instructions, if it is installed using go, then remove from go bin path,
 		# else try to remove from github clone path
@@ -1316,14 +1317,14 @@ class UninstallTool(APIView):
 			tool_name = tool_name.split('/')[-1]
 			uninstall_command = 'rm -rf ' + tool.github_clone_path
 		else:
-			return Response({'status': False, 'message': 'Cannot uninstall tool!'})
+			return Response({'status': False, 'message': _('Cannot uninstall tool!')})
 
 		run_command(uninstall_command)
 		run_command.apply_async(args=(uninstall_command,))
 
 		tool.delete()
 
-		return Response({'status': True, 'message': 'Uninstall Tool Success'})
+		return Response({'status': True, 'message': _('Uninstall Tool Success')})
 
 
 class UpdateTool(APIView):
@@ -1346,7 +1347,7 @@ class UpdateTool(APIView):
 		update_command = tool.update_command.lower()
 
 		if not update_command:
-			return Response({'status': False, 'message': tool.name + 'has missing update command! Cannot update the tool.'})
+			return Response({'status': False, 'message': _('%(name)s has missing update command! Cannot update the tool.') % {'name': tool.name}})
 		elif update_command == 'git pull':
 			tool_name = tool.install_command[:-1] if tool.install_command[-1] == '/' else tool.install_command
 			tool_name = tool_name.split('/')[-1]
@@ -1356,7 +1357,7 @@ class UpdateTool(APIView):
 		try:
 			run_command(update_command, shell=True)
 			run_command.apply_async(args=[update_command], kwargs={'shell': True})
-			return Response({'status': True, 'message': tool.name + ' updated successfully.'})
+			return Response({'status': True, 'message': _('%(name)s updated successfully.') % {'name': tool.name}})
 		except Exception as e:
 			logger.error(str(e))
 			return Response({'status': False, 'message': str(e)})
@@ -1376,15 +1377,15 @@ class GetExternalToolCurrentVersion(APIView):
 
 		if tool_id:
 			if not InstalledExternalTool.objects.filter(id=tool_id).exists():
-				return Response({'status': False, 'message': 'Tool Not found'})
+				return Response({'status': False, 'message': _('Tool Not found')})
 			tool = InstalledExternalTool.objects.get(id=tool_id)
 		elif tool_name:
 			if not InstalledExternalTool.objects.filter(name=tool_name).exists():
-				return Response({'status': False, 'message': 'Tool Not found'})
+				return Response({'status': False, 'message': _('Tool Not found')})
 			tool = InstalledExternalTool.objects.get(name=tool_name)
 
 		if not tool.version_lookup_command:
-			return Response({'status': False, 'message': 'Version Lookup command not provided.'})
+			return Response({'status': False, 'message': _('Version Lookup command not provided.')})
 
 		version_number = None
 		_, stdout = run_command(tool.version_lookup_command)
@@ -1394,7 +1395,7 @@ class GetExternalToolCurrentVersion(APIView):
 			version_match_regex = r'(?i:v)?(\d+(?:\.\d+){2,})'
 			version_number = re.search(version_match_regex, str(stdout))
 		if not version_number:
-			return Response({'status': False, 'message': 'Invalid version lookup command.'})
+			return Response({'status': False, 'message': _('Invalid version lookup command.')})
 
 		return Response({'status': True, 'version_number': version_number.group(0), 'tool_name': tool.name})
 
@@ -1419,7 +1420,7 @@ class GithubToolCheckGetLatestRelease(APIView):
 			tool = InstalledExternalTool.objects.get(name=tool_name)
 
 		if not tool.github_url:
-			return Response({'status': False, 'message': 'Github URL is not provided, Cannot check updates'})
+			return Response({'status': False, 'message': _('Github URL is not provided, Cannot check updates')})
 
 		# if tool_github_url has https://github.com/ remove and also remove trailing /
 		tool_github_url = tool.github_url.replace('http://github.com/', '').replace('https://github.com/', '')
@@ -1508,10 +1509,10 @@ class Whois(APIView):
 		req = self.request
 		target = req.query_params.get('target')
 		if not target:
-			return Response({'status': False, 'message': 'Target IP/Domain required!'})
+			return Response({'status': False, 'message': _('Target IP/Domain required!')})
 		if not (validators.domain(target) or validators.ipv4(target) or validators.ipv6(target)):
 			print(f'Ip address or domain "{target}" did not pass validator.')
-			return Response({'status': False, 'message': 'Invalid domain or IP'})
+			return Response({'status': False, 'message': _('Invalid domain or IP')})
 		is_force_update = req.query_params.get('is_reload')
 		is_force_update = True if is_force_update and 'true' == is_force_update.lower() else False
 		task = query_whois.apply_async(args=(target,is_force_update))
@@ -1545,7 +1546,7 @@ class CMSDetector(APIView):
 		response = {'status': False}
 
 		if not (validators.url(url) or validators.domain(url)):
-			response['message'] = 'Invalid Domain/URL provided!'
+			response['message'] = _('Invalid Domain/URL provided!')
 			return Response(response)
 
 		try:
@@ -1557,7 +1558,7 @@ class CMSDetector(APIView):
 
 			_, output = run_command(cms_detector_command, remove_ansi_sequence=True)
 
-			response['message'] = 'Could not detect CMS!'
+			response['message'] = _('Could not detect CMS!')
 
 			parsed_url = urlparse(url)
 
@@ -1600,7 +1601,7 @@ class IPToDomain(APIView):
 		if not ip_address:
 			return Response({
 				'status': False,
-				'message': 'IP Address Required'
+				'message': _('IP Address Required')
 			})
 		try:
 			logger.info(f'Resolving IP address {ip_address} ...')
@@ -1651,7 +1652,7 @@ class GetFileContents(APIView):
 			path = "/root/.config/nuclei/config.yaml"
 			if not os.path.exists(path):
 				run_command(f'touch {path}')
-				response['message'] = 'File Created!'
+				response['message'] = _('File Created!')
 			f = open(path, "r")
 			response['status'] = True
 			response['content'] = f.read()
@@ -1661,7 +1662,7 @@ class GetFileContents(APIView):
 			path = "/root/.config/subfinder/config.yaml"
 			if not os.path.exists(path):
 				run_command(f'touch {path}')
-				response['message'] = 'File Created!'
+				response['message'] = _('File Created!')
 			f = open(path, "r")
 			response['status'] = True
 			response['content'] = f.read()
@@ -1671,7 +1672,7 @@ class GetFileContents(APIView):
 			path = "/root/.config/naabu/config.yaml"
 			if not os.path.exists(path):
 				run_command(f'touch {path}')
-				response['message'] = 'File Created!'
+				response['message'] = _('File Created!')
 			f = open(path, "r")
 			response['status'] = True
 			response['content'] = f.read()
@@ -1681,7 +1682,7 @@ class GetFileContents(APIView):
 			path = "/usr/src/github/theHarvester/api-keys.yaml"
 			if not os.path.exists(path):
 				run_command(f'touch {path}')
-				response['message'] = 'File Created!'
+				response['message'] = _('File Created!')
 			f = open(path, "r")
 			response['status'] = True
 			response['content'] = f.read()
@@ -1691,7 +1692,7 @@ class GetFileContents(APIView):
 			path = "/root/.config/amass.ini"
 			if not os.path.exists(path):
 				run_command(f'touch {path}')
-				response['message'] = 'File Created!'
+				response['message'] = _('File Created!')
 			f = open(path, "r")
 			response['status'] = True
 			response['content'] = f.read()
@@ -1705,7 +1706,7 @@ class GetFileContents(APIView):
 				response['status'] = True
 				response['content'] = content
 			else:
-				response['message'] = "Invalid path!"
+				response['message'] = _("Invalid path!")
 				response['status'] = False
 			return Response(response)
 
@@ -1718,11 +1719,11 @@ class GetFileContents(APIView):
 				response['status'] = True
 				response['content'] = content
 			else:
-				response['message'] = 'Invalid Path!'
+				response['message'] = _('Invalid Path!')
 				response['status'] = False
 			return Response(response)
 
-		response['message'] = 'Invalid Query Params'
+		response['message'] = _('Invalid Query Params')
 		return Response(response)
 
 
@@ -2883,7 +2884,7 @@ class DirectoryViewSet(viewsets.ModelViewSet):
 		if not (scan_id or subdomain_id):
 			return Response({
 				'status': False,
-				'message': 'Scan id or subdomain id must be provided.'
+				'message': _('Scan id or subdomain id must be provided.')
 			})
 		elif scan_id:
 			subdomains = Subdomain.objects.filter(scan_history__id=scan_id)

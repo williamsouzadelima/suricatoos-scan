@@ -1,22 +1,23 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 {% load humanize %}
 {% load permission_tags %}
 
 {% block title %}
-List all targets
+{% trans "List all targets" %}
 {% endblock title %}
 
 {% block custom_js_css_link %}
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item active"><a href="{% url 'list_target' slug %}">Targets</a></li>
-<li class="breadcrumb-item"><a href="#">All Targets</a></li>
+<li class="breadcrumb-item active"><a href="{% url 'list_target' slug %}">{% trans "Targets" %}</a></li>
+<li class="breadcrumb-item"><a href="#">{% trans "All Targets" %}</a></li>
 {% endblock breadcrumb_title %}
 
 {% block page_title %}
-Targets
+{% trans "Targets" %}
 {% endblock page_title %}
 
 {% block main_content %}
@@ -27,28 +28,28 @@ Targets
 				<div class="row">
 					<div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
 						<button type="button" class="btn btn-primary dropdown-toggle mt-1" data-bs-toggle="dropdown" aria-haspopup="true" aria-expanded="false" id="filterMenu">
-							Filter <i class="fe-filter"></i>
+							{% trans "Filter" %} <i class="fe-filter"></i>
 						</button>
 						<div class="dropdown-menu" style="width: 30%">
 							<div class="px-4 py-3">
-								<h4 class="headline-title">Filters</h4>
-								<label for="filterByOrganization" class="form-label">Filter by Organization</label>
+								<h4 class="headline-title">{% trans "Filters" %}</h4>
+								<label for="filterByOrganization" class="form-label">{% trans "Filter by Organization" %}</label>
 								<select class="form-control" id="filterByOrganization">
 								</select>
 							</div>
 							<div class="dropdown-divider"></div>
-							<a href="#" class="dropdown-ite text-primary float-end" id="resetFilters">Reset Filters</a>
+							<a href="#" class="dropdown-ite text-primary float-end" id="resetFilters">{% trans "Reset Filters" %}</a>
 						</div>
 					</div>
 					<div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
 						{% if user|can:'modify_targets' %}
-						<a class="btn btn-soft-danger float-end disabled ms-1 mt-1" href="#" onclick="deleteMultipleTargets(slug='{{slug}}')" id="delete_multiple_button">Delete Multiple Targets</a>
+						<a class="btn btn-soft-danger float-end disabled ms-1 mt-1" href="#" onclick="deleteMultipleTargets(slug='{{slug}}')" id="delete_multiple_button">{% trans "Delete Multiple Targets" %}</a>
 						{% endif %}
 						{% if user|can:'initiate_scans_subscans' %}
-						<a class="btn btn-soft-info float-end disabled ms-1 mt-1" href="#" onclick="scanMultipleTargets(slug='{{slug}}')" id="scan_multiple_button">Scan Multiple Targets</a>
+						<a class="btn btn-soft-info float-end disabled ms-1 mt-1" href="#" onclick="scanMultipleTargets(slug='{{slug}}')" id="scan_multiple_button">{% trans "Scan Multiple Targets" %}</a>
 						{% endif %}
 						{% if user|can:'modify_targets' %}
-						<a class="btn btn-soft-primary float-end ms-1 mt-1" href="{% url 'add_target' slug %}" data-toggle="tooltip" data-placement="top" title="Add New Targets">Add Targets</a>
+						<a class="btn btn-soft-primary float-end ms-1 mt-1" href="{% url 'add_target' slug %}" data-toggle="tooltip" data-placement="top" title="{% trans 'Add New Targets' %}">{% trans "Add Targets" %}</a>
 						{% endif %}
 					</div>
 				</div>
@@ -64,13 +65,13 @@ Targets
 				<table id="list_target_table" class="table dt-responsive w-100">
 					<thead>
 						<tr>
-							<th class="checkbox-column text-center">Serial Number</th>
-							<th>Serial Number</th>
-							<th>Target</th>
-							<th>Description</th>
-							<th class="text-center">Added On</th>
-							<th class="text-center">Last Scanned</th>
-							<th class="text-center">Action</th>
+							<th class="checkbox-column text-center">{% trans "Serial Number" %}</th>
+							<th>{% trans "Serial Number" %}</th>
+							<th>{% trans "Target" %}</th>
+							<th>{% trans "Description" %}</th>
+							<th class="text-center">{% trans "Added On" %}</th>
+							<th class="text-center">{% trans "Last Scanned" %}</th>
+							<th class="text-center">{% trans "Action" %}</th>
 						</tr>
 					</thead>
 				</table>

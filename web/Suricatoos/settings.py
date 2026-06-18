@@ -99,6 +99,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -170,6 +171,16 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
+
+# Languages the UI is translated into. English is the base (msgid) language;
+# pt-br and es are full catalogs. Native names are shown in the language switcher.
+LANGUAGES = [
+    ('en', 'English'),
+    ('pt-br', 'Português (Brasil)'),
+    ('es', 'Español'),
+]
+# Project-level catalog (web/locale/<lang>/LC_MESSAGES/django.po|.mo).
+LOCALE_PATHS = [os.path.join(BASE_DIR, 'locale')]
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = '/usr/src/scan_results/'

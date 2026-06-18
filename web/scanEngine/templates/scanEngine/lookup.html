@@ -1,8 +1,9 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 {% load custom_tags %}
 {% block title %}
-Interesting entries Lookup
+{% trans "Interesting entries Lookup" %}
 {% endblock title %}
 
 
@@ -10,12 +11,12 @@ Interesting entries Lookup
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item"><a href="{% url 'scan_engine_index' current_project.slug %}">Engines</a></li>
-<li class="breadcrumb-item active">Interesting Lookup</li>
+<li class="breadcrumb-item"><a href="{% url 'scan_engine_index' current_project.slug %}">{% trans "Engines" %}</a></li>
+<li class="breadcrumb-item active">{% trans "Interesting Lookup" %}</li>
 {% endblock breadcrumb_title %}
 
 {% block page_title %}
-Interesting Lookup
+{% trans "Interesting Lookup" %}
 {% endblock page_title %}
 
 {% block main_content %}
@@ -23,16 +24,16 @@ Interesting Lookup
   <div class="col-12">
     <div class="card">
       <div class="card-body">
-        <h4 class="header-title">Interesting Lookup</h4>
+        <h4 class="header-title">{% trans "Interesting Lookup" %}</h4>
         <p>
-          Suricatoos supports lookup for interesting keyword in recon data. This could be either looking up in subdomains, URLs or in page title.
-          You can enter the keywords to lookup and Suricatoos will highlight the matched entries.<br>
+          {% trans "Suricatoos supports lookup for interesting keyword in recon data. This could be either looking up in subdomains, URLs or in page title." %}
+          {% trans "You can enter the keywords to lookup and Suricatoos will highlight the matched entries." %}<br>
         </p>
         <div class="alert alert-primary border-0 mb-4" role="alert">
-          Keywords are case insensitive.
+          {% trans "Keywords are case insensitive." %}
         </div>
-        <h4 class="header-title">Default Keywords</h4>
-        <p>Suricatoos will use these default keywords to find the interesting subdomains or URLs from recon data.</p>
+        <h4 class="header-title">{% trans "Default Keywords" %}</h4>
+        <p>{% trans "Suricatoos will use these default keywords to find the interesting subdomains or URLs from recon data." %}</p>
         <span class="lead">
           {% for keyword in default_lookup %}
           {% for key in keyword.keywords|split:","  %}
@@ -40,32 +41,32 @@ Interesting Lookup
           {% endfor %}
           {% endfor %}
         </span>
-        <h4 class="header-title mt-3">Custom Keywords</h4>
+        <h4 class="header-title mt-3">{% trans "Custom Keywords" %}</h4>
         <form method="POST">
           {% csrf_token %}
-          <label for="keywords" class="form-label">Interesting Keywords to look for</label>
+          <label for="keywords" class="form-label">{% trans "Interesting Keywords to look for" %}</label>
           {{ form.keywords }}
           {# hidden value #}
           {{ form.custom_type }}
-          <span class="text-muted">Please use a comma (,) to separate the keywords.</span>
-          <h4 class=" header-title mt-3">Lookup in</h4>
+          <span class="text-muted">{% trans "Please use a comma (,) to separate the keywords." %}</span>
+          <h4 class=" header-title mt-3">{% trans "Lookup in" %}</h4>
           <div class="form-check mb-2 form-check-primary">
             {{form.url_lookup}}
-            <label class="form-check-label" for="url_lookup">Subdomains/URLs</label>
+            <label class="form-check-label" for="url_lookup">{% trans "Subdomains/URLs" %}</label>
           </div>
           <div class="form-check mb-2 form-check-primary">
             {{form.title_lookup}}
-            <label class="form-check-label" for="title_lookup">Page Title</label>
+            <label class="form-check-label" for="title_lookup">{% trans "Page Title" %}</label>
           </div>
-          <h4 class="header-title mt-3">Lookup Conditions</h6>
-            <span class="text-primary">Suricatoos will lookup the keywords only when below conditions are met.</span>
+          <h4 class="header-title mt-3">{% trans "Lookup Conditions" %}</h6>
+            <span class="text-primary">{% trans "Suricatoos will lookup the keywords only when below conditions are met." %}</span>
             <br>
-            <b>Lookup only when</b>
+            <b>{% trans "Lookup only when" %}</b>
             <div class="form-check mt-2 mb-2 form-check-primary">
               {{form.condition_200_http_lookup}}
-              <label class="form-check-label" for="condition_200_http_lookup">HTTP Status is 200</label>
+              <label class="form-check-label" for="condition_200_http_lookup">{% trans "HTTP Status is 200" %}</label>
             </div>
-            <button class="btn btn-primary submit-fn mt-2 float-end" type="submit">Update Lookup</button>
+            <button class="btn btn-primary submit-fn mt-2 float-end" type="submit">{% trans "Update Lookup" %}</button>
           </form>
         </div>
       </div>

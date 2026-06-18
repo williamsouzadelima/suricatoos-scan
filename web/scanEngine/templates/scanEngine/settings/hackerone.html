@@ -1,9 +1,10 @@
 {# DO NOT AUTO INDENT #}
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 {% load custom_tags %}
 {% block title %}
-Hackerone Settings
+{% trans "Hackerone Settings" %}
 {% endblock title %}
 
 {% block custom_js_css_link %}
@@ -11,12 +12,12 @@ Hackerone Settings
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item"><a href="#">Settings</a></li>
-<li class="breadcrumb-item active">Hackerone Automatic Vulnerability Report Settings</li>
+<li class="breadcrumb-item"><a href="#">{% trans "Settings" %}</a></li>
+<li class="breadcrumb-item active">{% trans "Hackerone Automatic Vulnerability Report Settings" %}</li>
 {% endblock breadcrumb_title %}
 
 {% block page_title %}
-Hackerone Automatic Vulnerability Report Settings
+{% trans "Hackerone Automatic Vulnerability Report Settings" %}
 {% endblock page_title %}
 
 {% block main_content %}
@@ -25,49 +26,49 @@ Hackerone Automatic Vulnerability Report Settings
     <div class="card">
       <div class="card-body">
         <div class="alert alert-danger border-0 mb-3 mt-3" role="alert">
-          Use this feature with caution! Please do not spam triagers!
-          <br>We do not allow sending vulnerability report for low severity and informational vulnerabilities to avoid spamming triagers!
-          You can send them manually from Vulnerability Section inside Suricatoos.
+          {% trans "Use this feature with caution! Please do not spam triagers!" %}
+          <br>{% trans "We do not allow sending vulnerability report for low severity and informational vulnerabilities to avoid spamming triagers!" %}
+          {% trans "You can send them manually from Vulnerability Section inside Suricatoos." %}
         </div>
         <p class="mt-3">
-          Suricatoos Automatically Reports vulnerabilities to your bug bounty programs on Hackerone, if any vulnerabilities are identified.
+          {% trans "Suricatoos Automatically Reports vulnerabilities to your bug bounty programs on Hackerone, if any vulnerabilities are identified." %}
           <br>
-          <span class="text-danger">A valid Hackerone API token and username is required. You can set api keys from API Vault Section </span>
+          <span class="text-danger">{% trans "A valid Hackerone API token and username is required. You can set api keys from API Vault Section" %} </span>
         </p>
         <form method="post" id="hackerone_form">
           {% csrf_token %}
-          <h4 class="header-title mt-3">Automated Vulnerability Report Submission</h4>
-          <div><span class="me-2">Enable Automated Vulnerability Report Submission to Hackerone</span>{{form.send_report}}</div>
-          <h4 class="header-title mt-3">Report Vulnerability to hackerone when</h4>
+          <h4 class="header-title mt-3">{% trans "Automated Vulnerability Report Submission" %}</h4>
+          <div><span class="me-2">{% trans "Enable Automated Vulnerability Report Submission to Hackerone" %}</span>{{form.send_report}}</div>
+          <h4 class="header-title mt-3">{% trans "Report Vulnerability to hackerone when" %}</h4>
           <table>
             <tr>
-              <td>Critical Severity is found. (Default)</td>
+              <td>{% trans "Critical Severity is found. (Default)" %}</td>
               <td><span class="ms-3">{{form.send_critical}}</span></td>
             </tr>
             <tr>
-              <td>High Severity is found. (Default)</td>
+              <td>{% trans "High Severity is found. (Default)" %}</td>
               <td><span class="ms-3">{{form.send_high}}</span></td>
             </tr>
             <tr>
-              <td>Medium Severity is found.</td>
+              <td>{% trans "Medium Severity is found." %}</td>
               <td><span class="ms-3">{{form.send_medium}}</span></td>
             </tr>
           </table>
-          <h4 class="header-title mt-3">Vulnerability Report Template</h4>
+          <h4 class="header-title mt-3">{% trans "Vulnerability Report Template" %}</h4>
           <div class="alert alert-info border-0 mb-3 mt-3" role="alert">
-            You can customize the vulnerability report template using markdown language. Replace the below syntax wherever you require. Curly braces are must!
+            {% trans "You can customize the vulnerability report template using markdown language. Replace the below syntax wherever you require. Curly braces are must!" %}
           </div>
           <ul>
-            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerability_name}</span> Vulnerability Title/Name.</li>
-            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerable_url}</span> Vulnerable URL.</li>
-            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerability_severity}</span> Vulnerability Severity.</li>
-            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerability_description}</span> Description of vulnerability generated by Nuclei.</li>
-            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerability_extracted_results}</span> Vulnerability Results extracted by Nuclei.</li>
-            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerability_reference}</span> Additional Reference to vulnerability.</li>
+            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerability_name}</span> {% trans "Vulnerability Title/Name." %}</li>
+            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerable_url}</span> {% trans "Vulnerable URL." %}</li>
+            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerability_severity}</span> {% trans "Vulnerability Severity." %}</li>
+            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerability_description}</span> {% trans "Description of vulnerability generated by Nuclei." %}</li>
+            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerability_extracted_results}</span> {% trans "Vulnerability Results extracted by Nuclei." %}</li>
+            <li class="text-dark"><span class="badge bg-primary mt-2">{vulnerability_reference}</span> {% trans "Additional Reference to vulnerability." %}</li>
           </ul>
           <!-- Default Template: https://raw.githubusercontent.com/ZephrFish/BugBountyTemplates/master/Blank.md -->
           {{form.report_template}}
-          <input type="submit" value="Save" class="btn btn-primary float-end">
+          <input type="submit" value="{% trans 'Save' %}" class="btn btn-primary float-end">
         </form>
       </div>
     </div>

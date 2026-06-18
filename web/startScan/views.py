@@ -10,6 +10,7 @@ from django.shortcuts import get_object_or_404, render
 from django.template.loader import get_template
 from django.urls import reverse
 from django.utils import timezone
+from django.utils.translation import gettext_lazy as _
 from django_celery_beat.models import (ClockedSchedule, IntervalSchedule, PeriodicTask)
 from rolepermissions.decorators import has_permission_decorator
 
@@ -298,7 +299,7 @@ def start_scan_ui(request, slug, domain_id):
         messages.add_message(
             request,
             messages.INFO,
-            f'Scan Started for {domain.name}')
+            _('Scan Started for %(name)s') % {'name': domain.name})
         return HttpResponseRedirect(reverse('scan_history', kwargs={'slug': slug}))
 
     # GET request
@@ -396,7 +397,7 @@ def start_multiple_scan(request, slug):
             messages.add_message(
                 request,
                 messages.INFO,
-                'Scan Started for multiple targets')
+                _('Scan Started for multiple targets'))
 
             return HttpResponseRedirect(reverse('scan_history', kwargs={'slug': slug}))
 
@@ -487,14 +488,14 @@ def delete_scan(request, id):
         messages.add_message(
             request,
             messages.INFO,
-            'Scan history successfully deleted!'
+            _('Scan history successfully deleted!')
         )
     else:
         messageData = {'status': 'false'}
         messages.add_message(
             request,
             messages.INFO,
-            'Oops! something went wrong!'
+            _('Oops! something went wrong!')
         )
     return JsonResponse(messageData)
 
@@ -526,7 +527,7 @@ def stop_scan(request, id):
             messages.add_message(
                 request,
                 messages.INFO,
-                'Scan successfully stopped!'
+                _('Scan successfully stopped!')
             )
         except Exception as e:
             logger.error(e)
@@ -534,7 +535,7 @@ def stop_scan(request, id):
             messages.add_message(
                 request,
                 messages.ERROR,
-                f'Scan failed to stop ! Error: {str(e)}'
+                _('Scan failed to stop ! Error: %(error)s') % {'error': str(e)}
             )
         return JsonResponse(response)
     return scan_history(request)
@@ -565,14 +566,14 @@ def stop_scans(request, slug):
                 messages.add_message(
                     request,
                     messages.INFO,
-                    'Multiple scans successfully stopped!'
+                    _('Multiple scans successfully stopped!')
                 )
             except Exception as e:
                 logger.error(e)
                 messages.add_message(
                     request,
                     messages.ERROR,
-                    f'Scans failed to stop ! Error: {str(e)}'
+                    _('Scans failed to stop ! Error: %(error)s') % {'error': str(e)}
                 )
     return HttpResponseRedirect(reverse('scan_history', kwargs={'slug': slug}))
 
@@ -659,7 +660,7 @@ def schedule_scan(request, host_id, slug):
         messages.add_message(
             request,
             messages.INFO,
-            f'Scan Scheduled for {domain.name}'
+            _('Scan Scheduled for %(name)s') % {'name': domain.name}
         )
         return HttpResponseRedirect(reverse('scheduled_scan_view', kwargs={'slug': slug}))
 
@@ -703,13 +704,13 @@ def delete_scheduled_task(request, id):
         messages.add_message(
             request,
             messages.INFO,
-            'Scheduled Scan successfully deleted!')
+            _('Scheduled Scan successfully deleted!'))
     else:
         messageData = {'status': 'false'}
         messages.add_message(
             request,
             messages.INFO,
-            'Oops! something went wrong!')
+            _('Oops! something went wrong!'))
     return JsonResponse(messageData)
 
 
@@ -727,7 +728,7 @@ def delete_scheduled_scans(request, slug):
         messages.add_message(
             request,
             messages.INFO,
-            'Multiple scheduled scans successfully deleted!')
+            _('Multiple scheduled scans successfully deleted!'))
         return HttpResponseRedirect(reverse('scheduled_scan_view', kwargs={'slug': slug}))
 
 
@@ -756,7 +757,7 @@ def delete_all_scan_results(request):
         messages.add_message(
             request,
             messages.INFO,
-            'All Scan History successfully deleted!')
+            _('All Scan History successfully deleted!'))
     return JsonResponse(messageData)
 
 
@@ -768,7 +769,7 @@ def delete_all_screenshots(request):
         messages.add_message(
             request,
             messages.INFO,
-            'Screenshots successfully deleted!')
+            _('Screenshots successfully deleted!'))
     return JsonResponse(messageData)
 
 
@@ -826,7 +827,7 @@ def start_organization_scan(request, id, slug):
         messages.add_message(
             request,
             messages.INFO,
-            f'Scan Started for {ndomains} domains in organization {organization.name}')
+            _('Scan Started for %(ndomains)s domains in organization %(name)s') % {'ndomains': ndomains, 'name': organization.name})
         return HttpResponseRedirect(reverse('scan_history', kwargs={'slug': slug}))
 
     # GET request
@@ -937,7 +938,7 @@ def schedule_organization_scan(request, slug, id):
         messages.add_message(
             request,
             messages.INFO,
-            f'Scan started for {ndomains} domains in organization {organization.name}'
+            _('Scan started for %(ndomains)s domains in organization %(name)s') % {'ndomains': ndomains, 'name': organization.name}
         )
         return HttpResponseRedirect(reverse('scheduled_scan_view', kwargs={'slug': slug}))
 
@@ -969,7 +970,7 @@ def delete_scans(request, slug):
         messages.add_message(
             request,
             messages.INFO,
-            'Multiple scans successfully deleted!')
+            _('Multiple scans successfully deleted!'))
     return HttpResponseRedirect(reverse('scan_history', kwargs={'slug': slug}))
 
 

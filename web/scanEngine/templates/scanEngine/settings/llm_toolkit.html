@@ -1,20 +1,21 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load static %}
 {% load humanize %}
 {% block title %}
-LLM Toolkit
+{% trans "LLM Toolkit" %}
 {% endblock title %}
 
 {% block custom_js_css_link %}
 {% endblock custom_js_css_link %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item"><a href="#">Settings</a></li>
-<li class="breadcrumb-item active">LLM Toolkit</li>
+<li class="breadcrumb-item"><a href="#">{% trans "Settings" %}</a></li>
+<li class="breadcrumb-item active">{% trans "LLM Toolkit" %}</li>
 {% endblock breadcrumb_title %}
 
 {% block page_title %}
-LLM Toolkit (Beta)
+{% trans "LLM Toolkit (Beta)" %}
 {% endblock page_title %}
 
 {% block main_content %}
@@ -22,26 +23,26 @@ LLM Toolkit (Beta)
   <div class="col-12">
     <div class="card">
       <div class="card-body">
-        <b>LLM Toolkit</b> includes the ability to download new LLMs, view available models, and delete models no longer needed, and also choose between various models.
+        {% blocktrans %}<b>LLM Toolkit</b> includes the ability to download new LLMs, view available models, and delete models no longer needed, and also choose between various models.{% endblocktrans %}
         <br>
-        <p>Suricatoos makes use of various LLMs to enhance reporting process. Using various LLM AI Models penetration testers will be able to to generate detailed, insightful penetration testing reports. 
+        <p>{% blocktrans %}Suricatoos makes use of various LLMs to enhance reporting process. Using various LLM AI Models penetration testers will be able to to generate detailed, insightful penetration testing reports.{% endblocktrans %}
           <br>
-          If you are using custom LLM models, it is expected that response time are much slower in CPU. We recommend using GPU for better performance. Models such as llama2, or llama3 requires significant computation and GPU are required. <b>Having only CPU will result in slow response time.</b>
+          {% blocktrans %}If you are using custom LLM models, it is expected that response time are much slower in CPU. We recommend using GPU for better performance. Models such as llama2, or llama3 requires significant computation and GPU are required. <b>Having only CPU will result in slow response time.</b>{% endblocktrans %}
           <br>
-          <b>OpenAI GPT models do not run locally, hence the requirement of GPU is not necessary.</b>
+          <b>{% trans "OpenAI GPT models do not run locally, hence the requirement of GPU is not necessary." %}</b>
         </p>
       </div>
     </div>
   </div>
   <div class="row mb-2">
     <div class="col-sm-4">
-      <a href="#" class="btn btn-primary rounded-pill waves-effect waves-light mb-3" onclick="showAddNewModelModal()"><i class="mdi mdi-plus"></i> Add new model</a>
+      <a href="#" class="btn btn-primary rounded-pill waves-effect waves-light mb-3" onclick="showAddNewModelModal()"><i class="mdi mdi-plus"></i> {% trans "Add new model" %}</a>
     </div>
   </div>
-  <h5>{{installed_models|length}} available Models</h5>
+  <h5>{% blocktrans with count=installed_models|length %}{{ count }} available Models{% endblocktrans %}</h5>
   {% if openai_key_error %}
   <div class="alert alert-danger border-0 mb-3 mt-3" role="alert">
-    <b>Warning:</b> GPT model is currently selected and requires API key to be set. Please set the API key in the <a href="/scanEngine/{{current_project.slug}}/api_vault" target="_blank"> API Vault.</a>
+    <b>{% trans "Warning:" %}</b> {% trans "GPT model is currently selected and requires API key to be set. Please set the API key in the" %} <a href="/scanEngine/{{current_project.slug}}/api_vault" target="_blank"> {% trans "API Vault." %}</a>
   </div>
   {% endif %}
   <div class="row mt-2">
@@ -55,39 +56,39 @@ LLM Toolkit (Beta)
             </a>
             <div class="dropdown-menu dropdown-menu-end">
               {% if model.is_local %}
-                <a class="dropdown-item" href="#" onClick=deleteModel('{{model.name}}')>Delete</a>
+                <a class="dropdown-item" href="#" onClick=deleteModel('{{model.name}}')>{% trans "Delete" %}</a>
               {% endif %}
               {% if not model.selected %}
-                <a class="dropdown-item" href="#" onClick=selectModel('{{model.name}}')>Use Model</a>
+                <a class="dropdown-item" href="#" onClick=selectModel('{{model.name}}')>{% trans "Use Model" %}</a>
               {% endif %}
             </div>
           </div>
           <h4 class="mt-0">
-            <span class="{% if model.selected %}text-success{% endif %}">{{model.name}} {% if model.selected %}<span class="badge bg-soft-primary text-primary ms-4">Selected Model</span>{% endif %}</span>
+            <span class="{% if model.selected %}text-success{% endif %}">{{model.name}} {% if model.selected %}<span class="badge bg-soft-primary text-primary ms-4">{% trans "Selected Model" %}</span>{% endif %}</span>
           </h4>
           </p>
           <p class="mb-1">
             <span class="pe-2 text-nowrap mb-2 d-inline-block">
               <i class="mdi mdi-calendar-range text-primary"></i>
-              Modified <b>{% if model.modified_at %}{{model.modified_at|naturaltime}} {% else %} NA{% endif %}</b>
+              {% trans "Modified" %} <b>{% if model.modified_at %}{{model.modified_at|naturaltime}} {% else %} {% trans "NA" %}{% endif %}</b>
             </span>
             <br>
             <span class="pe-2 text-nowrap mb-2 d-inline-block">
               <i class="mdi mdi-database text-info"></i>
               {% if model.is_local %}
-              Locally installed model
+              {% trans "Locally installed model" %}
               {% else %}
-              Open AI Model
+              {% trans "Open AI Model" %}
               {% endif %}
             </span>
             <br>
             <span class="pe-2 text-nowrap mb-2 d-inline-block">
               <i class="mdi mdi-numeric text-info"></i>
-              <b>{{model.details.parameter_size}}</b> Parameters 
+              <b>{{model.details.parameter_size}}</b> {% trans "Parameters" %}
             </span>
             <span class="text-nowrap mb-2 d-inline-block">
               <i class="mdi mdi-family-tree text-success"></i>
-              <b>{{model.details.family}}</b> Family 
+              <b>{{model.details.family}}</b> {% trans "Family" %}
             </span>
           </p>
         </div>
@@ -95,7 +96,7 @@ LLM Toolkit (Beta)
     </div>
     {% empty %}
     <div class="alert alert-danger border-0" role="alert">
-      No LLM Models are installed. You can install models using the 'Add New LLM' button.
+      {% trans "No LLM Models are installed. You can install models using the 'Add New LLM' button." %}
     </div>
     {% endfor %}
   </div>

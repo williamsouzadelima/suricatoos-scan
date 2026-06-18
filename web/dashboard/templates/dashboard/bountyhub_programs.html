@@ -1,22 +1,23 @@
 {% extends 'base/base.html' %}
+{% load i18n %}
 {% load humanize %}
 {% load static %}
 
 {% block title %}
-{{platform}} Programs
+{% blocktrans %}{{platform}} Programs{% endblocktrans %}
 {% endblock title %}
 
 {% block custom_js_css_link %}
 {% endblock custom_js_css_link %}
 
 {% block page_title %}
-{{platform}} Programs
+{% blocktrans %}{{platform}} Programs{% endblocktrans %}
 {% endblock page_title %}
 
 {% block breadcrumb_title %}
-<li class="breadcrumb-item"><a href="/{{current_project.slug}}/">Dashboard</a></li>
-<li class="breadcrumb-item"><a href="#">Bounty Hub</a></li>
-<li class="breadcrumb-item active">{{platform}} Programs</li>
+<li class="breadcrumb-item"><a href="/{{current_project.slug}}/">{% trans "Dashboard" %}</a></li>
+<li class="breadcrumb-item"><a href="#">{% trans "Bounty Hub" %}</a></li>
+<li class="breadcrumb-item active">{% blocktrans %}{{platform}} Programs{% endblocktrans %}</li>
 {% endblock breadcrumb_title %}
 
 {% block main_content %}
@@ -29,33 +30,33 @@
                         <div class="col-md-4 col-lg-3">
                             <div class="input-group">
                                 <span class="input-group-text"><i class="fe-search"></i></span>
-                                <input type="search" class="form-control" placeholder="Search programs" aria-label="Search programs" id="search-program-box">
+                                <input type="search" class="form-control" placeholder="{% trans 'Search programs' %}" aria-label="{% trans 'Search programs' %}" id="search-program-box">
                             </div>
                         </div>
                         <div class="col-md-3 col-lg-2">
-                            <select class="form-select" aria-label="Program type">
-                                <option selected>All programs</option>
-                                <option>Bounty Eligible</option>
+                            <select class="form-select" aria-label="{% trans 'Program type' %}">
+                                <option selected>{% trans "All programs" %}</option>
+                                <option>{% trans "Bounty Eligible" %}</option>
                                 <option>VDP</option>
-                                <option>Private Programs</option>
+                                <option>{% trans "Private Programs" %}</option>
                             </select>
                         </div>
                         <div class="col-md-3 col-lg-2">
-                            <select class="form-select" id="sort-select" aria-label="Sort programs">
-                                <option selected disabled>Sort by</option>
-                                <option value="name-asc">Name (A to Z)</option>
-                                <option value="name-desc">Name (Z to A)</option>
-                                <option value="reports-desc">Most reports</option>
-                                <option value="reports-asc">Least reports</option>
-                                <option value="posted-desc">Most Recent</option>
-                                <option value="posted-asc">Least Recent</option>
+                            <select class="form-select" id="sort-select" aria-label="{% trans 'Sort programs' %}">
+                                <option selected disabled>{% trans "Sort by" %}</option>
+                                <option value="name-asc">{% trans "Name (A to Z)" %}</option>
+                                <option value="name-desc">{% trans "Name (Z to A)" %}</option>
+                                <option value="reports-desc">{% trans "Most reports" %}</option>
+                                <option value="reports-asc">{% trans "Least reports" %}</option>
+                                <option value="posted-desc">{% trans "Most Recent" %}</option>
+                                <option value="posted-asc">{% trans "Least Recent" %}</option>
                             </select>
                         </div>
                         <div class="col-md-2 col-lg-2">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="show-bookmarked-programs">
                                 <label class="form-check-label" for="show-bookmarked-programs">
-                                    Bookmarked programs
+                                    {% trans "Bookmarked programs" %}
                                 </label>
                             </div>
                         </div>
@@ -63,7 +64,7 @@
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="show-closed-programs">
                                 <label class="form-check-label" for="show-closed-programs">
-                                    Closed programs
+                                    {% trans "Closed programs" %}
                                 </label>
                             </div>
                         </div>
@@ -78,10 +79,10 @@
 </div>
 <div class="floating-action-container">
   <button id="importProgramsBtn" class="btn btn-primary import-programs-btn" disabled>
-    <i class="fe-download-cloud"></i> Import Programs
+    <i class="fe-download-cloud"></i> {% trans "Import Programs" %}
   </button>
   <a href="#" id="clearSelectionsLink" class="clear-selections-link" style="display: none;">
-    Clear all <i class="fe-x-circle"></i>
+    {% trans "Clear all" %} <i class="fe-x-circle"></i>
   </a>
 </div>
 {% endblock main_content %}
