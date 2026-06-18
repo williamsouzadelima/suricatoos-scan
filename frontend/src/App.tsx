@@ -9,6 +9,7 @@ import { Osint } from './pages/Osint'
 import { Vulnerabilities } from './pages/Vulnerabilities'
 import { Scans } from './pages/Scans'
 import { Subdomains } from './pages/Subdomains'
+import { ScanDetail } from './pages/ScanDetail'
 import { Targets } from './pages/Targets'
 
 export default function App() {
@@ -21,6 +22,7 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="targets" element={<Targets />} />
             <Route path="scans" element={<Scans />} />
+            <Route path="scans/:id" element={<ScanDetail />} />
             <Route path="subdomains" element={<Subdomains />} />
             <Route path="vulnerabilities" element={<Vulnerabilities />} />
             <Route path="osint" element={<Osint />} />

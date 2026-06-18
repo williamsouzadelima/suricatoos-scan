@@ -3325,10 +3325,13 @@ class DashboardStats(APIView):
 
 
 class SpaScanViewSet(viewsets.ReadOnlyModelViewSet):
-	"""Clean REST scan-history list for the SPA. Filter by ?project=. Newest first."""
+	"""Clean REST scan-history list/detail for the SPA. Filter by ?project=. Newest first."""
 	queryset = ScanHistory.objects.none()
 	serializer_class = ScanSpaSerializer
 	pagination_class = None
+
+	def get_serializer_class(self):
+		return ScanDetailSerializer if self.action == 'retrieve' else ScanSpaSerializer
 
 	def get_queryset(self):
 		qs = ScanHistory.objects.all()

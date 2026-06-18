@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useProject } from '../project/project'
 
@@ -91,7 +92,7 @@ export function Scans() {
                 const st = STATUS[s.scan_status] ?? STATUS[-1]
                 return (
                   <tr key={s.id} className="border-t border-sx-border">
-                    <td className="px-4 py-2">{s.domain_name}</td>
+                    <td className="px-4 py-2"><Link to={`/scans/${s.id}`} className="text-sx-primary hover:underline">{s.domain_name}</Link></td>
                     <td className="px-4 py-2 text-sx-muted">{s.engine_name}</td>
                     <td className="px-4 py-2"><span className={'rounded px-2 py-0.5 text-xs ' + st.cls}>{st.label}</span></td>
                     <td className="px-4 py-2 text-sx-muted">{fmt(s.start_scan_date)}</td>

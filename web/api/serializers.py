@@ -859,6 +859,39 @@ class ScanSpaSerializer(serializers.ModelSerializer):
 		return Vulnerability.objects.filter(scan_history=obj).count()
 
 
+class ScanActivitySpaSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = ScanActivity
+		fields = ['id', 'title', 'name', 'status', 'time', 'error_message']
+
+
+class ScanDetailSerializer(ScanSpaSerializer):
+	"""Scan retrieve: list fields + activities timeline + extra counts/progress."""
+	endpoint_count = serializers.SerializerMethodField()
+	osint_count = serializers.SerializerMethodField()
+	progress = serializers.SerializerMethodField()
+	activities = serializers.SerializerMethodField()
+
+	class Meta(ScanSpaSerializer.Meta):
+		fields = ScanSpaSerializer.Meta.fields + ['endpoint_count', 'osint_count', 'progress', 'activities']
+
+	def get_endpoint_count(self, obj):
+		return EndPoint.objects.filter(scan_history=obj).count()
+
+	def get_osint_count(self, obj):
+		return OsintResult.objects.filter(scan_history=obj).count()
+
+	def get_progress(self, obj):
+		try:
+			return obj.get_progress()
+		except Exception:
+			return 0
+
+	def get_activities(self, obj):
+		acts = ScanActivity.objects.filter(scan_of=obj).order_by('id')
+		return ScanActivitySpaSerializer(acts, many=True).data
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:
