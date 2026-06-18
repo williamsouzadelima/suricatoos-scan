@@ -2945,6 +2945,30 @@ class LeakedSecretViewSet(viewsets.ReadOnlyModelViewSet):
 		return qs
 
 
+class OsintResultViewSet(viewsets.ReadOnlyModelViewSet):
+	# Read-only: OSINT intel is produced by scans, never created/edited via API.
+	queryset = OsintResult.objects.none()
+	serializer_class = OsintResultSerializer
+
+	def get_queryset(self):
+		req = self.request
+		scan_id = req.query_params.get('scan_history')
+		target_id = req.query_params.get('target_id')
+		bucket = req.query_params.get('bucket')
+		slug = req.GET.get('project', None)
+		if slug:
+			qs = OsintResult.objects.filter(scan_history__domain__project__slug=slug)
+		else:
+			qs = OsintResult.objects.all()
+		if scan_id:
+			qs = qs.filter(scan_history__id=scan_id)
+		elif target_id:
+			qs = qs.filter(target_domain__id=target_id)
+		if bucket:
+			qs = qs.filter(bucket=bucket)
+		return qs.order_by('-is_malicious', 'bucket', 'event_type').distinct()
+
+
 class VulnerabilityViewSet(viewsets.ModelViewSet):
 	queryset = Vulnerability.objects.none()
 	serializer_class = VulnerabilitySerializer

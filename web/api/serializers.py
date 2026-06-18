@@ -790,6 +790,17 @@ class LeakedSecretSerializer(serializers.ModelSerializer):
 		]
 
 
+class OsintResultSerializer(serializers.ModelSerializer):
+
+	class Meta:
+		model = OsintResult
+		fields = [
+			'id', 'scan_history', 'target_domain', 'source', 'bucket',
+			'event_type', 'data', 'extra', 'is_malicious', 'severity',
+			'discovered_date',
+		]
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:

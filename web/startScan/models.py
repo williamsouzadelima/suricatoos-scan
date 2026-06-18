@@ -730,3 +730,47 @@ class LeakedSecret(models.Model):
 
 	def __str__(self):
 		return f'{self.source}:{self.rule_id}'
+
+
+class OsintResult(models.Model):
+	"""Generic OSINT intelligence (mainly from SpiderFoot) that doesn't fit the
+	typed OSINT models (Email/Employee/Dork/Metadata). One row per finding,
+	grouped by `bucket`, exposed read-only via the API. Mirrors the flat
+	LeakedSecret pattern instead of exploding into one model per event family."""
+	BUCKET_MALICIOUS = 'malicious'
+	BUCKET_CODE_REPOS = 'code_repos'
+	BUCKET_INFRA_DNS = 'infra_dns'
+	BUCKET_NETBLOCK_ASN = 'netblock_asn'
+	BUCKET_AFFILIATES = 'affiliates'
+	BUCKET_COHOSTED = 'cohosted'
+	BUCKET_GEO = 'geo'
+	BUCKET_WEB_TECH = 'web_tech'
+	BUCKET_OTHER = 'other'
+	BUCKET_CHOICES = (
+		(BUCKET_MALICIOUS, 'Malicious / Blacklisted'),
+		(BUCKET_CODE_REPOS, 'Public Code Repositories'),
+		(BUCKET_INFRA_DNS, 'DNS & Email Posture'),
+		(BUCKET_NETBLOCK_ASN, 'Netblock / ASN'),
+		(BUCKET_AFFILIATES, 'Affiliates'),
+		(BUCKET_COHOSTED, 'Co-Hosted Sites'),
+		(BUCKET_GEO, 'Geolocation'),
+		(BUCKET_WEB_TECH, 'Web Technology'),
+		(BUCKET_OTHER, 'Other'),
+	)
+
+	id = models.AutoField(primary_key=True)
+	scan_history = models.ForeignKey(ScanHistory, on_delete=models.CASCADE, null=True, blank=True)
+	target_domain = models.ForeignKey(Domain, on_delete=models.CASCADE, null=True, blank=True)
+	source = models.CharField(max_length=50, null=True, blank=True)
+	bucket = models.CharField(max_length=50, choices=BUCKET_CHOICES, null=True, blank=True)
+	# the raw SpiderFoot event label, e.g. "Malicious IP Address"
+	event_type = models.CharField(max_length=200, null=True, blank=True)
+	data = models.CharField(max_length=2000, null=True, blank=True)
+	# optional context (e.g. SpiderFoot module / parent event)
+	extra = models.CharField(max_length=2000, null=True, blank=True)
+	is_malicious = models.BooleanField(default=False)
+	severity = models.IntegerField(default=0)
+	discovered_date = models.DateTimeField(null=True, blank=True)
+
+	def __str__(self):
+		return f'{self.bucket}:{self.event_type}:{self.data}'

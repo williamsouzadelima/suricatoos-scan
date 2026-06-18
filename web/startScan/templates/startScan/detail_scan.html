@@ -1183,6 +1183,28 @@
 	{# OSINT Section #}
 	{% if 'osint' in history.tasks %}
 	<div class="tab-pane" id="osint-tab">
+		<div class="card" id="osint_intel_card">
+			<div class="card-body">
+				<h4 class="header-title mb-3">
+					<span id="osint-intel-count">
+						<span class="spinner-border spinner-border-sm me-1"></span>
+					</span>
+					{% trans "OSINT Intelligence" %}
+					<small class="text-muted">{% trans "(passive — SpiderFoot/theHarvester)" %}</small>
+				</h4>
+				<table class="table table-sm mt-2">
+					<thead class="table-light">
+						<tr>
+							<th><div class="th-content">{% trans "Category" %}</div></th>
+							<th><div class="th-content">{% trans "Type" %}</div></th>
+							<th><div class="th-content">{% trans "Data" %}</div></th>
+						</tr>
+					</thead>
+					<tbody id="osint-intel-table-body">
+					</tbody>
+				</table>
+			</div>
+		</div>
 		<div class="card" id="dorking_result_card">
 			<div class="card-body">
 				<h4 class="header-title mb-4">{% trans "Dorking Results" %}</h4>
@@ -2256,6 +2278,7 @@ $(document).ready(function() {
 		get_emails({{scan_history_id}});
 		get_employees({{scan_history_id}});
 		get_dorks({{scan_history_id}});
+		get_osint_results({{scan_history_id}});
 	});
 
 	$("#pills-visualisation-tab").click(function() {

@@ -1183,20 +1183,24 @@ def theHarvester(config, host, scan_history_id, activity_id, results_dir, ctx={}
 	# 	ctx['track'] = False
 	# 	http_crawl(urls, ctx=ctx)
 
-	# TODO: Lots of ips unrelated with our domain are found, disabling
-	# this for now.
-	# ips = data.get('ips', [])
-	# for ip_address in ips:
-	# 	ip, created = save_ip_address(
-	# 		ip_address,
-	# 		subscan=subscan)
-	# 	if ip:
-	# 		send_task_notif.delay(
-	# 			'osint',
-	# 			scan_history_id=scan_history_id,
-	# 			subscan_id=subscan_id,
-	# 			severity='success',
-	# 			update_fields={'IPs': f'{ip.address}'})
+	# interesting_urls (admin panels / exposed files) — real value, was 100% dropped.
+	for iurl in data.get('interesting_urls', []):
+		try:
+			subdomain_name = get_subdomain_from_url(iurl)
+			subdomain, _ = save_subdomain(subdomain_name, ctx=ctx)
+			save_endpoint(iurl, crawl=False, ctx=ctx, subdomain=subdomain)
+		except Exception as e:
+			logger.warning(f'theHarvester: could not save interesting url {iurl}: {e}')
+
+	# IPs: theHarvester returns many IPs unrelated to the target, so keep them OUT of
+	# the active IpAddress surface; record them as informational OSINT intel instead.
+	for ip_address in data.get('ips', []):
+		try:
+			save_osint_result(
+				scan_history, OsintResult.BUCKET_NETBLOCK_ASN,
+				'IP Address (theHarvester)', ip_address, source='theharvester')
+		except Exception as e:
+			logger.warning(f'theHarvester: could not save ip {ip_address}: {e}')
 	return data
 
 
@@ -2620,6 +2624,60 @@ def _shell_false_headers(headers):
 	return (' ' + ' '.join(parts)) if parts else ''
 
 
+# SpiderFoot emits hundreds of event LABELS; route the high-value families to
+# OsintResult buckets by keyword (robust to new/renamed event types) and drop the
+# raw/noise dumps. Emails/hosts/IPs are handled by the typed models before this.
+SF_DROP = {
+	'Raw Data from RIRs/APIs', 'Raw DNS Records', 'Affiliate Description - Category',
+	'Internet Name - Unresolved', 'Hash', 'Linked URL - Internal',
+}
+
+
+def _sf_bucket(event_type):
+	"""Map a SpiderFoot event label to (bucket, is_malicious, severity), or None to
+	skip. Keyword-based so SpiderFoot's many event names still route correctly."""
+	t = event_type or ''
+	tl = t.lower()
+	if t in SF_DROP:
+		return None
+	if 'malicious' in tl or 'blacklisted' in tl:
+		return (OsintResult.BUCKET_MALICIOUS, True, 3)   # high
+	if 'co-hosted' in tl:
+		return (OsintResult.BUCKET_COHOSTED, False, 0)
+	if 'code repository' in tl:
+		return (OsintResult.BUCKET_CODE_REPOS, False, 2)  # medium
+	if t.startswith('Affiliate'):
+		return (OsintResult.BUCKET_AFFILIATES, False, 0)
+	if 'bgp as' in tl or 'netblock' in tl:
+		return (OsintResult.BUCKET_NETBLOCK_ASN, False, 0)
+	if ('dns ' in tl or 'name server' in tl or 'mx records' in tl
+			or t in ('Web Server', 'SSL Certificate - Raw Data', 'Domain Whois')):
+		return (OsintResult.BUCKET_INFRA_DNS, False, 0)
+	if t in ('Physical Location', 'Country Name'):
+		return (OsintResult.BUCKET_GEO, False, 0)
+	if 'web analytics' in tl or 'web framework' in tl or 'software used' in tl:
+		return (OsintResult.BUCKET_WEB_TECH, False, 0)
+	return None
+
+
+def save_osint_result(scan_history, bucket, event_type, data, source='spiderfoot',
+		extra=None, is_malicious=False, severity=0):
+	"""Idempotently persist a generic OSINT finding (de-dup per scan/bucket/type/data)."""
+	if not data:
+		return None, False
+	target = scan_history.domain if scan_history else None
+	obj, created = OsintResult.objects.get_or_create(
+		scan_history=scan_history, bucket=bucket, event_type=event_type,
+		data=str(data)[:2000],
+		defaults={
+			'target_domain': target, 'source': source,
+			'extra': (str(extra)[:2000] if extra else None),
+			'is_malicious': is_malicious, 'severity': severity,
+			'discovered_date': timezone.now(),
+		})
+	return obj, created
+
+
 @app.task(name='spiderfoot_scan', queue='spiderfoot_queue', bind=False)
 def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx={}):
 	"""Run SpiderFoot OSINT headless (no web UI) and map discovered events to
@@ -2655,11 +2713,14 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 	# sf.py -o json emits the human-readable event LABEL in "type" (e.g.
 	# "Internet Name"), not the internal id ("INTERNET_NAME"). Match on the labels
 	# and keep the internal ids too, so a future SpiderFoot output change still maps.
-	SF_EMAILS = {'Email Address', 'EMAILADDR'}
+	# Affiliate emails are the bulk of real email intel (plain 'Email Address' is
+	# usually empty), so capture both. Hosts/IPs feed the typed models in-scope.
+	SF_EMAILS = {'Email Address', 'Affiliate - Email Address', 'EMAILADDR', 'AFFILIATE_EMAILADDR'}
 	SF_HOSTS = {'Domain Name', 'Internet Name', 'DOMAIN_NAME', 'INTERNET_NAME'}
 	SF_IPS = {'IP Address', 'IPv6 Address', 'IP_ADDRESS', 'IPV6_ADDRESS'}
 	SF_NAMES = {'Human Name', 'HUMAN_NAME'}
 	saved = 0
+	intel = 0
 	for ev in events:
 		etype = ev.get('type')
 		data = ev.get('data')
@@ -2668,18 +2729,31 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 		try:
 			if etype in SF_EMAILS:
 				save_email(data, scan_history=scan_history)
+				saved += 1
 			elif etype in SF_HOSTS:
 				save_subdomain(data, ctx=ctx)
+				saved += 1
 			elif etype in SF_IPS:
 				save_ip_address(data)
+				saved += 1
 			elif etype in SF_NAMES:
 				save_employee(data, designation='spiderfoot', scan_history=scan_history)
+				saved += 1
 			else:
-				continue
-			saved += 1
+				# Rich intel (malicious/blacklist, repos, infra/DNS, affiliates,
+				# co-hosted, netblock/ASN, geo, web tech) -> OsintResult bucket.
+				route = _sf_bucket(etype)
+				if not route:
+					continue
+				bucket, is_mal, sev = route
+				save_osint_result(
+					scan_history, bucket, etype, data,
+					extra=ev.get('module'), is_malicious=is_mal, severity=sev)
+				intel += 1
 		except Exception as e:
 			logger.warning(f'spiderfoot: could not save {etype}={data}: {e}')
-	logger.info(f'spiderfoot: processed {len(events)} event(s), saved {saved} for {host}')
+	logger.info(
+		f'spiderfoot: processed {len(events)} event(s), saved {saved} typed + {intel} intel for {host}')
 	return events
 
 
