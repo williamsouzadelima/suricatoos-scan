@@ -1,5 +1,6 @@
 {% load static %}
 {% load permission_tags %}
+{% load i18n %}
 
 <div class="navbar-custom">
   <div class="container-fluid">
@@ -128,6 +129,24 @@
             <i class="fe-moon"></i>
           </div>
         </a>
+      </li>
+      <li class="dropdown notification-list topbar-dropdown">
+        {% get_current_language as CUR_LANG %}
+        <a class="nav-link dropdown-toggle waves-effect waves-light" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false" title="{% trans 'Language' %}">
+          <i class="fe-globe noti-icon"></i>
+          <span class="pro-user-name ms-1 text-uppercase">{{ CUR_LANG|slice:':2' }}</span>
+        </a>
+        <div class="dropdown-menu dropdown-menu-end">
+          {% get_available_languages as LANGS %}
+          {% for code, name in LANGS %}
+          <form action="{% url 'set_language' %}" method="post" class="m-0">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.get_full_path }}">
+            <input type="hidden" name="language" value="{{ code }}">
+            <button type="submit" class="dropdown-item notify-item{% if code == CUR_LANG %} active{% endif %}">{{ name }}</button>
+          </form>
+          {% endfor %}
+        </div>
       </li>
       <li class="dropdown notification-list">
         <a class="nav-link dropdown-toggle waves-effect waves-light arrow-none notification-a-icon" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">

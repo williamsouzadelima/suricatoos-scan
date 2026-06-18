@@ -24,6 +24,8 @@ schema_view = get_schema_view(
 urlpatterns = [
     url(r'^swagger(?P<format>\.json|\.yaml)$', schema_view.without_ui(cache_timeout=0), name='schema-json'),
     url(r'^swagger/$', schema_view.with_ui('swagger', cache_timeout=0), name='schema-swagger-ui'),
+    # i18n set_language endpoint (POST) for the topbar language switcher
+    path('i18n/', include('django.conf.urls.i18n')),
     path(
         'admin/',
         admin.site.urls),
