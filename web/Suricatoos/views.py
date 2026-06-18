@@ -1,9 +1,28 @@
 import os
 import mimetypes
 from django.contrib.auth.decorators import login_required
-from django.http import HttpResponse, Http404
+from django.http import HttpResponse, Http404, FileResponse
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _t
+
+
+def serve_branding_asset(request, path):
+    """Serve a white-label branding asset (logo/favicon) PUBLICLY.
+
+    Branding files are uploaded under MEDIA_ROOT/branding/ but, unlike scan
+    results, are not sensitive and must render on the unauthenticated login page
+    (and as the favicon). Only a basename within branding/ is served, so this
+    can't be used to read arbitrary files.
+    """
+    name = os.path.basename(path)
+    file_path = os.path.join(settings.MEDIA_ROOT, 'branding', name)
+    if not os.path.isfile(file_path):
+        raise Http404(_t("File not found"))
+    content_type, _ = mimetypes.guess_type(file_path)
+    return FileResponse(
+        open(file_path, 'rb'),
+        content_type=content_type or 'application/octet-stream')
+
 
 @login_required
 def serve_protected_media(request, path):

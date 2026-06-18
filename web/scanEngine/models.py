@@ -1,5 +1,7 @@
+import os
 import yaml
 from django.db import models
+from django.core.validators import FileExtensionValidator
 
 
 class hybrid_property:
@@ -120,6 +122,80 @@ class VulnerabilityReportSetting(models.Model):
     executive_summary_description = models.TextField(blank=True, null=True)
     show_footer = models.BooleanField(default=False)
     footer_text = models.CharField(max_length=200, null=True, blank=True)
+
+
+class BrandingSetting(models.Model):
+    """Install-wide white-label branding (singleton, pk=1).
+
+    Lets an operator replace the Suricatoos logo/favicon/name across the whole app
+    (top bar, login, favicon) and the PDF reports, without touching code. Empty
+    fields fall back to the bundled Suricatoos assets via the *_url properties, so a
+    fresh install looks exactly like before until something is uploaded.
+    """
+    # Suffix matches the bundled asset names: "*-dark" = dark ink (for light
+    # backgrounds), "*-light" = light/white ink (for dark backgrounds).
+    DEFAULT_LOGO_DARK = '/staticfiles/img/suricatoos-logo-dark.svg'
+    DEFAULT_LOGO_LIGHT = '/staticfiles/img/suricatoos-logo-light.svg'
+    DEFAULT_FAVICON = '/staticfiles/img/favicon.svg'
+
+    # FileField (not ImageField): ImageField runs Pillow verification, which rejects
+    # SVG — and SVG is the most common white-label logo format. Restrict to safe
+    # image extensions instead.
+    LOGO_EXTS = ['svg', 'png', 'jpg', 'jpeg', 'webp', 'gif']
+    FAVICON_EXTS = LOGO_EXTS + ['ico']
+
+    id = models.AutoField(primary_key=True)
+    brand_name = models.CharField(max_length=100, default='Suricatoos', blank=True)
+    logo_dark = models.FileField(
+        upload_to='branding/', null=True, blank=True,
+        validators=[FileExtensionValidator(LOGO_EXTS)])
+    logo_light = models.FileField(
+        upload_to='branding/', null=True, blank=True,
+        validators=[FileExtensionValidator(LOGO_EXTS)])
+    favicon = models.FileField(
+        upload_to='branding/', null=True, blank=True,
+        validators=[FileExtensionValidator(FAVICON_EXTS)])
+
+    class Meta:
+        verbose_name = 'Branding Setting'
+
+    def __str__(self):
+        return self.brand_name or 'Suricatoos'
+
+    def save(self, *args, **kwargs):
+        # Enforce singleton.
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    @property
+    def name(self):
+        return self.brand_name or 'Suricatoos'
+
+    @staticmethod
+    def _asset_url(f):
+        # Public route (branding assets are not sensitive and must render on the
+        # unauthenticated login page), NOT the @login_required /media/ route.
+        return f'/branding-asset/{os.path.basename(f.name)}' if f else None
+
+    @property
+    def logo_dark_url(self):
+        return self._asset_url(self.logo_dark) or self.DEFAULT_LOGO_DARK
+
+    @property
+    def logo_light_url(self):
+        # fall back to the dark-ink upload before the bundled default
+        return (self._asset_url(self.logo_light)
+                or self._asset_url(self.logo_dark)
+                or self.DEFAULT_LOGO_LIGHT)
+
+    @property
+    def favicon_url(self):
+        return self._asset_url(self.favicon) or self.DEFAULT_FAVICON
 
 
 class InstalledExternalTool(models.Model):

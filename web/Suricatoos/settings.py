@@ -122,6 +122,7 @@ TEMPLATES = [
                 'Suricatoos.context_processors.projects',
                 'Suricatoos.context_processors.version_context',
                 'Suricatoos.context_processors.user_preferences',
+                'Suricatoos.context_processors.branding',
             ],
     },
 }]

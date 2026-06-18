@@ -6,8 +6,8 @@
   <meta charset="utf-8" />
   <title>{% trans "Login Suricatoos" %}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/svg+xml" href="/staticfiles/img/favicon.svg">
-  <link rel="shortcut icon" href="/staticfiles/img/favicon.png">
+  <link rel="icon" href="{{ branding.favicon_url }}">
+  <link rel="shortcut icon" href="{{ branding.favicon_url }}">
   <link href="{% static 'bootstrap/bootstrap.min.css' %}" rel="stylesheet" type="text/css" id="bootstrap-stylesheet" />
   <link href="{% static 'assets/css/app.min.css' %}" rel="stylesheet" type="text/css" id="main-stylesheet" />
   <link href="{% static 'bootstrap/bootstrap-dark.min.css' %}" rel="stylesheet" type="text/css" id="bootstrap-dark-stylesheet" />
@@ -70,8 +70,8 @@
                 <div class="auth-logo">
                   <a href="index.html" class="logo text-center">
                     <span class="logo-lg">
-                      <img class="sx-logo-for-dark" src="/staticfiles/img/suricatoos-logo-light.svg" alt="Suricatoos" style="width: 230px; max-width: 100%; height: auto;">
-                      <img class="sx-logo-for-light" src="/staticfiles/img/suricatoos-logo-dark.svg" alt="Suricatoos" style="width: 230px; max-width: 100%; height: auto;">
+                      <img class="sx-logo-for-dark" src="{{ branding.logo_light_url }}" alt="{{ branding.name }}" style="width: 230px; max-width: 100%; height: auto;">
+                      <img class="sx-logo-for-light" src="{{ branding.logo_dark_url }}" alt="{{ branding.name }}" style="width: 230px; max-width: 100%; height: auto;">
                     </span>
                   </a>
                 </div>

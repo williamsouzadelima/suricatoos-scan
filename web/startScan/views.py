@@ -1,8 +1,12 @@
 import markdown
+import base64
+import os
 
 from celery import group
 from weasyprint import HTML, CSS
 from datetime import datetime
+from django.conf import settings
+from django.contrib.staticfiles import finders
 from django.contrib import messages
 from django.db.models import Count, Case, When, IntegerField
 from django.http import HttpResponse, HttpResponseRedirect, JsonResponse
@@ -20,7 +24,7 @@ from Suricatoos.charts import *
 from Suricatoos.common_func import *
 from Suricatoos.definitions import ABORTED_TASK, SUCCESS_TASK
 from Suricatoos.tasks import create_scan_activity, initiate_scan, run_command
-from scanEngine.models import EngineType
+from scanEngine.models import EngineType, BrandingSetting
 from startScan.models import *
 from targetApp.models import *
 
@@ -984,6 +988,38 @@ def customize_report(request, id):
     return render(request, 'startScan/customize_report.html', context)
 
 
+def _image_data_uri(path):
+    """Read an image file and return a base64 data URI, or '' on failure.
+
+    WeasyPrint renders the report from an HTML string with no base_url, so /media
+    and /staticfiles URLs don't resolve and (worse) a network <link> can hang the
+    render. Embedding the logo as a data URI keeps PDF generation self-contained.
+    """
+    try:
+        ext = os.path.splitext(path)[1].lower().lstrip('.')
+        mime = 'image/svg+xml' if ext == 'svg' else f'image/{ "jpeg" if ext == "jpg" else ext }'
+        with open(path, 'rb') as f:
+            return f'data:{mime};base64,{base64.b64encode(f.read()).decode("ascii")}'
+    except Exception:
+        return ''
+
+
+def report_logo_data_uri():
+    """Data URI for the report logo: the uploaded white-label logo if set, else the
+    bundled Suricatoos dark-ink logo (reports are on a light background)."""
+    try:
+        branding = BrandingSetting.load()
+    except Exception:
+        branding = None
+    if branding and branding.logo_dark:
+        uri = _image_data_uri(branding.logo_dark.path)
+        if uri:
+            return uri
+    # bundled default, resolved through the staticfiles finders
+    static_path = finders.find('img/suricatoos-logo-dark.svg')
+    return _image_data_uri(static_path) if static_path else ''
+
+
 @has_permission_decorator(PERM_MODIFY_SCAN_REPORT, redirect_url=FOUR_OH_FOUR_URL)
 def create_report(request, id):
     primary_color = '#FFB74D'
@@ -1088,6 +1124,8 @@ def create_report(request, id):
         'show_vuln': show_vuln,
         'report_name': report_name,
         'is_ignore_info_vuln': is_ignore_info_vuln,
+        'report_logo_uri': report_logo_data_uri(),
+        'brand_name': BrandingSetting.load().name,
     }
 
     # Get report related config

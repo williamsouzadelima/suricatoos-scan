@@ -224,18 +224,18 @@
     <div class="logo-box">
       <a href="{% url 'dashboardIndex' current_project.slug %}" class="logo logo-dark text-center">
         <span class="logo-sm">
-          <h3 class="text-logo vertical-center">Suricatoos&nbsp;<small>{{SURICATOOS_CURRENT_VERSION}}</small></h3>
+          <h3 class="text-logo vertical-center">{{ branding.name }}&nbsp;<small>{{SURICATOOS_CURRENT_VERSION}}</small></h3>
         </span>
         <span class="logo-lg">
-          <img src="/staticfiles/img/suricatoos-logo-dark.svg" alt="Suricatoos" height="30">
+          <img src="{{ branding.logo_dark_url }}" alt="{{ branding.name }}" height="30">
         </span>
       </a>
       <a href="{% url 'dashboardIndex' current_project.slug %}" class="logo logo-light text-center">
         <span class="logo-sm">
-          <h3 class="text-sm-logo vertical-center">Suricatoos&nbsp;<small>{{SURICATOOS_CURRENT_VERSION}}</small></h3>
+          <h3 class="text-sm-logo vertical-center">{{ branding.name }}&nbsp;<small>{{SURICATOOS_CURRENT_VERSION}}</small></h3>
         </span>
         <span class="logo-lg">
-          <img src="/staticfiles/img/suricatoos-logo-light.svg" alt="Suricatoos" height="30">
+          <img src="{{ branding.logo_light_url }}" alt="{{ branding.name }}" height="30">
         </span>
       </a>
     </div>

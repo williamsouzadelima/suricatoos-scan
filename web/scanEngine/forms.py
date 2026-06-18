@@ -721,3 +721,48 @@ class ExternalToolForm(forms.ModelForm):
         self.initial['version_match_regex'] = key.version_match_regex
         self.initial['version_lookup_command'] = key.version_lookup_command
         self.initial['subdomain_gathering_command'] = key.subdomain_gathering_command
+
+
+class BrandingForm(forms.ModelForm):
+    class Meta:
+        model = BrandingSetting
+        fields = ['brand_name', 'logo_dark', 'logo_light', 'favicon']
+
+    brand_name = forms.CharField(
+        required=False,
+        widget=forms.TextInput(
+            attrs={
+                "class": "form-control form-control-lg",
+                "id": "brand_name",
+                "placeholder": "Suricatoos",
+            }))
+
+    logo_dark = forms.FileField(
+        required=False,
+        widget=forms.ClearableFileInput(
+            attrs={
+                "class": "form-control",
+                "id": "logo_dark",
+                "accept": ".svg,.png,.jpg,.jpeg,.webp,.gif",
+            }))
+
+    logo_light = forms.FileField(
+        required=False,
+        widget=forms.ClearableFileInput(
+            attrs={
+                "class": "form-control",
+                "id": "logo_light",
+                "accept": ".svg,.png,.jpg,.jpeg,.webp,.gif",
+            }))
+
+    favicon = forms.FileField(
+        required=False,
+        widget=forms.ClearableFileInput(
+            attrs={
+                "class": "form-control",
+                "id": "favicon",
+                "accept": ".svg,.png,.jpg,.jpeg,.webp,.gif,.ico",
+            }))
+
+    def set_value(self, instance):
+        self.initial['brand_name'] = instance.brand_name

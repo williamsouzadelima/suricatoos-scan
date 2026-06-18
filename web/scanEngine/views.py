@@ -454,6 +454,32 @@ def report_settings(request, slug):
     return render(request, 'scanEngine/settings/report.html', context)
 
 
+@has_permission_decorator(PERM_MODIFY_SCAN_REPORT, redirect_url=FOUR_OH_FOUR_URL)
+def branding_settings(request, slug):
+    """Install-wide white-label branding: upload the app/report logo and favicon."""
+    branding = BrandingSetting.load()
+    form = BrandingForm(instance=branding)
+    form.set_value(branding)
+
+    if request.method == "POST":
+        form = BrandingForm(request.POST, request.FILES, instance=branding)
+        if form.is_valid():
+            form.save()
+            messages.add_message(
+                request, messages.INFO, _('Branding settings updated.'))
+            return http.HttpResponseRedirect(
+                reverse('branding_settings', kwargs={'slug': slug}))
+
+    context = {
+        'settings_nav_active': 'active',
+        'branding_settings_li': 'active',
+        'settings_ul_show': 'show',
+        'form': form,
+        'branding': branding,
+    }
+    return render(request, 'scanEngine/settings/branding.html', context)
+
+
 @has_permission_decorator(PERM_MODIFY_SYSTEM_CONFIGURATIONS, redirect_url=FOUR_OH_FOUR_URL)
 def tool_arsenal_section(request, slug):
     context = {}

@@ -8,7 +8,7 @@ from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 
-from Suricatoos.views import serve_protected_media
+from Suricatoos.views import serve_protected_media, serve_branding_asset
 
 schema_view = get_schema_view(
    openapi.Info(
@@ -58,9 +58,14 @@ urlpatterns = [
             'api.urls',
             'api')),
     path(
-        'media/<path:path>', 
-        serve_protected_media, 
+        'media/<path:path>',
+        serve_protected_media,
         name='serve_protected_media'
+    ),
+    path(
+        'branding-asset/<path:path>',
+        serve_branding_asset,
+        name='branding_asset'
     ),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 # ] + static(settings.MEDIA_URL, document_root=settings.SURICATOOS_RESULTS) + \
