@@ -1216,8 +1216,13 @@ def exclude_urls_by_patterns(exclude_paths, urls):
 			list of str: A new list containing URLs that don't match any exclusion pattern.
 	"""
 	logger.info('exclude_urls_by_patterns')
+	# Drop empty / whitespace-only patterns. The scan UI turns a blank "Excluded Paths"
+	# field into [''] (''.split(',')), and an empty pattern compiles to a regex that
+	# matches EVERY url -- which silently excluded ALL endpoints and made the whole
+	# HTTP/endpoint/vuln pipeline come back empty.
+	exclude_paths = [p for p in (exclude_paths or []) if isinstance(p, str) and p.strip()]
 	if not exclude_paths:
-		# if no exclude paths are passed and is empty list return all urls as it is
+		# nothing to exclude -> return all urls as they are
 		return urls
 	
 	compiled_patterns = []
