@@ -9,6 +9,7 @@ from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 
 from Suricatoos.views import serve_protected_media, serve_branding_asset
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 schema_view = get_schema_view(
    openapi.Info(
@@ -57,6 +58,9 @@ urlpatterns = [
         include(
             'api.urls',
             'api')),
+    # JWT auth for the SPA / external clients (session auth still works too).
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path(
         'media/<path:path>',
         serve_protected_media,
