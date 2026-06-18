@@ -3411,9 +3411,15 @@ def http_crawl(
 				subdomain,
 				subscan=self.subscan,
 				cdn=cdn)
-			self.notify(
-				fields={'IPs': f'• `{ip.address}`'},
-				add_meta_info=False)
+			# save_ip_address returns (None, False) when `host` is not a valid IP
+			# (e.g. httpx reported a hostname, not a resolved address). Guard against
+			# it: dereferencing ip.address on None raised AttributeError, which the
+			# task wrapper swallowed into a traceback string and broke save_endpoint
+			# downstream ("string indices must be integers"), failing the whole scan.
+			if ip:
+				self.notify(
+					fields={'IPs': f'• `{ip.address}`'},
+					add_meta_info=False)
 
 		# Save subdomain and endpoint
 		if is_ran_from_subdomain_scan:
