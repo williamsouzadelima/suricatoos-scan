@@ -237,6 +237,11 @@ LOGIN_REQUIRED_IGNORE_VIEW_NAMES = [
     # JWT endpoints must be reachable without a session (chicken-and-egg).
     'token_obtain_pair',
     'token_refresh',
+    'token_blacklist',
+    # White-label logo/favicon must render on the unauthenticated login page.
+    # The view serves only files referenced by the branding model (no path
+    # traversal), so exposing it without a session is safe.
+    'branding_asset',
 ]
 
 # Let DRF own auth on the whole API surface: LoginRequiredMiddleware would 302

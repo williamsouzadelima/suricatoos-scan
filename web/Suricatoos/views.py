@@ -43,21 +43,27 @@ def serve_branding_asset(request, path):
     (and as the favicon). Only a basename within branding/ is served, so this
     can't be used to read arbitrary files.
     """
-    branding_dir = os.path.realpath(
-        os.path.join(settings.MEDIA_ROOT, 'branding'))
-    # basename() strips any directory component; realpath()+containment is the
-    # belt-and-suspenders barrier so the resolved path can never escape
-    # branding/ (also satisfies CodeQL's path-injection sanitizer).
-    file_path = os.path.realpath(
-        os.path.join(branding_dir, os.path.basename(path)))
-    if os.path.commonpath([branding_dir, file_path]) != branding_dir:
-        raise Http404(_t("File not found"))
-    if not os.path.isfile(file_path):
-        raise Http404(_t("File not found"))
-    content_type, _ = mimetypes.guess_type(file_path)
-    return FileResponse(
-        open(file_path, 'rb'),
-        content_type=content_type or 'application/octet-stream')
+    # Resolve the file from the branding model, not from the request path: only
+    # the (up to) three files the model actually references are servable, and the
+    # filesystem path comes from the FileField storage (trusted DB value). The
+    # request value is used solely for an equality match against the stored
+    # basenames, so no request-controlled data ever reaches open()/isfile() —
+    # this closes the path-traversal class outright (and the CodeQL alert).
+    from scanEngine.models import BrandingSetting
+    requested = os.path.basename(path)
+    branding = BrandingSetting.load()
+    for field in (branding.logo_dark, branding.logo_light, branding.favicon):
+        if not field:
+            continue
+        if os.path.basename(field.name) == requested:
+            file_path = field.path
+            if os.path.isfile(file_path):
+                content_type, _ = mimetypes.guess_type(file_path)
+                return FileResponse(
+                    open(file_path, 'rb'),
+                    content_type=content_type or 'application/octet-stream')
+            break
+    raise Http404(_t("File not found"))
 
 
 @login_required
