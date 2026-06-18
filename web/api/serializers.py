@@ -801,6 +801,18 @@ class OsintResultSerializer(serializers.ModelSerializer):
 		]
 
 
+class VulnSpaSerializer(serializers.ModelSerializer):
+	"""Lean vulnerability shape for the SPA table (clean REST, no DataTables wrap)."""
+
+	class Meta:
+		model = Vulnerability
+		fields = [
+			'id', 'name', 'severity', 'source', 'type', 'http_url',
+			'cvss_score', 'open_status', 'validation_status', 'is_gpt_used',
+			'template_id', 'discovered_date',
+		]
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:

@@ -5,6 +5,7 @@ import { AppLayout } from './components/AppLayout'
 import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { Osint } from './pages/Osint'
+import { Vulnerabilities } from './pages/Vulnerabilities'
 
 export default function App() {
   return (
@@ -14,6 +15,7 @@ export default function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
             <Route index element={<Dashboard />} />
+            <Route path="vulnerabilities" element={<Vulnerabilities />} />
             <Route path="osint" element={<Osint />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

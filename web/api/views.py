@@ -2972,6 +2972,29 @@ class OsintResultViewSet(viewsets.ReadOnlyModelViewSet):
 		return qs.order_by('-is_malicious', 'bucket', 'event_type').distinct()
 
 
+class SpaVulnerabilityViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Clean REST vulnerability list for the SPA (plain JSON array, no DataTables
+	envelope). Filter by ?project= / ?scan_history= / ?severity=. The SPA table
+	(TanStack) sorts/filters/paginates client-side."""
+	queryset = Vulnerability.objects.none()
+	serializer_class = VulnSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		req = self.request
+		qs = Vulnerability.objects.all()
+		slug = req.query_params.get('project')
+		scan_id = req.query_params.get('scan_history')
+		severity = req.query_params.get('severity')
+		if slug:
+			qs = qs.filter(scan_history__domain__project__slug=slug)
+		if scan_id:
+			qs = qs.filter(scan_history__id=scan_id)
+		if severity not in (None, ''):
+			qs = qs.filter(severity=severity)
+		return qs.order_by('-severity', 'name').distinct()
+
+
 class VulnerabilityViewSet(viewsets.ModelViewSet):
 	queryset = Vulnerability.objects.none()
 	serializer_class = VulnerabilitySerializer
