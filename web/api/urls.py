@@ -198,6 +198,10 @@ urlpatterns = [
         DeleteVulnerability.as_view(),
         name='delete_vulnerability'),
     path(
+        'action/vulnerability/validate/',
+        ValidateVulnerability.as_view(),
+        name='validate_vulnerability'),
+    path(
         'action/rows/delete/',
         DeleteMultipleRows.as_view(),
         name='delete_rows'),

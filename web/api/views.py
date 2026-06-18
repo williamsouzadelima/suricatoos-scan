@@ -1225,6 +1225,27 @@ class DeleteVulnerability(APIView):
 		return Response({'status': True})
 
 
+class ValidateVulnerability(APIView):
+	"""Manually (re-)validate one or more findings. Runs asynchronously; the
+	validation_status updates once the re-test completes (reload the table to see it)."""
+	permission_classes = [HasPermission]
+	permission_required = PERM_MODIFY_SCAN_RESULTS
+
+	def post(self, request):
+		ids = request.data.get('vulnerability_ids') or []
+		single = request.data.get('vulnerability_id')
+		if single and not ids:
+			ids = [single]
+		queued = 0
+		for vid in ids:
+			try:
+				validate_single_vulnerability.delay(int(vid))
+				queued += 1
+			except (TypeError, ValueError):
+				continue
+		return Response({'status': True, 'queued': queued})
+
+
 class ListInterestingKeywords(APIView):
 	def get(self, request, format=None):
 		req = self.request

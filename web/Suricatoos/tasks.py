@@ -1,9 +1,11 @@
 import csv
+import ipaddress
 import json
 import os
 import pprint
 import re
 import shlex
+import socket
 import subprocess
 import time
 import validators
@@ -2234,6 +2236,18 @@ def vulnerability_scan(self, urls=[], ctx={}, description=None):
 
 	logger.info('Vulnerability scan completed...')
 
+	# Validate the findings (anti false-positive) once every scanner has finished.
+	# Runs inline here (vulnerability_scan already blocked on the group) to avoid a
+	# synchronous task-within-task; opt out with vulnerability_scan.validate_vulnerabilities: false.
+	if config.get(VALIDATE_VULNERABILITIES, DEFAULT_VALIDATE_VULNERABILITIES):
+		logger.info('Validating discovered vulnerabilities...')
+		try:
+			_validate_scan_vulnerabilities(
+				self.scan_id, config,
+				history_file=self.history_file, activity_id=self.activity_id)
+		except Exception as e:
+			logger.warning(f'vulnerability validation step failed: {e}')
+
 	# return results
 	return None
 
@@ -2638,24 +2652,200 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 	except Exception as e:
 		logger.exception(e)
 		return []
+	# sf.py -o json emits the human-readable event LABEL in "type" (e.g.
+	# "Internet Name"), not the internal id ("INTERNET_NAME"). Match on the labels
+	# and keep the internal ids too, so a future SpiderFoot output change still maps.
+	SF_EMAILS = {'Email Address', 'EMAILADDR'}
+	SF_HOSTS = {'Domain Name', 'Internet Name', 'DOMAIN_NAME', 'INTERNET_NAME'}
+	SF_IPS = {'IP Address', 'IPv6 Address', 'IP_ADDRESS', 'IPV6_ADDRESS'}
+	SF_NAMES = {'Human Name', 'HUMAN_NAME'}
+	saved = 0
 	for ev in events:
 		etype = ev.get('type')
 		data = ev.get('data')
 		if not data:
 			continue
 		try:
-			if etype == 'EMAILADDR':
+			if etype in SF_EMAILS:
 				save_email(data, scan_history=scan_history)
-			elif etype in ('DOMAIN_NAME', 'INTERNET_NAME'):
+			elif etype in SF_HOSTS:
 				save_subdomain(data, ctx=ctx)
-			elif etype == 'IP_ADDRESS':
+			elif etype in SF_IPS:
 				save_ip_address(data)
-			elif etype == 'HUMAN_NAME':
+			elif etype in SF_NAMES:
 				save_employee(data, designation='spiderfoot', scan_history=scan_history)
+			else:
+				continue
+			saved += 1
 		except Exception as e:
 			logger.warning(f'spiderfoot: could not save {etype}={data}: {e}')
-	logger.info(f'spiderfoot: processed {len(events)} event(s) for {host}')
+	logger.info(f'spiderfoot: processed {len(events)} event(s), saved {saved} for {host}')
 	return events
+
+
+#--------------------------------#
+# VULNERABILITY VALIDATION        #
+#--------------------------------#
+
+# A re-test URL must stay a single shlex token (no whitespace/quote/backslash) and be http(s).
+SAFE_RETEST_URL_RE = re.compile(r"\Ahttps?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+\Z")
+
+
+def _validation_target_url(url, allow_private=True):
+	"""Validate a stored finding URL before re-testing it.
+
+	Two guards: (a) argv/flag smuggling — the URL must be http(s) and carry no
+	whitespace/quote/backslash/control char, so shlex.split keeps it a single token
+	and it can't smuggle an extra nuclei flag; (b) SSRF — it must not resolve to a
+	loopback/link-local/metadata/unspecified/multicast/reserved address (ALWAYS
+	blocked); RFC1918/ULA private ranges are legitimate internal-pentest targets and
+	are blocked only when allow_private is False. Returns (url, None) or (None, reason).
+	"""
+	s = str(url or '').strip()
+	if not s:
+		return None, 'empty URL'
+	if any(ord(c) < 0x20 for c in s) or any(c in s for c in ' \t"\'\\'):
+		return None, 'URL has whitespace/quote/control characters'
+	if not SAFE_RETEST_URL_RE.match(s):
+		return None, 'unsupported URL scheme/characters'
+	parsed = urlparse(s)
+	if parsed.scheme not in ('http', 'https') or not parsed.hostname:
+		return None, 'scheme/host not allowed'
+	host = parsed.hostname
+	try:
+		infos = socket.getaddrinfo(host, None)
+	except Exception:
+		return None, f'host {host} does not resolve'
+	for info in infos:
+		ip = info[4][0]
+		try:
+			addr = ipaddress.ip_address(ip)
+		except ValueError:
+			return None, f'unparseable address {ip}'
+		always_blocked = (
+			addr.is_loopback or addr.is_link_local or addr.is_unspecified
+			or addr.is_multicast or addr.is_reserved)
+		if always_blocked or (not allow_private and addr.is_private):
+			return None, f'blocked internal/metadata address {ip}'
+	return s, None
+
+
+def _retest_nuclei_finding(template_id, http_url, allow_private, timeout,
+		history_file=None, scan_id=None, activity_id=None):
+	"""Authoritatively re-test a nuclei finding by re-running ONLY that template
+	against ONLY that URL. Returns (status, evidence). Hard rule: an execution
+	failure is NEVER reported as false_positive."""
+	safe_url, reason = _validation_target_url(http_url, allow_private=allow_private)
+	if not safe_url:
+		return Vulnerability.VALIDATION_NEEDS_REVIEW, f'Skipped re-test: {reason}.'
+	t = _safe_int(timeout, DEFAULT_VALIDATION_TIMEOUT)
+	cmd = (
+		f'nuclei -j -silent -id {template_id} -u {safe_url} '
+		f'-timeout {t} -retries 0 -t {NUCLEI_DEFAULT_TEMPLATES_PATH}')
+	return_code, output = run_command(
+		cmd, shell=False, history_file=history_file,
+		scan_id=scan_id, activity_id=activity_id)
+	hit = False
+	parse_failed = False
+	for raw in (output or '').splitlines():
+		raw = raw.strip()
+		if not raw.startswith('{'):
+			continue
+		try:
+			line = json.loads(raw)
+		except Exception:
+			parse_failed = True
+			continue
+		if line.get('template-id') == template_id:
+			hit = True
+			break
+	if hit:
+		return Vulnerability.VALIDATION_CONFIRMED, (
+			f'Confirmed: nuclei re-fired template {template_id} on {safe_url}.')
+	if return_code != 0:
+		# Execution failure: do NOT downgrade to false_positive.
+		return Vulnerability.VALIDATION_ERROR, (
+			f'Re-test could not run cleanly (nuclei exit {return_code}); needs manual review.')
+	if parse_failed:
+		return Vulnerability.VALIDATION_NEEDS_REVIEW, (
+			'Re-test ran but output could not be parsed; needs manual review.')
+	return Vulnerability.VALIDATION_FALSE_POSITIVE, (
+		f'Likely false positive: nuclei did not re-fire template {template_id} on {safe_url}.')
+
+
+def validate_one_vulnerability(vuln, allow_private=True, timeout=DEFAULT_VALIDATION_TIMEOUT,
+		history_file=None, scan_id=None, activity_id=None, cache=None):
+	"""Re-test a single Vulnerability and persist its validation_status. `cache` is an
+	optional dict reused across a scan so identical (template, url) pairs only fire
+	nuclei once."""
+	template_id = _allow(vuln.template_id, SAFE_PATH_RE, '')
+	if (vuln.source or '').lower() != NUCLEI or not template_id or not vuln.http_url:
+		status = Vulnerability.VALIDATION_NEEDS_REVIEW
+		evidence = ('No automated validator for this finding '
+			'(v1 auto-validates nuclei template findings only).')
+	else:
+		key = (template_id, vuln.http_url)
+		if cache is not None and key in cache:
+			status, evidence = cache[key]
+		else:
+			status, evidence = _retest_nuclei_finding(
+				template_id, vuln.http_url, allow_private, timeout,
+				history_file=history_file, scan_id=scan_id, activity_id=activity_id)
+			if cache is not None:
+				cache[key] = (status, evidence)
+	vuln.validation_status = status
+	vuln.validation_evidence = (evidence or '')[:5000]
+	vuln.validated_date = timezone.now()
+	vuln.save(update_fields=['validation_status', 'validation_evidence', 'validated_date'])
+	return status
+
+
+def _validate_scan_vulnerabilities(scan_id, config, history_file=None, activity_id=None):
+	"""Validate every vulnerability of a scan, de-duplicating tool re-runs. Returns a
+	{status: count} dict."""
+	allow_private = config.get(VALIDATION_ALLOW_PRIVATE, DEFAULT_VALIDATION_ALLOW_PRIVATE)
+	timeout = config.get(VALIDATION_TIMEOUT, DEFAULT_VALIDATION_TIMEOUT)
+	vulns = Vulnerability.objects.filter(scan_history__id=scan_id)
+	cache = {}
+	counts = {}
+	logger.info(f'Validating {vulns.count()} vulnerabilit(y/ies) for scan {scan_id}')
+	for vuln in vulns:
+		try:
+			status = validate_one_vulnerability(
+				vuln, allow_private=allow_private, timeout=timeout,
+				history_file=history_file, scan_id=scan_id, activity_id=activity_id,
+				cache=cache)
+		except Exception as e:
+			logger.warning(f'validation failed for vuln {vuln.id}: {e}')
+			status = Vulnerability.VALIDATION_ERROR
+		counts[status] = counts.get(status, 0) + 1
+	logger.info(f'Vulnerability validation done for scan {scan_id}: {counts}')
+	return counts
+
+
+@app.task(name='validate_vulnerabilities', queue='main_scan_queue', base=SuricatoosTask, bind=True)
+def validate_vulnerabilities(self, ctx={}, description=None):
+	"""Celery entrypoint to (re-)validate all of a scan's vulnerabilities."""
+	config = self.yaml_configuration.get(VULNERABILITY_SCAN) or {}
+	return _validate_scan_vulnerabilities(
+		self.scan_id, config, history_file=self.history_file, activity_id=self.activity_id)
+
+
+@app.task(name='validate_single_vulnerability', queue='main_scan_queue', bind=False)
+def validate_single_vulnerability(vulnerability_id):
+	"""Manual re-validation of one finding (triggered from the UI)."""
+	vuln = Vulnerability.objects.filter(id=vulnerability_id).first()
+	if not vuln:
+		return None
+	config = {}
+	try:
+		raw = vuln.scan_history.scan_type.yaml_configuration
+		config = (yaml.safe_load(raw) or {}).get(VULNERABILITY_SCAN) or {}
+	except Exception:
+		config = {}
+	allow_private = config.get(VALIDATION_ALLOW_PRIVATE, DEFAULT_VALIDATION_ALLOW_PRIVATE)
+	timeout = config.get(VALIDATION_TIMEOUT, DEFAULT_VALIDATION_TIMEOUT)
+	return validate_one_vulnerability(vuln, allow_private=allow_private, timeout=timeout)
 
 
 #-------------------#

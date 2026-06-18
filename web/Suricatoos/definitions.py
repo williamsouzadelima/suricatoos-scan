@@ -123,9 +123,25 @@ SPIDERFOOT_DIR = '/usr/src/github/spiderfoot'
 SPIDERFOOT_EXEC_PATH = '/usr/src/github/spiderfoot/sf.py'
 DEFAULT_RUN_GITLEAKS = True
 DEFAULT_RUN_GGSHIELD = False
-DEFAULT_ENABLE_SPIDERFOOT = False
+# On by default so OSINT scans actually surface SpiderFoot data. Uses the
+# 'passive' preset (no active probing). Set osint.enable_spiderfoot: false in an
+# engine's YAML to opt out (e.g. to keep that engine's scans faster).
+DEFAULT_ENABLE_SPIDERFOOT = True
 # Secrets are reported at critical severity (4 in NUCLEI_REVERSE_SEVERITY_MAP).
 SECRET_DEFAULT_SEVERITY = 4
+
+# Suricatoos — vulnerability validation (anti false-positive) defaults
+# Config lives under vulnerability_scan.validate_vulnerabilities in the engine YAML.
+VALIDATE_VULNERABILITIES = 'validate_vulnerabilities'
+DEFAULT_VALIDATE_VULNERABILITIES = True
+# Re-test timeout per finding (seconds) handed to the native tool re-run.
+VALIDATION_TIMEOUT = 'validation_timeout'
+DEFAULT_VALIDATION_TIMEOUT = 10
+# SSRF guard: loopback/link-local/metadata/unspecified/multicast are ALWAYS blocked.
+# Private (RFC1918/ULA) ranges are legitimate targets for internal pentests, so they
+# are allowed by default; set this true in the engine YAML to also block them.
+VALIDATION_ALLOW_PRIVATE = 'validation_allow_private'
+DEFAULT_VALIDATION_ALLOW_PRIVATE = True
 
 # amass
 AMASS_DEFAULT_WORDLIST_PATH = (

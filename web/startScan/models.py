@@ -496,6 +496,30 @@ class Vulnerability(models.Model):
 	request = models.TextField(blank=True, null=True)
 	response = models.TextField(blank=True, null=True)
 	is_gpt_used = models.BooleanField(null=True, blank=True, default=False)
+
+	# --- Validation layer (anti false-positive) ---
+	# Findings are re-tested after the scan (native re-run of the originating tool).
+	# Hard rule: an execution failure NEVER becomes false_positive (it's error/needs_review).
+	VALIDATION_NOT_VALIDATED = 'not_validated'
+	VALIDATION_CONFIRMED = 'confirmed'
+	VALIDATION_FALSE_POSITIVE = 'false_positive'
+	VALIDATION_NEEDS_REVIEW = 'needs_review'
+	VALIDATION_ERROR = 'error'
+	VALIDATION_STATUS_CHOICES = (
+		(VALIDATION_NOT_VALIDATED, 'Not validated'),
+		(VALIDATION_CONFIRMED, 'Confirmed'),
+		(VALIDATION_FALSE_POSITIVE, 'False positive'),
+		(VALIDATION_NEEDS_REVIEW, 'Needs review'),
+		(VALIDATION_ERROR, 'Validation error'),
+	)
+	validation_status = models.CharField(
+		max_length=20,
+		choices=VALIDATION_STATUS_CHOICES,
+		default=VALIDATION_NOT_VALIDATED,
+		null=True, blank=True)
+	validated_date = models.DateTimeField(null=True, blank=True)
+	validation_evidence = models.TextField(null=True, blank=True)
+
 	# used for subscans
 	vuln_subscan_ids = models.ManyToManyField('SubScan', related_name='vuln_subscan_ids', blank=True)
 

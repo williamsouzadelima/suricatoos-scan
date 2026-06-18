@@ -1804,7 +1804,7 @@ $(document).ready(function() {
 							{% else %}
 								hackerone_report = "";
 							{% endif %}
-							return `<b class="text-${color}">` + data + `</b>` + cvss_metrics_badge + cve_cwe_badge + tags + hackerone_report;
+							return `<b class="text-${color}">` + data + `</b>` + get_validation_badge(row['validation_status']) + cvss_metrics_badge + cve_cwe_badge + tags + hackerone_report;
 						},
 						"targets": 3,
 					},
@@ -1874,6 +1874,7 @@ $(document).ready(function() {
 								</a>
 								<div class="dropdown-menu" style="">
 								<a class="dropdown-item" href="javascript:fetch_gpt_vuln_details(${row['id']}, '${row['name']}');">Fetch GPT Vulnerability Details</a>
+								<a class="dropdown-item" href="javascript:revalidate_vulnerability(${row['id']});">Re-validate finding</a>
 								{% if user_preferences.bug_bounty_mode %}
 									<a class="dropdown-item" href="javascript:report_hackerone(${row['id']}, '${row['severity']}');">Report to Hackerone</a>
 								{% endif %}
