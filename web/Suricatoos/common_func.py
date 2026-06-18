@@ -416,6 +416,8 @@ def get_subdomain_from_url(url):
 	Returns:
 		str: Subdomain name.
 	"""
+	if not url:
+		return ''
 	# Check if the URL has a scheme. If not, add a temporary one to prevent empty netloc.
 	if "://" not in url:
 		url = "http://" + url
@@ -467,6 +469,8 @@ def sanitize_url(http_url):
 	Returns:
 		str: Stripped HTTP URL.
 	"""
+	if not http_url:
+		return ''
 	# Check if the URL has a scheme. If not, add a temporary one to prevent empty netloc.
 	if "://" not in http_url:
 		http_url = "http://" + http_url
@@ -513,7 +517,9 @@ def get_random_proxy():
 	proxy = Proxy.objects.first()
 	if not proxy.use_proxy:
 		return ''
-	proxy_name = random.choice(proxy.proxies.splitlines())
+	proxy_name = random.choice(proxy.proxies.splitlines()).strip()
+	if proxy_name and '://' not in proxy_name:
+		proxy_name = 'http://' + proxy_name
 	logger.warning('Using proxy: ' + proxy_name)
 	# os.environ['HTTP_PROXY'] = proxy_name
 	# os.environ['HTTPS_PROXY'] = proxy_name

@@ -105,11 +105,11 @@ then
   # pip install -r /usr/src/github/Eyewitness/requirements.txt
 fi
 
-# clone theHarvester
+# clone theHarvester (pinned: 4.x still ships requirements/base.txt + root theHarvester.py, runs on py3.10)
 if [ ! -d "/usr/src/github/theHarvester" ]
 then
-  echo "Cloning theHarvester"
-  git clone https://github.com/laramies/theHarvester /usr/src/github/theHarvester
+  echo "Cloning theHarvester 4.4.4"
+  git clone --branch 4.4.4 --depth 1 https://github.com/laramies/theHarvester /usr/src/github/theHarvester
 fi
 python3 -m pip install -r /usr/src/github/theHarvester/requirements/base.txt
 
@@ -119,6 +119,9 @@ then
   echo "Cloning SpiderFoot v4.0"
   git clone --branch v4.0 --depth 1 https://github.com/smicallef/spiderfoot /usr/src/github/spiderfoot
 fi
+# SpiderFoot v4.0 pins pyyaml>=5.4.1,<6 but PyYAML 5.x has no py3.10 wheel and its sdist
+# fails to build (AttributeError: cython_sources). 6.0.1 is already installed and works.
+sed -i '/^[[:space:]]*pyyaml/Id' /usr/src/github/spiderfoot/requirements.txt
 python3 -m pip install -r /usr/src/github/spiderfoot/requirements.txt
 
 # clone vulscan
