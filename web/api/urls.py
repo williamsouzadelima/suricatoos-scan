@@ -17,6 +17,7 @@ router.register(r'listOsintResults', OsintResultViewSet)
 router.register(r'vulnerabilities', SpaVulnerabilityViewSet, basename='spa_vulnerabilities')
 router.register(r'scans', SpaScanViewSet, basename='spa_scans')
 router.register(r'subdomains', SpaSubdomainViewSet, basename='spa_subdomains')
+router.register(r'targets', SpaTargetViewSet, basename='spa_targets')
 router.register(r'listInterestingSubdomains', InterestingSubdomainViewSet)
 router.register(r'listInterestingEndpoints', InterestingEndpointViewSet)
 router.register(r'listSubdomainChanges', SubdomainChangesViewSet)
@@ -209,6 +210,10 @@ urlpatterns = [
         'dashboard/stats/',
         DashboardStats.as_view(),
         name='dashboard_stats'),
+    path(
+        'projects/',
+        ProjectsList.as_view(),
+        name='spa_projects'),
     path(
         'scan-options/',
         ScanOptions.as_view(),

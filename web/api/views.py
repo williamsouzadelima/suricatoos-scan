@@ -3400,3 +3400,27 @@ class SpaSubdomainViewSet(viewsets.ReadOnlyModelViewSet):
 		if scan_id:
 			qs = qs.filter(scan_history__id=scan_id)
 		return qs.order_by('name').distinct()
+
+
+class ProjectsList(APIView):
+	"""Projects for the SPA project selector."""
+
+	def get(self, request):
+		return Response([
+			{'id': p.id, 'name': p.name, 'slug': p.slug}
+			for p in Project.objects.all().order_by('name')
+		])
+
+
+class SpaTargetViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Clean REST target/domain list for the SPA. Filter by ?project=."""
+	queryset = Domain.objects.none()
+	serializer_class = TargetSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		qs = Domain.objects.all()
+		slug = self.request.query_params.get('project')
+		if slug:
+			qs = qs.filter(project__slug=slug)
+		return qs.order_by('name').distinct()

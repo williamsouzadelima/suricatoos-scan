@@ -2,9 +2,11 @@ import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/auth'
 import { getTheme, toggleTheme, type Theme } from '../lib/theme'
+import { useProject } from '../project/project'
 
 const NAV = [
   { to: '/', label: 'Dashboard', end: true },
+  { to: '/targets', label: 'Targets', end: false },
   { to: '/scans', label: 'Scans', end: false },
   { to: '/subdomains', label: 'Subdomains', end: false },
   { to: '/vulnerabilities', label: 'Vulnerabilities', end: false },
@@ -13,6 +15,7 @@ const NAV = [
 
 export function AppLayout() {
   const { logout } = useAuth()
+  const { projects, currentSlug, setCurrentSlug } = useProject()
   const [open, setOpen] = useState(false)
   const [theme, setTheme] = useState<Theme>(getTheme())
 
@@ -23,6 +26,10 @@ export function AppLayout() {
         <span className="font-semibold">Suricatoos</span>
         <span className="text-xs text-sx-muted">SPA</span>
         <div className="ml-auto flex items-center gap-2">
+          <select value={currentSlug} onChange={(e) => setCurrentSlug(e.target.value)}
+            className="rounded-lg border border-sx-border bg-sx-surface-2 px-2 py-1 text-sm" title="Project">
+            {projects.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
+          </select>
           <button className="rounded-lg border border-sx-border px-2 py-1 text-sm hover:border-sx-primary"
             onClick={() => setTheme(toggleTheme())} title="Toggle theme">{theme === 'dark' ? '☀' : '☾'}</button>
           <button className="rounded-lg border border-sx-border px-3 py-1 text-sm hover:border-sx-primary" onClick={logout}>Logout</button>

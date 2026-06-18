@@ -813,6 +813,19 @@ class VulnSpaSerializer(serializers.ModelSerializer):
 		]
 
 
+class ProjectSpaSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = Project
+		fields = ['id', 'name', 'slug']
+
+
+class TargetSpaSerializer(serializers.ModelSerializer):
+	"""Lean target/domain shape for the SPA targets table."""
+	class Meta:
+		model = Domain
+		fields = ['id', 'name', 'insert_date', 'start_scan_date']
+
+
 class SubdomainSpaSerializer(serializers.ModelSerializer):
 	"""Lean subdomain shape for the SPA table."""
 

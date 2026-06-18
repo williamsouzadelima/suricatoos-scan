@@ -5,6 +5,7 @@ import {
   getPaginationRowModel, flexRender, type ColumnDef, type SortingState,
 } from '@tanstack/react-table'
 import { api } from '../api/client'
+import { useProject } from '../project/project'
 
 type Subdomain = {
   id: number; name: string; http_status: number; http_url: string | null
@@ -21,11 +22,12 @@ function statusCls(s: number) {
 }
 
 export function Subdomains() {
+  const { currentSlug } = useProject()
   const [sorting, setSorting] = useState<SortingState>([{ id: 'name', desc: false }])
   const [globalFilter, setGlobalFilter] = useState('')
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['subdomains'],
-    queryFn: async () => (await api.get<Subdomain[]>('/subdomains/')).data,
+    queryKey: ['subdomains', currentSlug],
+    queryFn: async () => (await api.get<Subdomain[]>('/subdomains/', { params: { project: currentSlug } })).data,
   })
 
   const columns = useMemo<ColumnDef<Subdomain>[]>(() => [

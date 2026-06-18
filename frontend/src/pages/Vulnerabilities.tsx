@@ -5,6 +5,7 @@ import {
   getPaginationRowModel, flexRender, type ColumnDef, type SortingState,
 } from '@tanstack/react-table'
 import { api } from '../api/client'
+import { useProject } from '../project/project'
 
 type Vuln = {
   id: number; name: string; severity: number; type: string | null
@@ -33,11 +34,12 @@ function Badge({ cls, children }: { cls: string; children: React.ReactNode }) {
 }
 
 export function Vulnerabilities() {
+  const { currentSlug } = useProject()
   const [sorting, setSorting] = useState<SortingState>([{ id: 'severity', desc: true }])
   const [globalFilter, setGlobalFilter] = useState('')
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['vulnerabilities'],
-    queryFn: async () => (await api.get<Vuln[]>('/vulnerabilities/')).data,
+    queryKey: ['vulnerabilities', currentSlug],
+    queryFn: async () => (await api.get<Vuln[]>('/vulnerabilities/', { params: { project: currentSlug } })).data,
   })
 
   const columns = useMemo<ColumnDef<Vuln>[]>(() => [

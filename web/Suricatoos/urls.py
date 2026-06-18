@@ -30,6 +30,11 @@ urlpatterns = [
     path(
         'admin/',
         admin.site.urls),
+    # API first: reserve the /api/ namespace so it never collides with the
+    # dashboard's <slug:slug>/... routes (e.g. /api/projects/ vs <slug>/projects/).
+    path('api/', include('api.urls', 'api')),
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path(
         '',
         include('dashboard.urls')),
@@ -53,14 +58,6 @@ urlpatterns = [
         'logout/',
         auth_views.LogoutView.as_view(template_name='base/logout.html'),
         name='logout'),
-    path(
-        'api/',
-        include(
-            'api.urls',
-            'api')),
-    # JWT auth for the SPA / external clients (session auth still works too).
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     # SPA mounted at /app/* (client-side routing -> serve the shell for any subpath)
     re_path(r'^app(?:/.*)?$', serve_spa, name='spa'),
     path(

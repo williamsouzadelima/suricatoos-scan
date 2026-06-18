@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
+import { useProject } from '../project/project'
 
 type Scan = {
   id: number; domain_name: string; engine_name: string; scan_status: number
@@ -21,18 +22,19 @@ function fmt(d: string | null) { return d ? new Date(d).toLocaleString() : '—'
 
 export function Scans() {
   const qc = useQueryClient()
+  const { currentSlug } = useProject()
   const [domainId, setDomainId] = useState('')
   const [engineId, setEngineId] = useState('')
   const [msg, setMsg] = useState('')
 
   const scans = useQuery({
-    queryKey: ['scans'],
-    queryFn: async () => (await api.get<Scan[]>('/scans/')).data,
+    queryKey: ['scans', currentSlug],
+    queryFn: async () => (await api.get<Scan[]>('/scans/', { params: { project: currentSlug } })).data,
     refetchInterval: 5000, // keep running scans fresh
   })
   const options = useQuery({
-    queryKey: ['scan-options'],
-    queryFn: async () => (await api.get<Options>('/scan-options/')).data,
+    queryKey: ['scan-options', currentSlug],
+    queryFn: async () => (await api.get<Options>('/scan-options/', { params: { project: currentSlug } })).data,
   })
 
   const start = useMutation({

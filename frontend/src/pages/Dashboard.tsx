@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
+import { useProject } from '../project/project'
 
 type Stats = {
   targets: number; subdomains: number; subdomains_alive: number
@@ -26,9 +27,10 @@ const SEV: { key: keyof Stats['vulnerabilities']; label: string; cls: string }[]
 ]
 
 export function Dashboard() {
+  const { currentSlug } = useProject()
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['dashboard-stats'],
-    queryFn: async () => (await api.get<Stats>('/dashboard/stats/')).data,
+    queryKey: ['dashboard-stats', currentSlug],
+    queryFn: async () => (await api.get<Stats>('/dashboard/stats/', { params: { project: currentSlug } })).data,
   })
 
   return (

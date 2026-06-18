@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../api/client'
+import { useProject } from '../project/project'
 
 type OsintResult = { id: number; bucket: string; event_type: string; data: string; is_malicious: boolean }
 
@@ -10,14 +11,15 @@ const BUCKET_LABEL: Record<string, string> = {
 }
 
 export function Osint() {
+  const { currentSlug } = useProject()
   const { data, isLoading, isError } = useQuery({
-    queryKey: ['osint', 12],
-    queryFn: async () => (await api.get<OsintResult[]>('/listOsintResults/', { params: { scan_history: 12 } })).data,
+    queryKey: ['osint', currentSlug],
+    queryFn: async () => (await api.get<OsintResult[]>('/listOsintResults/', { params: { project: currentSlug } })).data,
   })
   return (
     <div>
       <h1 className="mb-1 text-xl font-semibold">OSINT Intelligence</h1>
-      <p className="mb-5 text-sm text-sx-muted">demo: scan 12</p>
+      
       {isLoading && <p className="text-sx-muted">Loading…</p>}
       {isError && <p className="text-sx-critical">Failed to load.</p>}
       {data && (
