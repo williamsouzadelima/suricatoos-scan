@@ -118,12 +118,26 @@ COPY ./requirements.txt /tmp/requirements.txt
 RUN pip3 install --upgrade setuptools==72.1.0
 RUN pip3 install -r /tmp/requirements.txt --no-cache-dir
 
+# install Google Chrome — EyeWitness' modernized selenium_module.py is Chrome-only
+# (webdriver.Chrome / find_chromedriver). Ubuntu 22.04 ships no working chromium deb
+# (it's a snap stub that fails in containers), so use Google's stable channel; the
+# .deb pulls libnss3 and the rest of Chrome's runtime libs. The bundled Firefox +
+# geckodriver above are no longer used by EyeWitness, but kept for other tooling.
+RUN wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+    && (apt install -y /tmp/google-chrome.deb || (apt update -y && apt install -y /tmp/google-chrome.deb)) \
+    && rm /tmp/google-chrome.deb
+
 # install eyewitness
+# - psutil is a hard import in EyeWitness' modules/resource_monitor.py (added by the
+#   2025 modernization); without it EyeWitness.py crashes on import -> no screenshots.
+# - selenium 4.9.1 ships a Selenium Manager too old to resolve drivers for Chrome
+#   115+ (the Chrome-for-Testing era); bump it so the driver auto-matches Chrome.
 RUN pip3 install --no-cache-dir fuzzywuzzy \
-    selenium==4.9.1 \
+    selenium==4.45.0 \
     python-Levenshtein \
     pyvirtualdisplay \
-    netaddr
+    netaddr \
+    psutil
 
 # Copy source code
 COPY . /usr/src/app/

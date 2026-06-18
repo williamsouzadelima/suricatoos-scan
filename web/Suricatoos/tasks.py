@@ -1292,12 +1292,19 @@ def screenshot(self, ctx={}, description=None):
 	cmd = f'python3 /usr/src/github/EyeWitness/Python/EyeWitness.py -f {alive_endpoints_file} -d {screenshots_path} --no-prompt'
 	cmd += f' --timeout {timeout}' if timeout > 0 else ''
 	cmd += f' --threads {threads}' if threads > 0 else ''
-	run_command(
+	return_code, _ = run_command(
 		cmd,
 		shell=False,
 		history_file=self.history_file,
 		scan_id=self.scan_id,
 		activity_id=self.activity_id)
+	# EyeWitness exits non-zero when it cannot even start (e.g. a missing Python dep
+	# or no working Chrome/chromedriver). Surface that instead of silently skipping;
+	# otherwise the only symptom is the generic "Could not load results" below.
+	if return_code != 0:
+		logger.error(
+			f'EyeWitness exited with code {return_code}; no screenshots captured. '
+			f'Check that Chrome and its driver are installed in the container.')
 	if not os.path.isfile(output_path):
 		domain_name = self.domain.name if self.domain else self.scan_id
 		logger.error(f'Could not load EyeWitness results at {output_path} for {domain_name}.')
