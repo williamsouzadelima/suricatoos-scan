@@ -3334,7 +3334,12 @@ class SpaScanViewSet(viewsets.ReadOnlyModelViewSet):
 		return ScanDetailSerializer if self.action == 'retrieve' else ScanSpaSerializer
 
 	def get_queryset(self):
-		qs = ScanHistory.objects.all()
+		# Annotate counts once (distinct=True keeps them correct across the two
+		# reverse-FK joins) instead of 2 COUNT queries per row in the serializer.
+		qs = ScanHistory.objects.annotate(
+			subdomain_count=Count('subdomain', distinct=True),
+			vulnerability_count=Count('vulnerability', distinct=True),
+		)
 		slug = self.request.query_params.get('project')
 		if slug:
 			qs = qs.filter(domain__project__slug=slug)
@@ -3409,10 +3414,8 @@ class ProjectsList(APIView):
 	"""Projects for the SPA project selector."""
 
 	def get(self, request):
-		return Response([
-			{'id': p.id, 'name': p.name, 'slug': p.slug}
-			for p in Project.objects.all().order_by('name')
-		])
+		projects = Project.objects.all().order_by('name')
+		return Response(ProjectSpaSerializer(projects, many=True).data)
 
 
 class SpaTargetViewSet(viewsets.ReadOnlyModelViewSet):

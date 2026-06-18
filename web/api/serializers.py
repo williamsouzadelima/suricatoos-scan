@@ -838,11 +838,13 @@ class SubdomainSpaSerializer(serializers.ModelSerializer):
 
 
 class ScanSpaSerializer(serializers.ModelSerializer):
-	"""Lean scan-history shape for the SPA scans list."""
+	"""Lean scan-history shape for the SPA scans list. subdomain_count/
+	vulnerability_count come from queryset annotations (SpaScanViewSet) so the
+	list doesn't fire 2 COUNT queries per row."""
 	domain_name = serializers.CharField(source='domain.name', read_only=True)
 	engine_name = serializers.CharField(source='scan_type.engine_name', read_only=True)
-	subdomain_count = serializers.SerializerMethodField()
-	vulnerability_count = serializers.SerializerMethodField()
+	subdomain_count = serializers.IntegerField(read_only=True)
+	vulnerability_count = serializers.IntegerField(read_only=True)
 
 	class Meta:
 		model = ScanHistory
@@ -851,12 +853,6 @@ class ScanSpaSerializer(serializers.ModelSerializer):
 			'start_scan_date', 'stop_scan_date', 'subdomain_count',
 			'vulnerability_count',
 		]
-
-	def get_subdomain_count(self, obj):
-		return Subdomain.objects.filter(scan_history=obj).count()
-
-	def get_vulnerability_count(self, obj):
-		return Vulnerability.objects.filter(scan_history=obj).count()
 
 
 class ScanActivitySpaSerializer(serializers.ModelSerializer):
