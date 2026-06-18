@@ -474,7 +474,10 @@ def subdomain_discovery(
 				cmd = f'python3 /usr/src/github/Sublist3r/sublist3r.py -d {shlex.quote(host)} -t {threads} -o {self.results_dir}/subdomains_sublister.txt'
 
 			elif tool == 'subfinder':
-				cmd = f'subfinder -d {shlex.quote(host)} -o {self.results_dir}/subdomains_subfinder.txt'
+				# -all queries every available source (not just the fast default set), which
+				# materially improves coverage and consistency when no API keys are set (the
+				# free sources rate-limit, so the default subset varies a lot run-to-run).
+				cmd = f'subfinder -d {shlex.quote(host)} -all -o {self.results_dir}/subdomains_subfinder.txt'
 				use_subfinder_config = config.get(USE_SUBFINDER_CONFIG, False)
 				cmd += ' -config /root/.config/subfinder/config.yaml' if use_subfinder_config else ''
 				cmd += f' -proxy {shlex.quote(proxy)}' if proxy else ''
