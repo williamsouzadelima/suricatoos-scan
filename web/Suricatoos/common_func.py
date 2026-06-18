@@ -416,6 +416,8 @@ def get_subdomain_from_url(url):
 	Returns:
 		str: Subdomain name.
 	"""
+	if not url:
+		return ''
 	# Check if the URL has a scheme. If not, add a temporary one to prevent empty netloc.
 	if "://" not in url:
 		url = "http://" + url
@@ -467,6 +469,8 @@ def sanitize_url(http_url):
 	Returns:
 		str: Stripped HTTP URL.
 	"""
+	if not http_url:
+		return ''
 	# Check if the URL has a scheme. If not, add a temporary one to prevent empty netloc.
 	if "://" not in http_url:
 		http_url = "http://" + http_url
@@ -513,7 +517,9 @@ def get_random_proxy():
 	proxy = Proxy.objects.first()
 	if not proxy.use_proxy:
 		return ''
-	proxy_name = random.choice(proxy.proxies.splitlines())
+	proxy_name = random.choice(proxy.proxies.splitlines()).strip()
+	if proxy_name and '://' not in proxy_name:
+		proxy_name = 'http://' + proxy_name
 	logger.warning('Using proxy: ' + proxy_name)
 	# os.environ['HTTP_PROXY'] = proxy_name
 	# os.environ['HTTPS_PROXY'] = proxy_name
@@ -1210,8 +1216,13 @@ def exclude_urls_by_patterns(exclude_paths, urls):
 			list of str: A new list containing URLs that don't match any exclusion pattern.
 	"""
 	logger.info('exclude_urls_by_patterns')
+	# Drop empty / whitespace-only patterns. The scan UI turns a blank "Excluded Paths"
+	# field into [''] (''.split(',')), and an empty pattern compiles to a regex that
+	# matches EVERY url -- which silently excluded ALL endpoints and made the whole
+	# HTTP/endpoint/vuln pipeline come back empty.
+	exclude_paths = [p for p in (exclude_paths or []) if isinstance(p, str) and p.strip()]
 	if not exclude_paths:
-		# if no exclude paths are passed and is empty list return all urls as it is
+		# nothing to exclude -> return all urls as they are
 		return urls
 	
 	compiled_patterns = []

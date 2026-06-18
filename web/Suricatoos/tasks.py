@@ -45,6 +45,17 @@ Celery tasks.
 logger = get_task_logger(__name__)
 
 
+def is_valid_domain(name):
+	"""Validate a domain, allowing underscore-prefixed DNS labels (_dmarc, _domainkey, SRV)."""
+	if not name:
+		return False
+	labels = name.split('.')
+	if any(label == '' for label in labels):
+		return False
+	normalized = '.'.join(label[1:] if label.startswith('_') and len(label) > 1 else label for label in labels)
+	return bool(validators.domain(normalized))
+
+
 #----------------------#
 # Scan / Subscan tasks #
 #----------------------#
@@ -414,7 +425,10 @@ def subdomain_discovery(
 		subdomains (list): List of subdomain names.
 	"""
 	if not host:
-		host = self.subdomain.name if self.subdomain else self.domain.name
+		host = self.subdomain.name if self.subdomain else (self.domain.name if self.domain else None)
+	if not host:
+		logger.error('subdomain_discovery: no host and no scan domain/subdomain resolved; aborting')
+		return []
 
 	if self.starting_point_path:
 		logger.warning(f'Ignoring subdomains scan as an URL path filter was passed ({self.starting_point_path}).')
@@ -474,7 +488,10 @@ def subdomain_discovery(
 				cmd = f'python3 /usr/src/github/Sublist3r/sublist3r.py -d {shlex.quote(host)} -t {threads} -o {self.results_dir}/subdomains_sublister.txt'
 
 			elif tool == 'subfinder':
-				cmd = f'subfinder -d {shlex.quote(host)} -o {self.results_dir}/subdomains_subfinder.txt'
+				# -all queries every available source (not just the fast default set), which
+				# materially improves coverage and consistency when no API keys are set (the
+				# free sources rate-limit, so the default subset varies a lot run-to-run).
+				cmd = f'subfinder -d {shlex.quote(host)} -all -o {self.results_dir}/subdomains_subfinder.txt'
 				use_subfinder_config = config.get(USE_SUBFINDER_CONFIG, False)
 				cmd += ' -config /root/.config/subfinder/config.yaml' if use_subfinder_config else ''
 				cmd += f' -proxy {shlex.quote(proxy)}' if proxy else ''
@@ -492,7 +509,11 @@ def subdomain_discovery(
 			elif tool == 'ctfr':
 				results_file = self.results_dir + '/subdomains_ctfr.txt'
 				cmd = f'python3 /usr/src/github/ctfr/ctfr.py -d {shlex.quote(host)} -o {shlex.quote(results_file)}'
-				cmd_extract = f"cat {shlex.quote(results_file)} | sed 's/\*.//g' | tail -n +12 | uniq | sort > {shlex.quote(results_file)}"
+				# Write to a temp file then move it into place: `cat X | ... > X` self-clobbers
+				# (the shell truncates X before cat reads it), which silently dropped ALL
+				# ctfr/crt.sh subdomains -- a key-free passive source -- from every scan.
+				tmp_file = results_file + '.tmp'
+				cmd_extract = f"cat {shlex.quote(results_file)} | sed 's/\*.//g' | tail -n +12 | uniq | sort > {shlex.quote(tmp_file)} && mv {shlex.quote(tmp_file)} {shlex.quote(results_file)}"
 				cmd += f' && {cmd_extract}'
 
 			elif tool == 'tlsx':
@@ -586,7 +607,7 @@ def subdomain_discovery(
 		subdomain_name = line.strip()
 		valid_url = bool(validators.url(subdomain_name))
 		valid_domain = (
-			bool(validators.domain(subdomain_name)) or
+			is_valid_domain(subdomain_name) or
 			bool(validators.ipv4(subdomain_name)) or
 			bool(validators.ipv6(subdomain_name)) or
 			valid_url
@@ -1196,19 +1217,30 @@ def h8mail(config, host, scan_history_id, activity_id, results_dir, ctx={}):
 	scan_history = ScanHistory.objects.get(pk=scan_history_id)
 	input_path = f'{results_dir}/emails.txt'
 	output_file = f'{results_dir}/h8mail.json'
-
+	# h8mail expects a target list; emails are collected into the DB by theHarvester/save_email.
+	# Write only strict single-line email tokens (file contents, never the command line).
+	_email_re = re.compile(r'\A[^\s@]+@[^\s@]+\.[^\s@]+\Z')
+	addresses = sorted({a for a in (
+		(e.address or '').strip() for e in scan_history.emails.all()
+	) if a and '\x00' not in a and _email_re.match(a)})
+	if not addresses:
+		logger.warning('h8mail: no emails collected for this scan; skipping leaked-credential lookup.')
+		return []
+	with open(input_path, 'w') as f:
+		f.write('\n'.join(addresses) + '\n')
 	cmd = f'h8mail -t {input_path} --json {output_file}'
 	history_file = f'{results_dir}/commands.txt'
-
-	run_command(
-		cmd,
-		history_file=history_file,
-		scan_id=scan_history_id,
-		activity_id=activity_id)
-
-	with open(output_file) as f:
-		data = json.load(f)
-		creds = data.get('targets', [])
+	run_command(cmd, history_file=history_file, scan_id=scan_history_id, activity_id=activity_id)
+	if not os.path.isfile(output_file):
+		logger.error(f'Could not open {output_file}')
+		return []
+	try:
+		with open(output_file) as f:
+			data = json.load(f)
+	except json.JSONDecodeError:
+		logger.error(f'Invalid JSON in {output_file}')
+		return []
+	creds = data.get('targets', [])
 
 	# TODO: go through h8mail output and save emails to DB
 	for cred in creds:
@@ -1237,8 +1269,8 @@ def screenshot(self, ctx={}, description=None):
 	config = self.yaml_configuration.get(SCREENSHOT) or {}
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
 	intensity = config.get(INTENSITY) or self.yaml_configuration.get(INTENSITY, DEFAULT_SCAN_INTENSITY)
-	timeout = config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT + 5)
-	threads = config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
+	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT + 5), DEFAULT_HTTP_TIMEOUT + 5)
+	threads = _safe_int(config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 
 	# If intensity is normal, grab only the root endpoints of each subdomain
 	strict = True if intensity == 'normal' else False
@@ -1267,7 +1299,8 @@ def screenshot(self, ctx={}, description=None):
 		scan_id=self.scan_id,
 		activity_id=self.activity_id)
 	if not os.path.isfile(output_path):
-		logger.error(f'Could not load EyeWitness results at {output_path} for {self.domain.name}.')
+		domain_name = self.domain.name if self.domain else self.scan_id
+		logger.error(f'Could not load EyeWitness results at {output_path} for {domain_name}.')
 		return
 
 	# Loop through results and save objects in DB
@@ -1374,18 +1407,27 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 			exclude_subdomains=exclude_subdomains,
 			ctx=ctx)
 
+	if not hosts:
+		logger.info('No hosts to port scan - skipping naabu')
+		return {}
+
 	# Build cmd
 	cmd = 'naabu -json -exclude-cdn'
-	cmd += f' -list {shlex.quote(input_file)}' if len(hosts) > 0 else f' -host {shlex.quote(str(hosts[0]))}'
+	cmd += f' -list {shlex.quote(input_file)}'
 	if 'full' in ports or 'all' in ports:
 		ports_str = ' -p "-"'
 	elif 'top-100' in ports:
 		ports_str = ' -top-ports 100'
 	elif 'top-1000' in ports:
 		ports_str = ' -top-ports 1000'
-	else:
+	elif ports:
 		ports_str = ','.join(ports)
 		ports_str = f' -p {ports_str}'
+	else:
+		# every configured port failed the SAFE_PORT_RE filter above (typo / service
+		# name): fall back to the NAABU_DEFAULT_PORTS top-100 instead of emitting a
+		# dangling '-p' that would make naabu consume the next flag and error out.
+		ports_str = ' -top-ports 100'
 	cmd += ports_str
 	cmd += ' -config /root/.config/naabu/config.yaml' if use_naabu_config else ''
 	cmd += f' -proxy {shlex.quote(proxy)}' if proxy else ''
@@ -1393,7 +1435,7 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 	cmd += f' -rate {rate_limit}' if rate_limit > 0 else ''
 	cmd += f' -timeout {timeout}s' if timeout > 0 else ''
 	cmd += f' -passive' if passive else ''
-	cmd += f' -exclude-ports {exclude_ports_str}' if exclude_ports else ''
+	cmd += f' -exclude-ports {exclude_ports_str}' if exclude_ports_str else ''
 	cmd += f' -silent'
 
 	# Execute cmd and gather results
@@ -1409,9 +1451,11 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 
 		if not isinstance(line, dict):
 			continue
+		port_number = line.get('port')
+		ip_address = line.get('ip')
+		if port_number is None or not ip_address:
+			continue
 		results.append(line)
-		port_number = line['port']
-		ip_address = line['ip']
 		host = line.get('host') or ip_address
 		if port_number == 0:
 			continue
@@ -1425,6 +1469,14 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 
 		# Add IP DB
 		ip, _ = save_ip_address(ip_address, subdomain, subscan=self.subscan)
+		# save_ip_address returns (None, False) when `ip_address` is not a valid
+		# IP (naabu can emit hostnames/non-parseable values, e.g. passive output).
+		# Dereferencing ip.ports/ip.save() on None raises AttributeError, which the
+		# task wrapper swallows into a traceback string, silently dropping ALL open
+		# ports for the scan and skipping downstream nmap. Skip the bad line instead.
+		if not ip:
+			logger.info(f'Skipping non-IP {ip_address} from naabu output')
+			continue
 		if self.subscan:
 			ip.ip_subscan_ids.add(self.subscan)
 			ip.save()
@@ -1639,7 +1691,11 @@ def waf_detection(self, ctx={}, description=None):
 
 	for line in wafs:
 		line = " ".join(line.split())
+		if not line:
+			continue
 		splitted = line.split(' ', 1)
+		if len(splitted) < 2:
+			continue
 		waf_info = splitted[1].strip()
 		waf_name = waf_info[:waf_info.find('(')].strip()
 		waf_manufacturer = waf_info[waf_info.find('(')+1:waf_info.find(')')].strip().replace('.', '')
@@ -1764,7 +1820,6 @@ def dir_file_fuzz(self, ctx={}, description=None):
 		dirscan.save()
 
 		# Loop through results and populate EndPoint and DirectoryFile in DB
-		results = []
 		for line in stream_command(
 				fcmd,
 				shell=True,
@@ -1836,12 +1891,15 @@ def dir_file_fuzz(self, ctx={}, description=None):
 
 			# Get subdomain and add dirscan
 			if ctx.get('subdomain_id', 0) > 0:
-				subdomain = Subdomain.objects.get(id=ctx['subdomain_id'])
+				subdomain = Subdomain.objects.filter(id=ctx['subdomain_id']).first()
 			else:
 				subdomain_name = get_subdomain_from_url(endpoint.http_url)
-				subdomain = Subdomain.objects.get(name=subdomain_name, scan_history=self.scan)
-			subdomain.directories.add(dirscan)
-			subdomain.save()
+				subdomain = Subdomain.objects.filter(name=subdomain_name, scan_history=self.scan).first()
+			if subdomain:
+				subdomain.directories.add(dirscan)
+				subdomain.save()
+			else:
+				logger.warning(f'No matching Subdomain for {endpoint.http_url}; skipping dirscan linkage.')
 
 	# Crawl discovered URLs
 	if enable_http_crawl:
@@ -1932,8 +1990,14 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		cmd_map['katana'] += ' ' + formatted_headers
 	cat_input = f'cat {input_path}'
 	grep_output = f'grep -Eo {host_regex}'
+	# Bound each external crawler with `timeout`: gau / waybackurls / hakrawler query
+	# third-party services and can hang indefinitely (e.g. an unresponsive Wayback
+	# Machine), which would stall the whole fetch_url phase since the group waits for all
+	# of them. timeout kills a stuck tool after `tool_timeout` seconds; the pipeline still
+	# finishes with whatever URLs were gathered before the kill.
+	tool_timeout = _safe_int(config.get('timeout', 300), 300)
 	cmd_map = {
-		tool: f'{cat_input} | {cmd} | {grep_output} > {self.results_dir}/urls_{tool}.txt'
+		tool: f'{cat_input} | timeout {tool_timeout} {cmd} | {grep_output} > {self.results_dir}/urls_{tool}.txt'
 		for tool, cmd in cmd_map.items()
 	}
 	tasks = group(
@@ -2194,7 +2258,11 @@ def nuclei_individual_severity_module(self, cmd, severity, enable_http_crawl, sh
 		vuln_data = parse_nuclei_result(line)
 
 		# Get corresponding subdomain
-		http_url = sanitize_url(line.get('matched-at'))
+		matched_at = line.get('matched-at') or line.get('host')
+		if not matched_at:
+			logger.warning(f'Nuclei result for template {line.get("template-id")} has no matched-at/host; skipping endpoint creation')
+			continue
+		http_url = sanitize_url(matched_at)
 		subdomain_name = get_subdomain_from_url(http_url)
 
 		# TODO: this should be get only
@@ -2463,8 +2531,8 @@ SAFE_HOST_ARG_RE = re.compile(r'\A[A-Za-z0-9._:][A-Za-z0-9._:-]*\Z')  # host as 
 SAFE_TOKEN_RE = re.compile(r'\A[A-Za-z0-9._-]+\Z')   # wordlist/tool names, API keys
 SAFE_PATH_RE = re.compile(r'\A[A-Za-z0-9._/][A-Za-z0-9._/-]*\Z')   # filesystem paths: no metachars, no leading dash
 SAFE_PORT_RE = re.compile(r'\A\d{1,5}(-\d{1,5})?\Z')  # a port or a port range
-SAFE_EXT_RE = re.compile(r'\A\.?[A-Za-z0-9]+\Z')      # file extensions
-PROXY_RE = re.compile(r'\A(https?|socks[45]?)://[A-Za-z0-9._:@/-]+\Z')
+SAFE_EXT_RE = re.compile(r'\A\.?[A-Za-z0-9]+(\.[A-Za-z0-9]+)*\Z')  # file extensions, incl. multi-part (.tar.gz, .min.js)
+PROXY_RE = re.compile(r'\A(https?|socks[45]?)://[A-Za-z0-9._:@/%~+-]+\Z')
 # nmap engine-YAML fields flow into a shell=True nmap command; sanitize at intake so they
 # cannot carry a newline (RCE), an output-file/datadir flag, or an NSE script path. The
 # assembled command is re-validated by is_valid_nmap_command (defense in depth).
@@ -2507,6 +2575,14 @@ def _filter_list(values, regex):
 	return out
 
 
+def _as_list(v):
+	"""Accept nuclei's comma/space-separated string idiom (e.g. tags: 'cve,rce'); a YAML list
+	passes through unchanged. Each token is still re-validated by _filter_list."""
+	if isinstance(v, str):
+		return [t for t in re.split(r'[,\s]+', v) if t]
+	return v
+
+
 def _shell_false_headers(headers):
 	"""Build ' -H Name:value' fragments for a shell=False command (run via cmd.split()).
 	Accepts the documented 'Name: value' form and normalizes away the space after the
@@ -2515,9 +2591,11 @@ def _shell_false_headers(headers):
 	cmd.split() could not keep together) are dropped."""
 	parts = []
 	for h in headers or []:
-		m = re.match(r'^([A-Za-z0-9][A-Za-z0-9-]*):[ \t]*([\x21-\x7E]+)$', str(h))
+		m = re.match(r'^([A-Za-z0-9][A-Za-z0-9-]*):[ \t]*([\x20-\x7E]+)$', str(h))
 		if m:
-			parts.append(f'-H {m.group(1)}:{m.group(2)}')
+			parts.append('-H ' + shlex.quote(f'{m.group(1)}: {m.group(2)}'))
+		else:
+			logger.warning(f'dropping unsupported custom header {h!r}')
 	return (' ' + ' '.join(parts)) if parts else ''
 
 
@@ -2796,9 +2874,9 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	# via whitespace or leading '-'. Filter the user-editable lists to safe tokens.
 	NUCLEI_VALID_SEVERITIES = re.compile(r'^(info|low|medium|high|critical|unknown)$')
 	severities = _filter_list(nuclei_specific_config.get(NUCLEI_SEVERITY, NUCLEI_DEFAULT_SEVERITIES), NUCLEI_VALID_SEVERITIES) or list(NUCLEI_DEFAULT_SEVERITIES)
-	tags = ','.join(_filter_list(nuclei_specific_config.get(NUCLEI_TAGS, []), SAFE_TOKEN_RE))
-	nuclei_templates = _filter_list(nuclei_specific_config.get(NUCLEI_TEMPLATE) or [], SAFE_PATH_RE)
-	custom_nuclei_templates = _filter_list(nuclei_specific_config.get(NUCLEI_CUSTOM_TEMPLATE) or [], SAFE_PATH_RE)
+	tags = ','.join(_filter_list(_as_list(nuclei_specific_config.get(NUCLEI_TAGS, [])), SAFE_TOKEN_RE))
+	nuclei_templates = _filter_list(_as_list(nuclei_specific_config.get(NUCLEI_TEMPLATE) or []), SAFE_PATH_RE)
+	custom_nuclei_templates = _filter_list(_as_list(nuclei_specific_config.get(NUCLEI_CUSTOM_TEMPLATE) or []), SAFE_PATH_RE)
 	# severities_str = ','.join(severities)
 
 	# Get alive endpoints
@@ -2952,13 +3030,23 @@ def dalfox_xss_scan(self, urls=[], ctx={}, description=None):
 	cmd += f' file {input_path}'
 	cmd += f' --proxy {proxy}' if proxy else ''
 	cmd += f' --waf-evasion' if is_waf_evasion else ''
-	cmd += f' -b {blind_xss_server}' if blind_xss_server and _allow(blind_xss_server, PROXY_RE) else ''
+	# Accept either a full callback URL (PROXY_RE) or a bare host (SAFE_HOST_ARG_RE,
+	# which forbids a leading '-' so a scheme-less value can't smuggle an extra dalfox
+	# flag under shell=False/cmd.split()). Warn instead of silently dropping a bad value.
+	if blind_xss_server:
+		if _allow(blind_xss_server, PROXY_RE) or _allow(blind_xss_server, SAFE_HOST_ARG_RE):
+			cmd += f' -b {blind_xss_server}'
+		else:
+			logger.warning(f'blind_xss_server {blind_xss_server!r} rejected (not a safe host/URL); -b omitted')
 	cmd += f' --delay {delay}' if delay else ''
 	cmd += f' --timeout {timeout}' if timeout else ''
 	# shell=False (stream_command): keep only no-whitespace header-shaped values so
 	# each is a single, flag-safe argv token.
 	cmd += _shell_false_headers(custom_headers)
-	cmd += f' --user-agent {user_agent}' if user_agent and not re.search(r'\s|^-', str(user_agent)) else ''
+	if user_agent and not re.match(r'^-', str(user_agent)) and not any(ord(c) < 0x20 for c in str(user_agent)):
+		cmd += f' --user-agent {shlex.quote(str(user_agent))}'
+	elif user_agent:
+		logger.warning('dalfox: configured user_agent rejected (leading dash or control char); flag dropped')
 	cmd += f' --worker {threads}' if threads else ''
 	cmd += f' --format json'
 
@@ -3059,7 +3147,7 @@ def crlfuzz_scan(self, urls=[], ctx={}, description=None):
 		custom_headers.append(custom_header)
 	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 	user_agent = vuln_config.get(USER_AGENT) or self.yaml_configuration.get(USER_AGENT)
-	threads = vuln_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS)
+	threads = _safe_int(vuln_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	input_path = f'{self.results_dir}/input_endpoints_crlf.txt'
 	output_path = f'{self.results_dir}/{self.filename}'
 
@@ -3084,6 +3172,7 @@ def crlfuzz_scan(self, urls=[], ctx={}, description=None):
 	# shell=False: keep only no-whitespace header-shaped values (single argv token).
 	cmd += _shell_false_headers(custom_headers)
 	cmd += f' -o {output_path}'
+	cmd += f' -c {threads}' if threads else ''
 
 	run_command(
 		cmd,
@@ -3184,6 +3273,9 @@ def s3scanner(self, ctx={}, description=None):
 	threads = _safe_int(s3_config.get(THREADS) or self.yaml_configuration.get(THREADS, DEFAULT_THREADS), DEFAULT_THREADS)
 	providers = _filter_list(s3_config.get(PROVIDERS, S3SCANNER_DEFAULT_PROVIDERS), SAFE_TOKEN_RE)
 	scan_history = ScanHistory.objects.filter(pk=self.scan_id).first()
+	if not scan_history:
+		logger.error('s3scanner: scan_history %s not found; skipping bucket scan', self.scan_id)
+		return
 	for provider in providers:
 		cmd = f's3scanner -bucket-file {input_path} -enumerate -provider {provider} -threads {threads} -json'
 		for line in stream_command(
@@ -4032,25 +4124,29 @@ def parse_s3scanner_result(line):
 	'''
 		Parses and returns s3Scanner Data
 	'''
-	bucket = line['bucket']
+	bucket = line.get('bucket') or {}
+	# s3scanner JSON omits optional keys (e.g. region unknown, anonymous/denied
+	# ACL listing has no owner_id/owner_display_name). Use .get() with safe
+	# defaults so a missing key can't raise KeyError and abort the whole
+	# provider stream (the S3Bucket model makes every column nullable/defaulted).
 	return {
-		'name': bucket['name'],
-		'region': bucket['region'],
-		'provider': bucket['provider'],
-		'owner_display_name': bucket['owner_display_name'],
-		'owner_id': bucket['owner_id'],
-		'perm_auth_users_read': bucket['perm_auth_users_read'],
-		'perm_auth_users_write': bucket['perm_auth_users_write'],
-		'perm_auth_users_read_acl': bucket['perm_auth_users_read_acl'],
-		'perm_auth_users_write_acl': bucket['perm_auth_users_write_acl'],
-		'perm_auth_users_full_control': bucket['perm_auth_users_full_control'],
-		'perm_all_users_read': bucket['perm_all_users_read'],
-		'perm_all_users_write': bucket['perm_all_users_write'],
-		'perm_all_users_read_acl': bucket['perm_all_users_read_acl'],
-		'perm_all_users_write_acl': bucket['perm_all_users_write_acl'],
-		'perm_all_users_full_control': bucket['perm_all_users_full_control'],
-		'num_objects': bucket['num_objects'],
-		'size': bucket['bucket_size']
+		'name': bucket.get('name'),
+		'region': bucket.get('region'),
+		'provider': bucket.get('provider'),
+		'owner_display_name': bucket.get('owner_display_name'),
+		'owner_id': bucket.get('owner_id'),
+		'perm_auth_users_read': bucket.get('perm_auth_users_read', 0),
+		'perm_auth_users_write': bucket.get('perm_auth_users_write', 0),
+		'perm_auth_users_read_acl': bucket.get('perm_auth_users_read_acl', 0),
+		'perm_auth_users_write_acl': bucket.get('perm_auth_users_write_acl', 0),
+		'perm_auth_users_full_control': bucket.get('perm_auth_users_full_control', 0),
+		'perm_all_users_read': bucket.get('perm_all_users_read', 0),
+		'perm_all_users_write': bucket.get('perm_all_users_write', 0),
+		'perm_all_users_read_acl': bucket.get('perm_all_users_read_acl', 0),
+		'perm_all_users_write_acl': bucket.get('perm_all_users_write_acl', 0),
+		'perm_all_users_full_control': bucket.get('perm_all_users_full_control', 0),
+		'num_objects': bucket.get('num_objects', 0),
+		'size': bucket.get('bucket_size', 0)
 	}
 
 
@@ -4105,10 +4201,10 @@ def parse_dalfox_result(line):
 	return {
 		'name': 'XSS (Cross Site Scripting)',
 		'type': 'XSS',
-		'severity': DALFOX_SEVERITY_MAP[line.get('severity', 'unknown')],
+		'severity': DALFOX_SEVERITY_MAP.get(line.get('severity', 'unknown'), -1),
 		'description': description,
 		'source': DALFOX,
-		'cwe_ids': [line.get('cwe')]
+		'cwe_ids': [c for c in [line.get('cwe')] if c]
 	}
 
 
@@ -4170,24 +4266,33 @@ def geo_localize(host, ip_id=None):
 		return None
 	cmd = f'geoiplookup {host}'
 	_, out = run_command(cmd)
-	if 'IP Address not found' not in out and "can't resolve hostname" not in out:
-		country_iso = out.split(':')[1].strip().split(',')[0]
-		country_name = out.split(':')[1].strip().split(',')[1].strip()
-		geo_object, _ = CountryISO.objects.get_or_create(
-			iso=country_iso,
-			name=country_name
-		)
-		geo_json = {
-			'iso': country_iso,
-			'name': country_name
-		}
-		if ip_id:
-			ip = IpAddress.objects.get(pk=ip_id)
-			ip.geo_iso = geo_object
-			ip.save()
-		return geo_json
-	logger.info(f'Geo IP lookup failed for host "{host}"')
-	return None
+	if 'IP Address not found' in out or "can't resolve hostname" in out:
+		logger.info(f'Geo IP lookup failed for host "{host}"')
+		return None
+	country_iso = country_name = None
+	for line in out.splitlines():
+		if 'Country Edition' in line and ':' in line:
+			value = line.split(':', 1)[1]
+			if ',' in value:
+				iso, _, name = value.partition(',')
+				country_iso, country_name = iso.strip(), name.strip()
+			break
+	if not country_iso or not country_name:
+		logger.info(f'Geo IP lookup unparseable for host "{host}": {out!r}')
+		return None
+	geo_object, _ = CountryISO.objects.get_or_create(
+		iso=country_iso,
+		name=country_name
+	)
+	geo_json = {
+		'iso': country_iso,
+		'name': country_name
+	}
+	if ip_id:
+		ip = IpAddress.objects.get(pk=ip_id)
+		ip.geo_iso = geo_object
+		ip.save()
+	return geo_json
 
 
 @app.task(name='query_whois', bind=False, queue='query_whois_queue')
@@ -4254,7 +4359,7 @@ def query_whois(target, force_reload_whois=False):
 		if 'tlsx_related_domain' in locals():
 			related_domains += tlsx_related_domain
 		
-		whois_data = whois_data.get('data', {})
+		whois_data = (whois_data or {}).get('data', {})
 
 		# related domains can also be fetched from whois_data
 		whois_related_domains = whois_data.get('related_domains', [])
@@ -4485,7 +4590,7 @@ def run_command(
 
 	# Run the command using subprocess
 	popen = subprocess.Popen(
-		cmd if shell else cmd.split(),
+		cmd if shell else shlex.split(cmd),
 		shell=shell,
 		stdout=subprocess.PIPE,
 		stderr=subprocess.STDOUT,
@@ -4530,7 +4635,7 @@ def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-
 		activity_id=activity_id)
 
 	# Sanitize the cmd
-	command = cmd if shell else cmd.split()
+	command = cmd if shell else shlex.split(cmd)
 
 	# Run the command using subprocess
 	process = subprocess.Popen(
@@ -4660,10 +4765,14 @@ def get_and_save_dork_results(lookup_target, results_dir, type, lookup_keywords=
 	gofuzz_command = f'{GOFUZZ_EXEC_PATH} -t {lookup_target} -d {delay} -p {page_count}'
 	proxy = _allow(get_random_proxy(), PROXY_RE, '')
 
-	if _allow(lookup_extensions, DORK_ARG_RE):
-		gofuzz_command += f' -e {lookup_extensions}'
-	elif _allow(lookup_keywords, DORK_ARG_RE):
-		gofuzz_command += f' -w {lookup_keywords}'
+	KW_RE = re.compile(r'^[A-Za-z0-9 ._,/-]+$')  # keywords/extensions: spaces allowed, no metachars
+	if lookup_extensions and KW_RE.match(str(lookup_extensions)) and '..' not in str(lookup_extensions):
+		gofuzz_command += f' -e {shlex.quote(str(lookup_extensions))}'
+	elif lookup_keywords and KW_RE.match(str(lookup_keywords)) and '..' not in str(lookup_keywords):
+		gofuzz_command += f' -w {shlex.quote(str(lookup_keywords))}'
+	else:
+		logger.warning(f'dork {type}: keywords/extensions failed validation, skipping')
+		return results
 
 	if proxy:
 		gofuzz_command += f' -r {proxy}'
@@ -4681,7 +4790,7 @@ def get_and_save_dork_results(lookup_target, results_dir, type, lookup_keywords=
 		)
 
 		if not os.path.isfile(output_file):
-			return
+			return results
 
 		with open(output_file) as f:
 			for line in f.readlines():
@@ -4927,7 +5036,7 @@ def save_subdomain(subdomain_name, ctx={}):
 	out_of_scope_subdomains = ctx.get('out_of_scope_subdomains', [])
 	subdomain_checker = SubdomainScopeChecker(out_of_scope_subdomains)
 	valid_domain = (
-		validators.domain(subdomain_name) or
+		is_valid_domain(subdomain_name) or
 		validators.ipv4(subdomain_name) or
 		validators.ipv6(subdomain_name)
 	)
