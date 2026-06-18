@@ -3250,11 +3250,17 @@ def http_crawl(
 	input_path = f'{self.results_dir}/httpx_input.txt'
 	history_file = f'{self.results_dir}/commands.txt'
 	if urls: # direct passing URLs to check
-		# urls here are tool/target-derived and one gets interpolated unquoted into a
-		# shell=False httpx command (cmd.split()); an embedded space or leading dash would
-		# smuggle an httpx flag. Keep only well-formed http(s) URLs (validators.url drops
-		# whitespace and bare flags).
-		urls = [u for u in urls if isinstance(u, str) and validators.url(u)]
+		# These targets may be bare hostnames (httpx adds the scheme itself) OR full URLs,
+		# and only the single-target case is passed inline as `-u <target>` (shell=False),
+		# so the real risk is flag smuggling, not a missing scheme. Drop empty/non-str
+		# entries and any value containing whitespace, a control char, or a leading dash
+		# (which could smuggle an httpx flag) -- but KEEP scheme-less hostnames, otherwise
+		# endpoint discovery receives no input and the whole HTTP/vuln pipeline goes empty.
+		urls = [
+			u for u in urls
+			if isinstance(u, str) and u and not u.startswith('-')
+			and not any(ord(c) < 0x20 or c.isspace() for c in u)
+		]
 		if self.starting_point_path:
 			urls = [u for u in urls if self.starting_point_path in u]
 
@@ -3405,9 +3411,15 @@ def http_crawl(
 				subdomain,
 				subscan=self.subscan,
 				cdn=cdn)
-			self.notify(
-				fields={'IPs': f'• `{ip.address}`'},
-				add_meta_info=False)
+			# save_ip_address returns (None, False) when `host` is not a valid IP
+			# (e.g. httpx reported a hostname, not a resolved address). Guard against
+			# it: dereferencing ip.address on None raised AttributeError, which the
+			# task wrapper swallowed into a traceback string and broke save_endpoint
+			# downstream ("string indices must be integers"), failing the whole scan.
+			if ip:
+				self.notify(
+					fields={'IPs': f'• `{ip.address}`'},
+					add_meta_info=False)
 
 		# Save subdomain and endpoint
 		if is_ran_from_subdomain_scan:
