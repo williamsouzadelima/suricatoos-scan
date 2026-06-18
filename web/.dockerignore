@@ -1,0 +1,16 @@
+# Build context = ./web. Keep it lean and reproducible.
+# Frontend deps/build are produced inside the spa-builder stage (npm ci + build),
+# never copied from the host.
+frontend/node_modules
+frontend/dist
+# The SPA bundle is produced at /opt/spa by the spa-builder stage — never from a
+# stale static/spa in the source tree (which would shadow it in collectstatic).
+static/spa
+# Runtime-collected static lives in the static_volume, not the image.
+staticfiles/
+# Python/editor cruft
+**/__pycache__
+**/*.py[cod]
+*.log
+.pytest_cache
+.mypy_cache
