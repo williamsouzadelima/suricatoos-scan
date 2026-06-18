@@ -37,6 +37,9 @@ validators==0.18.2
 watchdog==4.0.0
 whatportis
 weasyprint==53.3
+# pydyf must stay <0.2 for weasyprint 53.3: newer pydyf drops Stream.transform,
+# which weasyprint 53.3 calls via super() -> PDF export crashes (corrupt download).
+pydyf==0.1.1
 wafw00f==2.2.0
 xmltodict==0.13.0
 django-environ==0.11.2
