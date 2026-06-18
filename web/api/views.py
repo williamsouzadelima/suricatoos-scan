@@ -3322,3 +3322,64 @@ class DashboardStats(APIView):
 				'low': sev(1), 'info': sev(0), 'unknown': sev(-1),
 			},
 		})
+
+
+class SpaScanViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Clean REST scan-history list for the SPA. Filter by ?project=. Newest first."""
+	queryset = ScanHistory.objects.none()
+	serializer_class = ScanSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		qs = ScanHistory.objects.all()
+		slug = self.request.query_params.get('project')
+		if slug:
+			qs = qs.filter(domain__project__slug=slug)
+		return qs.order_by('-start_scan_date').distinct()
+
+
+class ScanOptions(APIView):
+	"""Targets + engines for the SPA 'start scan' picker (optionally ?project=)."""
+
+	def get(self, request):
+		slug = request.query_params.get('project')
+		domains = Domain.objects.all()
+		if slug:
+			domains = domains.filter(project__slug=slug)
+		return Response({
+			'targets': [{'id': d.id, 'name': d.name} for d in domains.order_by('name')],
+			'engines': [{'id': e.id, 'name': e.engine_name}
+				for e in EngineType.objects.all().order_by('engine_name')],
+		})
+
+
+class StartScan(APIView):
+	"""Start a scan from the SPA: create the ScanHistory and queue initiate_scan."""
+	permission_classes = [HasPermission]
+	permission_required = PERM_INITATE_SCANS_SUBSCANS
+
+	def post(self, request):
+		domain_id = request.data.get('domain_id')
+		engine_id = request.data.get('engine_id')
+		if not domain_id or not engine_id:
+			return Response({'error': 'domain_id and engine_id are required'},
+				status=status.HTTP_400_BAD_REQUEST)
+		try:
+			domain_id = int(domain_id)
+			engine_id = int(engine_id)
+			Domain.objects.get(id=domain_id)
+			EngineType.objects.get(id=engine_id)
+		except (ValueError, Domain.DoesNotExist, EngineType.DoesNotExist):
+			return Response({'error': 'invalid domain_id or engine_id'},
+				status=status.HTTP_400_BAD_REQUEST)
+		scan_id = create_scan_object(
+			host_id=domain_id, engine_id=engine_id, initiated_by_id=request.user.id)
+		kwargs = {
+			'scan_history_id': scan_id, 'domain_id': domain_id, 'engine_id': engine_id,
+			'scan_type': LIVE_SCAN, 'results_dir': '/usr/src/scan_results',
+			'imported_subdomains': [], 'out_of_scope_subdomains': [],
+			'starting_point_path': '', 'excluded_paths': [''],
+			'initiated_by_id': request.user.id,
+		}
+		initiate_scan.apply_async(kwargs=kwargs)
+		return Response({'scan_history_id': scan_id}, status=status.HTTP_202_ACCEPTED)

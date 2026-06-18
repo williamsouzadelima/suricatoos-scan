@@ -813,6 +813,28 @@ class VulnSpaSerializer(serializers.ModelSerializer):
 		]
 
 
+class ScanSpaSerializer(serializers.ModelSerializer):
+	"""Lean scan-history shape for the SPA scans list."""
+	domain_name = serializers.CharField(source='domain.name', read_only=True)
+	engine_name = serializers.CharField(source='scan_type.engine_name', read_only=True)
+	subdomain_count = serializers.SerializerMethodField()
+	vulnerability_count = serializers.SerializerMethodField()
+
+	class Meta:
+		model = ScanHistory
+		fields = [
+			'id', 'domain_name', 'engine_name', 'scan_status',
+			'start_scan_date', 'stop_scan_date', 'subdomain_count',
+			'vulnerability_count',
+		]
+
+	def get_subdomain_count(self, obj):
+		return Subdomain.objects.filter(scan_history=obj).count()
+
+	def get_vulnerability_count(self, obj):
+		return Vulnerability.objects.filter(scan_history=obj).count()
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:

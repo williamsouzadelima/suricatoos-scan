@@ -5,6 +5,7 @@ import { getTheme, toggleTheme, type Theme } from '../lib/theme'
 
 const NAV = [
   { to: '/', label: 'Dashboard', end: true },
+  { to: '/scans', label: 'Scans', end: false },
   { to: '/vulnerabilities', label: 'Vulnerabilities', end: false },
   { to: '/osint', label: 'OSINT', end: false },
 ]
