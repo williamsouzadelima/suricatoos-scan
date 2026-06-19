@@ -17,6 +17,9 @@ router.register(r'listOsintResults', OsintResultViewSet)
 router.register(r'vulnerabilities', SpaVulnerabilityViewSet, basename='spa_vulnerabilities')
 router.register(r'scans', SpaScanViewSet, basename='spa_scans')
 router.register(r'subdomains', SpaSubdomainViewSet, basename='spa_subdomains')
+router.register(r'endpoints', SpaEndpointViewSet, basename='spa_endpoints')
+router.register(r'ips', SpaIpViewSet, basename='spa_ips')
+router.register(r'technologies', SpaTechViewSet, basename='spa_technologies')
 router.register(r'targets', SpaTargetViewSet, basename='spa_targets')
 router.register(r'listInterestingSubdomains', InterestingSubdomainViewSet)
 router.register(r'listInterestingEndpoints', InterestingEndpointViewSet)
@@ -25,6 +28,7 @@ router.register(r'listEndPointChanges', EndPointChangesViewSet)
 router.register(r'listIps', IpAddressViewSet)
 router.register(r'listActivityLogs', ListActivityLogsViewSet)
 router.register(r'listScanLogs', ListScanLogsViewSet)
+router.register(r'screenshots', SpaScreenshotViewSet, basename='spa_screenshots')
 router.register(r'notifications', InAppNotificationManagerViewSet, basename='notification')
 router.register(r'hackerone-programs', HackerOneProgramViewSet, basename='hackerone_program')
 
@@ -268,10 +272,12 @@ urlpatterns = [
         CreateProjectApi.as_view(),
         name='create_project'),
     path(
-        'toggle-bug-bounty-mode/', 
-        ToggleBugBountyModeView.as_view(), 
+        'toggle-bug-bounty-mode/',
+        ToggleBugBountyModeView.as_view(),
         name='toggle_bug_bounty_mode'
     ),
+	path('scan-directories/', ScanDirectories.as_view(), name='scan_directories'),
+	path('scan-screenshot/<int:subdomain_id>/', ScanScreenshotImage.as_view(), name='scan_screenshot_image'),
 ]
 
 urlpatterns += router.urls

@@ -891,6 +891,36 @@ class ScanDetailSerializer(ScanSpaSerializer):
 		return ScanActivitySpaSerializer(acts, many=True).data
 
 
+class EndpointSpaSerializer(serializers.ModelSerializer):
+	"""Lean endpoint shape for the SPA scan deep-dive."""
+	class Meta:
+		model = EndPoint
+		fields = [
+			'id', 'http_url', 'http_status', 'page_title', 'content_length',
+			'content_type', 'webserver', 'response_time',
+		]
+
+
+class PortSpaSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = Port
+		fields = ['number', 'service_name', 'is_uncommon']
+
+
+class IpSpaSerializer(serializers.ModelSerializer):
+	ports = PortSpaSerializer(many=True, read_only=True)
+	class Meta:
+		model = IpAddress
+		fields = ['address', 'is_cdn', 'ports']
+
+
+class TechSpaSerializer(serializers.ModelSerializer):
+	subdomain_count = serializers.IntegerField(read_only=True)
+	class Meta:
+		model = Technology
+		fields = ['name', 'subdomain_count']
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:
@@ -1116,3 +1146,15 @@ class VulnerabilitySerializer(serializers.ModelSerializer):
 		model = Vulnerability
 		fields = '__all__'
 		depth = 2
+
+
+class ScreenshotSpaSerializer(serializers.ModelSerializer):
+	subdomain_id = serializers.IntegerField(source='id', read_only=True)
+	subdomain_name = serializers.CharField(source='name', read_only=True)
+	image_url = serializers.SerializerMethodField()
+	class Meta:
+		model = Subdomain
+		fields = ['subdomain_id', 'subdomain_name', 'image_url']
+
+	def get_image_url(self, obj):
+		return f'/api/scan-screenshot/{obj.id}/'

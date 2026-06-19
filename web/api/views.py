@@ -3424,6 +3424,56 @@ class SpaSubdomainViewSet(viewsets.ReadOnlyModelViewSet):
 		return qs.order_by('name').distinct()
 
 
+class SpaEndpointViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Scan-scoped endpoint list for the SPA deep-dive (?scan_history=)."""
+	queryset = EndPoint.objects.none()
+	serializer_class = EndpointSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		scan_id = self.request.query_params.get('scan_history')
+		if self.action == 'list' and not scan_id:
+			return EndPoint.objects.none()
+		qs = EndPoint.objects.all()
+		if scan_id:
+			qs = qs.filter(scan_history_id=scan_id)
+		return qs.order_by('-http_status', 'http_url').distinct()
+
+
+class SpaIpViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Scan-scoped IP+ports list for the SPA deep-dive (?scan_history=)."""
+	queryset = IpAddress.objects.none()
+	serializer_class = IpSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		scan_id = self.request.query_params.get('scan_history')
+		if self.action == 'list' and not scan_id:
+			return IpAddress.objects.none()
+		qs = IpAddress.objects.prefetch_related('ports')
+		if scan_id:
+			qs = qs.filter(ip_addresses__scan_history_id=scan_id)
+		return qs.order_by('address').distinct()
+
+
+class SpaTechViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Scan-scoped technologies for the SPA deep-dive (?scan_history=)."""
+	queryset = Technology.objects.none()
+	serializer_class = TechSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		scan_id = self.request.query_params.get('scan_history')
+		if self.action == 'list' and not scan_id:
+			return Technology.objects.none()
+		qs = Technology.objects.all()
+		if scan_id:
+			qs = qs.filter(technologies__scan_history_id=scan_id)
+		return qs.annotate(
+			subdomain_count=Count('technologies', distinct=True)
+		).order_by('-subdomain_count', 'name').distinct()
+
+
 class ProjectsList(APIView):
 	"""Projects for the SPA project selector."""
 
@@ -3446,3 +3496,76 @@ class SpaTargetViewSet(viewsets.ReadOnlyModelViewSet):
 		if slug:
 			qs = qs.filter(project__slug=slug)
 		return qs.order_by('name').distinct()
+
+
+class ScanDirectories(APIView):
+	"""Flat directory-fuzzing results for a scan (?scan_history=)."""
+
+	def get(self, request):
+		scan_id = request.query_params.get('scan_history')
+		if not scan_id:
+			return Response([])
+		subs = Subdomain.objects.filter(scan_history_id=scan_id).prefetch_related(
+			'directories__directory_files')
+		rows = []
+		for sub in subs:
+			for ds in sub.directories.all():
+				for f in ds.directory_files.all():
+					rows.append({
+						'subdomain_name': sub.name,
+						'name': f.name,
+						'http_status': f.http_status,
+						'length': f.length,
+						'words': f.words,
+						'lines': f.lines,
+					})
+		return Response(rows)
+
+
+import os
+import mimetypes
+from django.conf import settings
+from django.http import FileResponse, Http404
+
+
+class SpaScreenshotViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Scan-scoped subdomains that have a screenshot (?scan_history=)."""
+	queryset = Subdomain.objects.none()
+	serializer_class = ScreenshotSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		scan_id = self.request.query_params.get('scan_history')
+		if self.action == 'list' and not scan_id:
+			return Subdomain.objects.none()
+		qs = Subdomain.objects.exclude(
+			screenshot_path__isnull=True).exclude(screenshot_path='')
+		if scan_id:
+			qs = qs.filter(scan_history_id=scan_id)
+		return qs.order_by('name').distinct()
+
+
+class ScanScreenshotImage(APIView):
+	"""Stream a subdomain's screenshot to JWT clients. Path comes from the DB
+	(Subdomain.screenshot_path) and is containment-checked under MEDIA_ROOT, so no
+	request value reaches the filesystem call (no traversal)."""
+
+	def get(self, request, subdomain_id):
+		try:
+			sub = Subdomain.objects.get(id=subdomain_id)
+		except Subdomain.DoesNotExist:
+			raise Http404
+		stored = sub.screenshot_path or ''
+		if not stored:
+			raise Http404
+		media_root = os.path.realpath(settings.MEDIA_ROOT)
+		# screenshot_path may be absolute or relative to MEDIA_ROOT.
+		candidate = stored if os.path.isabs(stored) else os.path.join(media_root, stored)
+		file_path = os.path.realpath(candidate)
+		if os.path.commonpath([media_root, file_path]) != media_root:
+			raise Http404
+		if not os.path.isfile(file_path):
+			raise Http404
+		content_type, _ = mimetypes.guess_type(file_path)
+		return FileResponse(open(file_path, 'rb'),
+			content_type=content_type or 'application/octet-stream')
