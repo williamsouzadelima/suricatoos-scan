@@ -231,6 +231,13 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
+# The SPA bundle is built by the Docker image into /opt/spa (see Dockerfile's
+# spa-builder stage) and published under the "spa/" prefix by collectstatic.
+# Inserted FIRST so the image-built bundle always wins over any stale static/spa
+# left in a bind-mounted source tree. Guarded so host runs without the
+# image-built dir don't warn.
+if os.path.isdir('/opt/spa'):
+    STATICFILES_DIRS.insert(0, ('spa', '/opt/spa'))
 
 LOGIN_REQUIRED_IGNORE_VIEW_NAMES = [
     'login',
