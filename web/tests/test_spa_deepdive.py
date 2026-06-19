@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from targetApp.models import Domain
 from dashboard.models import Project
 from scanEngine.models import EngineType
-from startScan.models import ScanHistory, EndPoint
+from startScan.models import ScanHistory, EndPoint, IpAddress, Port, Subdomain
 
 
 class DeepDiveBaseTest(TestCase):
@@ -40,3 +40,24 @@ class EndpointApiTest(DeepDiveBaseTest):
 	def test_requires_auth(self):
 		anon = APIClient()
 		self.assertEqual(anon.get('/api/endpoints/', {'scan_history': self.scan.id}).status_code, 401)
+
+
+class IpApiTest(DeepDiveBaseTest):
+	def setUp(self):
+		super().setUp()
+		sub = Subdomain.objects.create(scan_history=self.scan, name='a.ex.com')
+		ip = IpAddress.objects.create(address='1.2.3.4', is_cdn=False)
+		port = Port.objects.create(number=443, service_name='https')
+		ip.ports.add(port)
+		sub.ip_addresses.add(ip)
+
+	def test_lists_scan_ips_with_ports(self):
+		r = self.client.get('/api/ips/', {'scan_history': self.scan.id})
+		self.assertEqual(r.status_code, 200)
+		data = r.json()
+		self.assertEqual(len(data), 1)
+		self.assertEqual(data[0]['address'], '1.2.3.4')
+		self.assertEqual(data[0]['ports'][0]['number'], 443)
+
+	def test_unscoped_empty(self):
+		self.assertEqual(self.client.get('/api/ips/').json(), [])

@@ -18,6 +18,7 @@ router.register(r'vulnerabilities', SpaVulnerabilityViewSet, basename='spa_vulne
 router.register(r'scans', SpaScanViewSet, basename='spa_scans')
 router.register(r'subdomains', SpaSubdomainViewSet, basename='spa_subdomains')
 router.register(r'endpoints', SpaEndpointViewSet, basename='spa_endpoints')
+router.register(r'ips', SpaIpViewSet, basename='spa_ips')
 router.register(r'targets', SpaTargetViewSet, basename='spa_targets')
 router.register(r'listInterestingSubdomains', InterestingSubdomainViewSet)
 router.register(r'listInterestingEndpoints', InterestingEndpointViewSet)

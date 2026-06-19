@@ -901,6 +901,19 @@ class EndpointSpaSerializer(serializers.ModelSerializer):
 		]
 
 
+class PortSpaSerializer(serializers.ModelSerializer):
+	class Meta:
+		model = Port
+		fields = ['number', 'service_name', 'is_uncommon']
+
+
+class IpSpaSerializer(serializers.ModelSerializer):
+	ports = PortSpaSerializer(many=True, read_only=True)
+	class Meta:
+		model = IpAddress
+		fields = ['address', 'is_cdn', 'ports']
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:

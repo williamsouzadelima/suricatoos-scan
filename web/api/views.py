@@ -3440,6 +3440,22 @@ class SpaEndpointViewSet(viewsets.ReadOnlyModelViewSet):
 		return qs.order_by('-http_status', 'http_url').distinct()
 
 
+class SpaIpViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Scan-scoped IP+ports list for the SPA deep-dive (?scan_history=)."""
+	queryset = IpAddress.objects.none()
+	serializer_class = IpSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		scan_id = self.request.query_params.get('scan_history')
+		if self.action == 'list' and not scan_id:
+			return IpAddress.objects.none()
+		qs = IpAddress.objects.prefetch_related('ports')
+		if scan_id:
+			qs = qs.filter(ip_addresses__scan_history_id=scan_id)
+		return qs.order_by('address').distinct()
+
+
 class ProjectsList(APIView):
 	"""Projects for the SPA project selector."""
 
