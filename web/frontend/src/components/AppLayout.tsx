@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import { Menu, Search, LogOut } from 'lucide-react'
 import { useAuth } from '../auth/auth'
@@ -66,7 +66,9 @@ export function AppLayout() {
           </nav>
         </aside>
         <main className="min-w-0 flex-1 p-6">
-          <Outlet />
+          <Suspense fallback={<div className="grid min-h-[50vh] place-items-center"><div className="h-6 w-6 animate-spin rounded-full border-2 border-sx-border border-t-sx-primary" /></div>}>
+            <Outlet />
+          </Suspense>
         </main>
       </div>
     </div>
