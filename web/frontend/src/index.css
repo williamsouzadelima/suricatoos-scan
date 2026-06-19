@@ -2,29 +2,87 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Design tokens mirrored from web/static/custom/premium-theme.css (dark default). */
-:root {
-  --sx-bg: #0f1420;
-  --sx-surface: #161d2b;
+/* ── Suricatoos identity themes ──────────────────────────────────────────────
+   Four selectable identity themes (Phase 1 design-system foundation). Each is a
+   full --sx-* token set; components consume them via Tailwind (bg-sx-*, text-sx-*,
+   border-sx-*). Switch live via the topbar theme picker (theme.ts sets
+   data-sx-theme on <html>). Default = coral-mirage (also in :root as fallback). */
+
+html[data-sx-theme="coral-mirage"] {
+  --sx-bg: #16130f;
+  --sx-surface: #1d1916;
+  --sx-surface-2: #1f1b17;
+  --sx-border: #2f2820;
+  --sx-text: #ECEAE6;
+  --sx-muted: #9a9690;
+  --sx-primary: #FF6B5E;
+  --sx-primary-600: #e85a4e;
+  --sx-critical: #ff6b5e;
+  --sx-high: #FFB454;
+  --sx-medium: #ffd166;
+  --sx-low: #4cd2a0;
+  --sx-info: #8bd3dd;
+  --sx-success: #4cd2a0;
+}
+
+html[data-sx-theme="terminal-noir"] {
+  --sx-bg: #0a0c10;
+  --sx-surface: #12161d;
   --sx-surface-2: #1b2433;
-  --sx-border: #26334a;
-  --sx-text: #e7ebf3;
-  --sx-muted: #9aa6bd;
-  --sx-primary: #3d5af1;
-  --sx-primary-600: #2f49d4;
+  --sx-border: #1f2937;
+  --sx-text: #e6e9ef;
+  --sx-muted: #7d8694;
+  --sx-primary: #ff5c5c;
+  --sx-primary-600: #e04848;
   --sx-critical: #ff5c63;
   --sx-high: #ff9351;
   --sx-medium: #ffc24b;
   --sx-low: #4cd2a0;
   --sx-info: #57acff;
+  --sx-success: #3ddc84;
+}
+
+:root,
+html[data-sx-theme="cyber-grid"] {
+  --sx-bg: #080a0f;
+  --sx-surface: #0e1118;
+  --sx-surface-2: #121826;
+  --sx-border: #16273f;
+  --sx-text: #e3e8f0;
+  --sx-muted: #6f7e98;
+  --sx-primary: #FF4D6D;
+  --sx-primary-600: #e63e5c;
+  --sx-critical: #FF4D6D;
+  --sx-high: #ff9351;
+  --sx-medium: #ffc24b;
+  --sx-low: #22D3EE;
+  --sx-info: #22D3EE;
+  --sx-success: #34d399;
+}
+
+html[data-sx-theme="slate-pro"] {
+  --sx-bg: #0f1217;
+  --sx-surface: #171b22;
+  --sx-surface-2: #141821;
+  --sx-border: #242a35;
+  --sx-text: #eef1f6;
+  --sx-muted: #8b95a6;
+  --sx-primary: #FF6A5A;
+  --sx-primary-600: #e85a4b;
+  --sx-critical: #ff6a5a;
+  --sx-high: #ff9351;
+  --sx-medium: #facc6b;
+  --sx-low: #34c79a;
+  --sx-info: #56c2c2;
   --sx-success: #34c79a;
 }
-html[data-sx-theme="light"] {
-  --sx-bg: #f4f6fb;
-  --sx-surface: #ffffff;
-  --sx-surface-2: #eef1f7;
-  --sx-border: #d8dee9;
-  --sx-text: #1b2433;
-  --sx-muted: #5b6678;
+
+/* Cyber Grid gets a subtle scanline grid on the page background. */
+html[data-sx-theme="cyber-grid"] body {
+  background-image:
+    linear-gradient(rgba(34, 211, 238, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.045) 1px, transparent 1px);
+  background-size: 26px 26px;
 }
+
 body { background: var(--sx-bg); color: var(--sx-text); margin: 0; }
