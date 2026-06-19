@@ -5764,3 +5764,56 @@ msgstr "As informações apresentadas aqui são cruciais para compreender sua po
 #: templates/report/modern.html:1179
 msgid "Vulnerable URLs"
 msgstr "URLs vulneráveis"
+
+#: templates/base/base.html
+msgid "Thanks for using Suricatoos!"
+msgstr "Obrigado por usar o Suricatoos!"
+
+#: templates/base/base.html
+msgid "Would you like to see what's new in this version?"
+msgstr "Gostaria de ver as novidades desta versão?"
+
+#: templates/base/base.html
+msgid "Yes, show me"
+msgstr "Sim, mostrar"
+
+#: templates/base/base.html
+msgid "No, thanks"
+msgstr "Não, obrigado"
+
+#: templates/base/base.html
+msgid "Checking Suricatoos latest version..."
+msgstr "Verificando a versão mais recente do Suricatoos..."
+
+#: templates/base/base.html
+msgid "Oops!"
+msgstr "Ops!"
+
+#: templates/base/base.html
+msgid "Github rate limit exceeded, please try again in an hour!"
+msgstr "Limite de requisições do GitHub excedido, tente novamente em uma hora!"
+
+#: templates/base/base.html
+msgid "Update not available"
+msgstr "Atualização não disponível"
+
+#: templates/base/base.html
+msgid "You are running the latest version of Suricatoos!"
+msgstr "Você já está usando a versão mais recente do Suricatoos!"
+
+#: templates/base/base.html
+msgid "Update Available!"
+msgstr "Atualização disponível!"
+
+#: templates/base/base.html
+#, python-format
+msgid "Suricatoos's new update %s is available, please follow the update instructions."
+msgstr "A nova atualização %s do Suricatoos está disponível, siga as instruções de atualização."
+
+#: templates/base/base.html
+msgid "Update Instructions"
+msgstr "Instruções de atualização"
+
+#: templates/base/base.html
+msgid "Dismiss"
+msgstr "Dispensar"

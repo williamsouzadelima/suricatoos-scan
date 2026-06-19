@@ -26,6 +26,12 @@ SURICATOOS_RESULTS = env('SURICATOOS_RESULTS', default=f'{SURICATOOS_HOME}/scan_
 SURICATOOS_CACHE_ENABLED = env.bool('SURICATOOS_CACHE_ENABLED', default=False)
 SURICATOOS_RECORD_ENABLED = env.bool('SURICATOOS_RECORD_ENABLED', default=True)
 SURICATOOS_RAISE_ON_ERROR = env.bool('SURICATOOS_RAISE_ON_ERROR', default=False)
+# Hard cutover to the React SPA (/app/): when on, UICutoverMiddleware redirects
+# every legacy server-rendered page to the SPA, forcing the migration. Default
+# off so a fresh checkout is never locked out; activate per-environment via the
+# SURICATOOS_UI_CUTOVER env var (see docker-compose.yml). Flip off + restart to
+# fully restore the legacy interface.
+UI_CUTOVER = env.bool('SURICATOOS_UI_CUTOVER', default=False)
 
 # Common env vars
 DEBUG = env.bool('DEBUG', default=False)
@@ -107,6 +113,9 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Cutover gate runs before LoginRequired so legacy pages redirect straight
+    # to the SPA instead of bouncing through /login first.
+    'Suricatoos.middleware.UICutoverMiddleware',
     'login_required.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',

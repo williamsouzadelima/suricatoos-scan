@@ -1,5 +1,13 @@
 // all the functions related to Suricatoos update, including showing up modal, notification etc will be here
 
+// User-facing strings are translated server-side and handed to us by the Django
+// template via window.SURICATOOS_I18N.update (see base.html). We fall back to the
+// English source string so this file still works if the catalog is missing.
+const SX_UPDATE_I18N = (window.SURICATOOS_I18N && window.SURICATOOS_I18N.update) || {};
+function sxt(key, fallback) {
+  return SX_UPDATE_I18N[key] || fallback;
+}
+
 // Source : https://stackoverflow.com/a/32428268
 function checkDailyUpdate() {
   if (!hasOneDayPassed()) return false;
@@ -27,7 +35,7 @@ function check_suricatoos_update() {
     window.open("https://github.com/williamsouzadelima/suricatoos-scan/releases", "_blank");
   } else {
     Swal.fire({
-      title: "Checking Suricatoos latest version...",
+      title: sxt("checking", "Checking Suricatoos latest version..."),
       allowOutsideClick: false,
     });
     swal.showLoading();
@@ -38,8 +46,8 @@ function check_suricatoos_update() {
         swal.close();
         if (response["description"] == "RateLimited") {
           Swal.fire({
-            title: "Oops!",
-            text: "Github rate limit exceeded, please try again in an hour!",
+            title: sxt("oops", "Oops!"),
+            text: sxt("ratelimit", "Github rate limit exceeded, please try again in an hour!"),
             icon: "error",
           });
           window.localStorage.setItem("update_available", false);
@@ -52,8 +60,8 @@ function check_suricatoos_update() {
           window.localStorage.setItem("update_available", false);
           $(".suricatoos_update_available").hide();
           Swal.fire({
-            title: "Update not available",
-            text: "You are running the latest version of Suricatoos!",
+            title: sxt("no_update", "Update not available"),
+            text: sxt("latest", "You are running the latest version of Suricatoos!"),
             icon: "info",
           });
         }
@@ -111,18 +119,21 @@ function update_available(latest_version_number, changelog) {
       `;
 
     Swal.fire({
-      title: "Update Available!",
+      title: sxt("update_available", "Update Available!"),
       html: `
           ${changelogStyle}
-          <h5>Suricatoos's new update ${latest_version_number} is available, please follow the update instructions.</h5>
+          <h5>${sxt(
+            "update_heading",
+            "Suricatoos's new update %s is available, please follow the update instructions."
+          ).replace("%s", latest_version_number)}</h5>
           <div class="changelog-content" style="max-height: 500px;" data-simplebar>
             ${parsedChangelog}
           </div>
         `,
       icon: "info",
-      confirmButtonText: "Update Instructions",
+      confirmButtonText: sxt("update_instructions", "Update Instructions"),
       showCancelButton: true,
-      cancelButtonText: "Dismiss",
+      cancelButtonText: sxt("dismiss", "Dismiss"),
       width: "70%",
       didOpen: () => {
         document.querySelectorAll("pre code").forEach((block) => {
@@ -171,12 +182,12 @@ function showAfterUpdatePopup() {
     //   localStorage.setItem("lastShownUpdateVersion", currentVersion);
     // });
     Swal.fire({
-      title: "Thanks for using Suricatoos!",
-      text: `Would you like to see what's new in this version?`,
+      title: sxt("thanks_title", "Thanks for using Suricatoos!"),
+      text: sxt("thanks_text", "Would you like to see what's new in this version?"),
       icon: "info",
       showCancelButton: true,
-      confirmButtonText: "Yes, show me",
-      cancelButtonText: "No, thanks",
+      confirmButtonText: sxt("yes_show", "Yes, show me"),
+      cancelButtonText: sxt("no_thanks", "No, thanks"),
     }).then((result) => {
       if (result.isConfirmed) {
         window.open(`https://suricatoos.wiki/whats-new/${currentVersion.replace(/\./g, "_")}`, "_blank");
