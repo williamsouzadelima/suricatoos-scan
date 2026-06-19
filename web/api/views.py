@@ -3424,6 +3424,22 @@ class SpaSubdomainViewSet(viewsets.ReadOnlyModelViewSet):
 		return qs.order_by('name').distinct()
 
 
+class SpaEndpointViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Scan-scoped endpoint list for the SPA deep-dive (?scan_history=)."""
+	queryset = EndPoint.objects.none()
+	serializer_class = EndpointSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		scan_id = self.request.query_params.get('scan_history')
+		if self.action == 'list' and not scan_id:
+			return EndPoint.objects.none()
+		qs = EndPoint.objects.all()
+		if scan_id:
+			qs = qs.filter(scan_history_id=scan_id)
+		return qs.order_by('-http_status', 'http_url').distinct()
+
+
 class ProjectsList(APIView):
 	"""Projects for the SPA project selector."""
 

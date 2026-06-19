@@ -891,6 +891,16 @@ class ScanDetailSerializer(ScanSpaSerializer):
 		return ScanActivitySpaSerializer(acts, many=True).data
 
 
+class EndpointSpaSerializer(serializers.ModelSerializer):
+	"""Lean endpoint shape for the SPA scan deep-dive."""
+	class Meta:
+		model = EndPoint
+		fields = [
+			'id', 'http_url', 'http_status', 'page_title', 'content_length',
+			'content_type', 'webserver', 'response_time',
+		]
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:
