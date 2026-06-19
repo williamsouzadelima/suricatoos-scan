@@ -3456,6 +3456,24 @@ class SpaIpViewSet(viewsets.ReadOnlyModelViewSet):
 		return qs.order_by('address').distinct()
 
 
+class SpaTechViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Scan-scoped technologies for the SPA deep-dive (?scan_history=)."""
+	queryset = Technology.objects.none()
+	serializer_class = TechSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		scan_id = self.request.query_params.get('scan_history')
+		if self.action == 'list' and not scan_id:
+			return Technology.objects.none()
+		qs = Technology.objects.all()
+		if scan_id:
+			qs = qs.filter(technologies__scan_history_id=scan_id)
+		return qs.annotate(
+			subdomain_count=Count('technologies', distinct=True)
+		).order_by('-subdomain_count', 'name').distinct()
+
+
 class ProjectsList(APIView):
 	"""Projects for the SPA project selector."""
 

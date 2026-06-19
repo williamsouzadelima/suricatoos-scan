@@ -914,6 +914,13 @@ class IpSpaSerializer(serializers.ModelSerializer):
 		fields = ['address', 'is_cdn', 'ports']
 
 
+class TechSpaSerializer(serializers.ModelSerializer):
+	subdomain_count = serializers.IntegerField(read_only=True)
+	class Meta:
+		model = Technology
+		fields = ['name', 'subdomain_count']
+
+
 class DorkSerializer(serializers.ModelSerializer):
 
 	class Meta:

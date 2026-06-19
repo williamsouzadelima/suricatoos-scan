@@ -61,3 +61,23 @@ class IpApiTest(DeepDiveBaseTest):
 
 	def test_unscoped_empty(self):
 		self.assertEqual(self.client.get('/api/ips/').json(), [])
+
+
+from startScan.models import Technology
+
+
+class TechApiTest(DeepDiveBaseTest):
+	def setUp(self):
+		super().setUp()
+		sub = Subdomain.objects.create(scan_history=self.scan, name='a.ex.com')
+		tech = Technology.objects.create(name='nginx')
+		sub.technologies.add(tech)
+
+	def test_lists_scan_tech(self):
+		r = self.client.get('/api/technologies/', {'scan_history': self.scan.id})
+		self.assertEqual(r.status_code, 200)
+		self.assertEqual(r.json()[0]['name'], 'nginx')
+		self.assertEqual(r.json()[0]['subdomain_count'], 1)
+
+	def test_unscoped_empty(self):
+		self.assertEqual(self.client.get('/api/technologies/').json(), [])
