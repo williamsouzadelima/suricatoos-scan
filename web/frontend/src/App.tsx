@@ -9,6 +9,8 @@ import { Osint } from './pages/Osint'
 import { Vulnerabilities } from './pages/Vulnerabilities'
 import { Scans } from './pages/Scans'
 import { Subdomains } from './pages/Subdomains'
+import { Endpoints } from './pages/Endpoints'
+import { LeakedSecrets } from './pages/LeakedSecrets'
 import { ScanDetail } from './pages/ScanDetail'
 import { Targets } from './pages/Targets'
 
@@ -24,7 +26,9 @@ export default function App() {
             <Route path="scans" element={<Scans />} />
             <Route path="scans/:id" element={<ScanDetail />} />
             <Route path="subdomains" element={<Subdomains />} />
+            <Route path="endpoints" element={<Endpoints />} />
             <Route path="vulnerabilities" element={<Vulnerabilities />} />
+            <Route path="secrets" element={<LeakedSecrets />} />
             <Route path="osint" element={<Osint />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
