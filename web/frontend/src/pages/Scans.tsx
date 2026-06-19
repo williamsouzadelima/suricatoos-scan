@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { api } from '../api/client'
 import { useProject } from '../project/project'
+import { useToast } from '../components/ui/Toast'
+import { Select } from '../components/ui/Select'
 
 type Scan = {
   id: number; domain_name: string; engine_name: string; scan_status: number
@@ -24,9 +26,9 @@ function fmt(d: string | null) { return d ? new Date(d).toLocaleString() : '—'
 export function Scans() {
   const qc = useQueryClient()
   const { currentSlug } = useProject()
+  const toast = useToast()
   const [domainId, setDomainId] = useState('')
   const [engineId, setEngineId] = useState('')
-  const [msg, setMsg] = useState('')
 
   const scans = useQuery({
     queryKey: ['scans', currentSlug],
@@ -40,12 +42,13 @@ export function Scans() {
 
   const start = useMutation({
     mutationFn: async () => (await api.post('/start-scan/', { domain_id: domainId, engine_id: engineId })).data,
-    onSuccess: () => { setMsg('Scan started.'); qc.invalidateQueries({ queryKey: ['scans'] }) },
-    onError: (e: any) => setMsg(e?.response?.data?.error || 'Failed to start scan'),
+    onSuccess: () => { toast({ title: 'Scan started', variant: 'success' }); setDomainId(''); setEngineId(''); qc.invalidateQueries({ queryKey: ['scans'] }) },
+    onError: (e: any) => toast({ title: 'Failed to start scan', description: e?.response?.data?.error, variant: 'error' }),
   })
   const stop = useMutation({
     mutationFn: async (id: number) => (await api.post('/action/stop/scan/', { scan_ids: [id] })).data,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['scans'] }),
+    onSuccess: () => { toast({ title: 'Scan stopped' }); qc.invalidateQueries({ queryKey: ['scans'] }) },
+    onError: () => toast({ title: 'Failed to stop scan', variant: 'error' }),
   })
 
   return (
@@ -53,24 +56,17 @@ export function Scans() {
       <h1 className="mb-4 sx-uplabel text-xl font-semibold">Scans</h1>
 
       <div className="mb-6 rounded-xl border border-sx-border bg-sx-surface p-4">
-        <div className="mb-2 text-sm font-medium">Start a scan</div>
+        <div className="sx-uplabel mb-2 text-xs font-semibold text-sx-muted">Start a scan</div>
         <div className="flex flex-wrap items-center gap-2">
-          <select value={domainId} onChange={(e) => setDomainId(e.target.value)}
-            className="rounded-lg border border-sx-border bg-sx-surface-2 px-3 py-1.5 text-sm">
-            <option value="">Target…</option>
-            {options.data?.targets.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-          <select value={engineId} onChange={(e) => setEngineId(e.target.value)}
-            className="rounded-lg border border-sx-border bg-sx-surface-2 px-3 py-1.5 text-sm">
-            <option value="">Engine…</option>
-            {options.data?.engines.map((en) => <option key={en.id} value={en.id}>{en.name}</option>)}
-          </select>
+          <Select value={domainId} onValueChange={setDomainId} placeholder="Target…"
+            options={(options.data?.targets ?? []).map((t) => ({ value: String(t.id), label: t.name }))} />
+          <Select value={engineId} onValueChange={setEngineId} placeholder="Engine…"
+            options={(options.data?.engines ?? []).map((en) => ({ value: String(en.id), label: en.name }))} />
           <button disabled={!domainId || !engineId || start.isPending}
-            onClick={() => { setMsg(''); start.mutate() }}
-            className="rounded-lg bg-sx-primary px-4 py-1.5 text-sm font-medium text-white hover:bg-sx-primary-600 disabled:opacity-50">
+            onClick={() => start.mutate()}
+            className="rounded-lg bg-sx-primary px-4 py-1.5 text-sm font-semibold text-white hover:bg-sx-primary-600 disabled:opacity-50">
             {start.isPending ? 'Starting…' : 'Start scan'}
           </button>
-          {msg && <span className="text-sm text-sx-muted">{msg}</span>}
         </div>
       </div>
 

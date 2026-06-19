@@ -3,6 +3,7 @@ import { NavLink, Outlet } from 'react-router-dom'
 import { useAuth } from '../auth/auth'
 import { getTheme, applyTheme, THEMES, type Theme } from '../lib/theme'
 import { useProject } from '../project/project'
+import { Select } from './ui/Select'
 
 const NAV = [
   { to: '/', label: 'Dashboard', end: true },
@@ -27,14 +28,12 @@ export function AppLayout() {
         <button className="rounded-lg border border-sx-border px-2 py-1 md:hidden" onClick={() => setOpen(!open)} aria-label="Menu">☰</button>
         <span className="font-bold tracking-wide"><span className="text-sx-primary">◆</span> Suricatoos</span>
         <div className="ml-auto flex items-center gap-2">
-          <select value={currentSlug} onChange={(e) => setCurrentSlug(e.target.value)}
-            className="rounded-lg border border-sx-border bg-sx-surface-2 px-2 py-1 text-sm" title="Project">
-            {projects.map((p) => <option key={p.slug} value={p.slug}>{p.name}</option>)}
-          </select>
-          <select value={theme} onChange={(e) => { const t = e.target.value as Theme; setTheme(t); applyTheme(t) }}
-            className="rounded-lg border border-sx-border bg-sx-surface-2 px-2 py-1 text-sm" title="Theme">
-            {THEMES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-          </select>
+          {projects.length > 0 && (
+            <Select value={currentSlug} onValueChange={setCurrentSlug} title="Project" placeholder="Project"
+              options={projects.map((p) => ({ value: p.slug, label: p.name }))} />
+          )}
+          <Select value={theme} onValueChange={(v) => { const t = v as Theme; setTheme(t); applyTheme(t) }} title="Theme"
+            options={THEMES.map((t) => ({ value: t.id, label: t.label }))} />
           <button className="rounded-lg border border-sx-border px-3 py-1 text-sm hover:border-sx-primary" onClick={logout}>Logout</button>
         </div>
       </header>

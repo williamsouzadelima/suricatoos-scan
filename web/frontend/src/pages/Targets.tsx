@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import { useProject } from '../project/project'
+import { useToast } from '../components/ui/Toast'
+import { Modal } from '../components/ui/Dialog'
 
 type Target = { id: number; name: string; insert_date: string | null; start_scan_date: string | null }
 function fmt(d: string | null) { return d ? new Date(d).toLocaleDateString() : '—' }
@@ -9,8 +11,9 @@ function fmt(d: string | null) { return d ? new Date(d).toLocaleDateString() : '
 export function Targets() {
   const { currentSlug } = useProject()
   const qc = useQueryClient()
+  const toast = useToast()
   const [domain, setDomain] = useState('')
-  const [msg, setMsg] = useState('')
+  const [open, setOpen] = useState(false)
 
   const targets = useQuery({
     queryKey: ['targets', currentSlug],
@@ -20,29 +23,35 @@ export function Targets() {
   const add = useMutation({
     mutationFn: async () => (await api.post('/add/target/', { domain_name: domain, slug: currentSlug })).data,
     onSuccess: (d: any) => {
-      if (d?.status === false) { setMsg(d.message || 'Failed to add target'); return }
-      setMsg('Target added.'); setDomain(''); qc.invalidateQueries({ queryKey: ['targets'] })
+      if (d?.status === false) { toast({ title: 'Could not add target', description: d.message, variant: 'error' }); return }
+      toast({ title: 'Target added', description: domain, variant: 'success' })
+      setDomain(''); setOpen(false); qc.invalidateQueries({ queryKey: ['targets'] })
     },
-    onError: () => setMsg('Failed to add target'),
+    onError: () => toast({ title: 'Could not add target', variant: 'error' }),
   })
 
   return (
     <div>
-      <h1 className="mb-4 sx-uplabel text-xl font-semibold">Targets</h1>
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h1 className="sx-uplabel text-xl font-semibold">Targets</h1>
+        <button onClick={() => setOpen(true)} disabled={!currentSlug}
+          className="rounded-lg bg-sx-primary px-4 py-1.5 text-sm font-semibold text-white hover:bg-sx-primary-600 disabled:opacity-50">
+          + Add target
+        </button>
+      </div>
 
-      <div className="mb-6 rounded-xl border border-sx-border bg-sx-surface p-4">
-        <div className="mb-2 text-sm font-medium">Add a target</div>
-        <div className="flex flex-wrap items-center gap-2">
-          <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="example.com"
-            onKeyDown={(e) => { if (e.key === 'Enter' && domain) { setMsg(''); add.mutate() } }}
-            className="w-72 rounded-lg border border-sx-border bg-sx-surface-2 px-3 py-1.5 text-sm outline-none focus:border-sx-primary" />
-          <button disabled={!domain || !currentSlug || add.isPending} onClick={() => { setMsg(''); add.mutate() }}
-            className="rounded-lg bg-sx-primary px-4 py-1.5 text-sm font-medium text-white hover:bg-sx-primary-600 disabled:opacity-50">
+      <Modal open={open} onOpenChange={setOpen} title="Add target" description="Add a domain to this project.">
+        <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="example.com" autoFocus
+          onKeyDown={(e) => { if (e.key === 'Enter' && domain) add.mutate() }}
+          className="mb-4 w-full rounded-lg border border-sx-border bg-sx-surface-2 px-3 py-2 text-sm outline-none focus:border-sx-primary" />
+        <div className="flex justify-end gap-2">
+          <button onClick={() => setOpen(false)} className="rounded-lg border border-sx-border px-4 py-1.5 text-sm text-sx-muted hover:text-sx-text">Cancel</button>
+          <button disabled={!domain || add.isPending} onClick={() => add.mutate()}
+            className="rounded-lg bg-sx-primary px-4 py-1.5 text-sm font-semibold text-white hover:bg-sx-primary-600 disabled:opacity-50">
             {add.isPending ? 'Adding…' : 'Add target'}
           </button>
-          {msg && <span className="text-sm text-sx-muted">{msg}</span>}
         </div>
-      </div>
+      </Modal>
 
       {targets.isLoading && <p className="text-sx-muted">Loading…</p>}
       {targets.isError && <p className="text-sx-critical">Failed to load targets.</p>}
@@ -50,7 +59,7 @@ export function Targets() {
         <div className="overflow-x-auto rounded-xl border border-sx-border">
           <table className="w-full text-sm">
             <thead className="bg-sx-surface-2 text-left text-sx-muted">
-              <tr><th className="px-4 py-2">Target</th><th className="px-4 py-2">Added</th><th className="px-4 py-2">Last scanned</th></tr>
+              <tr><th className="sx-uplabel px-4 py-2 text-[11px]">Target</th><th className="sx-uplabel px-4 py-2 text-[11px]">Added</th><th className="sx-uplabel px-4 py-2 text-[11px]">Last scanned</th></tr>
             </thead>
             <tbody>
               {targets.data.map((t) => (
