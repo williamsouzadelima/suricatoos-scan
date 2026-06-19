@@ -25,8 +25,7 @@ export function AppLayout() {
     <div className="min-h-screen bg-sx-bg text-sx-text">
       <header className="sticky top-0 z-20 flex items-center gap-3 border-b border-sx-border bg-sx-surface px-4 py-3">
         <button className="rounded-lg border border-sx-border px-2 py-1 md:hidden" onClick={() => setOpen(!open)} aria-label="Menu">☰</button>
-        <span className="font-semibold">Suricatoos</span>
-        <span className="text-xs text-sx-muted">SPA</span>
+        <span className="font-bold tracking-wide"><span className="text-sx-primary">◆</span> Suricatoos</span>
         <div className="ml-auto flex items-center gap-2">
           <select value={currentSlug} onChange={(e) => setCurrentSlug(e.target.value)}
             className="rounded-lg border border-sx-border bg-sx-surface-2 px-2 py-1 text-sm" title="Project">
@@ -44,7 +43,7 @@ export function AppLayout() {
           <nav className="flex flex-col gap-1">
             {NAV.map((n) => (
               <NavLink key={n.to} to={n.to} end={n.end} onClick={() => setOpen(false)}
-                className={({ isActive }) => 'rounded-lg px-3 py-2 text-sm ' + (isActive ? 'bg-sx-primary text-white' : 'text-sx-muted hover:bg-sx-surface-2')}>
+                className={({ isActive }) => 'sx-uplabel rounded-lg border px-3 py-2 text-xs font-semibold ' + (isActive ? 'border-sx-primary/40 bg-sx-primary/10 text-sx-primary' : 'border-transparent text-sx-muted hover:bg-sx-surface-2 hover:text-sx-text')}>
                 {n.label}
               </NavLink>
             ))}

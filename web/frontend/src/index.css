@@ -86,3 +86,47 @@ html[data-sx-theme="cyber-grid"] body {
 }
 
 body { background: var(--sx-bg); color: var(--sx-text); margin: 0; }
+
+/* ── Structural character tokens (per theme) ─────────────────────────────────
+   Components read these so each identity keeps its character: Cyber Grid gets
+   mono+glowing numbers, uppercase labels, a neon top-accent on cards; the softer
+   themes opt out. */
+:root,
+html[data-sx-theme="cyber-grid"] {
+  --sx-num-font: ui-monospace, "JetBrains Mono", monospace;
+  --sx-num-glow: 0 0 16px rgba(34, 211, 238, 0.42);
+  --sx-label-tt: uppercase;
+  --sx-label-ls: 1px;
+  --sx-card-accent: linear-gradient(90deg, var(--sx-primary), var(--sx-info));
+}
+html[data-sx-theme="terminal-noir"] {
+  --sx-num-font: ui-monospace, "JetBrains Mono", monospace;
+  --sx-num-glow: none;
+  --sx-label-tt: uppercase;
+  --sx-label-ls: 0.5px;
+  --sx-card-accent: var(--sx-primary);
+}
+html[data-sx-theme="coral-mirage"] {
+  --sx-num-font: inherit;
+  --sx-num-glow: none;
+  --sx-label-tt: none;
+  --sx-label-ls: normal;
+  --sx-card-accent: transparent;
+}
+html[data-sx-theme="slate-pro"] {
+  --sx-num-font: inherit;
+  --sx-num-glow: none;
+  --sx-label-tt: uppercase;
+  --sx-label-ls: 0.8px;
+  --sx-card-accent: transparent;
+}
+
+/* Character utility classes (token-driven). */
+.sx-num { font-family: var(--sx-num-font, inherit); text-shadow: var(--sx-num-glow, none); }
+.sx-uplabel { text-transform: var(--sx-label-tt, none); letter-spacing: var(--sx-label-ls, normal); }
+.sx-accent { position: relative; }
+.sx-accent::before {
+  content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  border-top-left-radius: inherit; border-top-right-radius: inherit;
+  background: var(--sx-card-accent, transparent);
+}
