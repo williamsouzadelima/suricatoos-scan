@@ -9,7 +9,9 @@ const NAV = [
   { to: '/targets', label: 'Targets', end: false },
   { to: '/scans', label: 'Scans', end: false },
   { to: '/subdomains', label: 'Subdomains', end: false },
+  { to: '/endpoints', label: 'Endpoints', end: false },
   { to: '/vulnerabilities', label: 'Vulnerabilities', end: false },
+  { to: '/secrets', label: 'Secrets', end: false },
   { to: '/osint', label: 'OSINT', end: false },
 ]
 
