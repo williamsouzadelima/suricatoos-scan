@@ -16,7 +16,7 @@ export function DirectoriesTab({ scanId }: { scanId: number }) {
     { accessorKey: 'subdomain_name', header: 'Subdomain' },
     { accessorKey: 'name', header: 'Path' },
     { accessorKey: 'http_status', header: 'Status', cell: (c) => {
-        const s = c.getValue<number>(); return s ? <span className={'rounded px-2 py-0.5 text-xs ' + statusCls(s)}>{s}</span> : '—' } },
+        const s = c.getValue<number>(); return s ? <span className={'sx-badge px-2 py-0.5 text-xs ' + statusCls(s)}>{s}</span> : '—' } },
     { accessorKey: 'length', header: 'Length' },
     { accessorKey: 'words', header: 'Words' },
     { accessorKey: 'lines', header: 'Lines' },

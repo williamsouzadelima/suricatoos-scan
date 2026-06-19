@@ -37,7 +37,7 @@ export function OverviewTab({ data }: { data: ScanDetail }) {
           const ast = STATUS[a.status] ?? STATUS[-1]
           return (
             <div key={a.id} className="flex items-center gap-3 border-b border-sx-border px-4 py-2 last:border-0">
-              <span className={'rounded px-2 py-0.5 text-xs ' + ast.cls}>{ast.label}</span>
+              <span className={'sx-badge px-2 py-0.5 text-xs ' + ast.cls}>{ast.label}</span>
               <span className="flex-1">{a.title || a.name}</span>
               <span className="text-xs text-sx-muted">{fmt(a.time)}</span>
               {a.error_message && <span className="text-xs text-sx-critical" title={a.error_message}>⚠</span>}

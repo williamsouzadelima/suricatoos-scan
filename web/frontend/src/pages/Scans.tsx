@@ -50,7 +50,7 @@ export function Scans() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">Scans</h1>
+      <h1 className="mb-4 sx-uplabel text-xl font-semibold">Scans</h1>
 
       <div className="mb-6 rounded-xl border border-sx-border bg-sx-surface p-4">
         <div className="mb-2 text-sm font-medium">Start a scan</div>
@@ -94,7 +94,7 @@ export function Scans() {
                   <tr key={s.id} className="border-t border-sx-border">
                     <td className="px-4 py-2"><Link to={`/scans/${s.id}`} className="text-sx-primary hover:underline">{s.domain_name}</Link></td>
                     <td className="px-4 py-2 text-sx-muted">{s.engine_name}</td>
-                    <td className="px-4 py-2"><span className={'rounded px-2 py-0.5 text-xs ' + st.cls}>{st.label}</span></td>
+                    <td className="px-4 py-2"><span className={'sx-badge px-2 py-0.5 text-xs ' + st.cls}>{st.label}</span></td>
                     <td className="px-4 py-2 text-sx-muted">{fmt(s.start_scan_date)}</td>
                     <td className="px-4 py-2">{s.subdomain_count}</td>
                     <td className="px-4 py-2">{s.vulnerability_count}</td>

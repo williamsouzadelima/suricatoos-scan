@@ -28,7 +28,7 @@ const VALID: Record<string, { label: string; cls: string }> = {
 }
 
 function Badge({ cls, children }: { cls: string; children: React.ReactNode }) {
-  return <span className={'rounded px-2 py-0.5 text-xs ' + cls}>{children}</span>
+  return <span className={'sx-badge px-2 py-0.5 text-xs ' + cls}>{children}</span>
 }
 
 export function Vulnerabilities() {
@@ -53,7 +53,7 @@ export function Vulnerabilities() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">Vulnerabilities</h1>
+      <h1 className="mb-4 sx-uplabel text-xl font-semibold">Vulnerabilities</h1>
       {isLoading && <p className="text-sx-muted">Loading…</p>}
       {isError && <p className="text-sx-critical">Failed to load.</p>}
       {data && (

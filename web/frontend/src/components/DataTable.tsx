@@ -30,7 +30,7 @@ export function DataTable<T>({ data, columns, countLabel, initialSort = [], page
             {table.getHeaderGroups().map((hg) => (
               <tr key={hg.id}>
                 {hg.headers.map((h) => (
-                  <th key={h.id} className="cursor-pointer select-none px-4 py-2" onClick={h.column.getToggleSortingHandler()}>
+                  <th key={h.id} className="sx-uplabel cursor-pointer select-none px-4 py-2 text-[11px] font-semibold" onClick={h.column.getToggleSortingHandler()}>
                     {flexRender(h.column.columnDef.header, h.getContext())}
                     {{ asc: ' ↑', desc: ' ↓' }[h.column.getIsSorted() as string] ?? ''}
                   </th>

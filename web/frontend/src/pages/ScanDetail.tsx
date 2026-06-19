@@ -37,12 +37,12 @@ export function ScanDetail() {
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold">{data.domain_name}</h1>
         <span className="text-sx-muted">{data.engine_name}</span>
-        <span className={'rounded px-2 py-0.5 text-xs ' + st.cls}>{st.label}</span>
+        <span className={'sx-badge px-2 py-0.5 text-xs ' + st.cls}>{st.label}</span>
       </div>
       <div className="mb-6 flex gap-1 border-b border-sx-border">
         {TABS.map((t) => (
           <button key={t} onClick={() => setParams(t === 'overview' ? {} : { tab: t }, { replace: true })}
-            className={'px-3 py-2 text-sm ' + (active === t ? 'border-b-2 border-sx-primary text-sx-text' : 'text-sx-muted hover:text-sx-text')}>
+            className={'sx-uplabel px-3 py-2 text-xs font-semibold ' + (active === t ? 'border-b-2 border-sx-primary text-sx-primary' : 'text-sx-muted hover:text-sx-text')}>
             {TAB_LABEL[t]}
           </button>
         ))}
