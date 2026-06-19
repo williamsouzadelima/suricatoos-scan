@@ -1,4 +1,6 @@
 /** Tokens mirror web/static/custom/premium-theme.css (--sx-*), dark by default. */
+import animate from 'tailwindcss-animate'
+
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
@@ -22,5 +24,5 @@ export default {
       fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
     },
   },
-  plugins: [],
+  plugins: [animate],
 }

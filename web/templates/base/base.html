@@ -1,7 +1,9 @@
 {% load permission_tags %}
 {% load static %}
+{% load i18n %}
+{% get_current_language as LANGUAGE_CODE %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ LANGUAGE_CODE }}">
   <head>
     <meta charset="utf-8" />
     <title>{% block title %} {% endblock title %}</title>
@@ -136,6 +138,43 @@
          <script> do <head>). Restaura a visibilidade no mesmo tick para nao haver tela em
          branco a cada load. */
       try { document.body.style.visibility = 'visible'; document.body.style.opacity = '1'; } catch (e) {}
+    </script>
+    {% comment %}
+      i18n strings consumed by the custom JS (SweetAlert popups etc.). Django translation
+      only ever touches server-rendered HTML, never static .js files — so any user-facing
+      string a .js file shows must be passed in from here to respect the selected language.
+    {% endcomment %}
+    {% trans "Thanks for using Suricatoos!" as t_thanks_title %}
+    {% trans "Would you like to see what's new in this version?" as t_thanks_text %}
+    {% trans "Yes, show me" as t_yes_show %}
+    {% trans "No, thanks" as t_no_thanks %}
+    {% trans "Checking Suricatoos latest version..." as t_checking %}
+    {% trans "Oops!" as t_oops %}
+    {% trans "Github rate limit exceeded, please try again in an hour!" as t_ratelimit %}
+    {% trans "Update not available" as t_no_update %}
+    {% trans "You are running the latest version of Suricatoos!" as t_latest %}
+    {% trans "Update Available!" as t_update_available %}
+    {% trans "Suricatoos's new update %s is available, please follow the update instructions." as t_update_heading %}
+    {% trans "Update Instructions" as t_update_instructions %}
+    {% trans "Dismiss" as t_dismiss %}
+    <script>
+      window.SURICATOOS_I18N = Object.assign(window.SURICATOOS_I18N || {}, {
+        update: {
+          thanks_title: "{{ t_thanks_title|escapejs }}",
+          thanks_text: "{{ t_thanks_text|escapejs }}",
+          yes_show: "{{ t_yes_show|escapejs }}",
+          no_thanks: "{{ t_no_thanks|escapejs }}",
+          checking: "{{ t_checking|escapejs }}",
+          oops: "{{ t_oops|escapejs }}",
+          ratelimit: "{{ t_ratelimit|escapejs }}",
+          no_update: "{{ t_no_update|escapejs }}",
+          latest: "{{ t_latest|escapejs }}",
+          update_available: "{{ t_update_available|escapejs }}",
+          update_heading: "{{ t_update_heading|escapejs }}",
+          update_instructions: "{{ t_update_instructions|escapejs }}",
+          dismiss: "{{ t_dismiss|escapejs }}"
+        }
+      });
     </script>
     <script src="{% static 'custom/custom.js' %}"></script>
     <script src="{% static 'custom/update.js' %}"></script>

@@ -1,9 +1,12 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { type ColumnDef } from '@tanstack/react-table'
+import { Network, Star, ExternalLink } from 'lucide-react'
 import { api } from '../api/client'
 import { useProject } from '../project/project'
 import { DataTable } from '../components/DataTable'
+import { PageHeader } from '../components/ui/PageHeader'
+import { Badge } from '../components/ui/Badge'
 
 type Subdomain = {
   id: number; name: string; http_status: number; http_url: string | null
@@ -27,24 +30,51 @@ export function Subdomains() {
   })
 
   const columns = useMemo<ColumnDef<Subdomain>[]>(() => [
-    { accessorKey: 'name', header: 'Subdomain', cell: (c) => (
-        <span>{c.getValue<string>()}{c.row.original.is_important && <span className="ml-2 rounded bg-sx-primary/20 px-1.5 py-0.5 text-xs text-sx-primary">★</span>}</span>) },
+    { accessorKey: 'name', header: 'Subdomain', cell: (c) => {
+        const url = c.row.original.http_url
+        return (
+          <span className="flex items-center gap-1.5">
+            {c.row.original.is_important && (
+              <Star size={13} className="shrink-0 fill-sx-primary text-sx-primary" aria-label="Important" />
+            )}
+            {url ? (
+              <a href={url} target="_blank" rel="noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-sx-text transition-colors hover:text-sx-primary">
+                {c.getValue<string>()}
+                <ExternalLink size={12} className="shrink-0 text-sx-muted" />
+              </a>
+            ) : (
+              <span className="font-medium text-sx-text">{c.getValue<string>()}</span>
+            )}
+          </span>
+        )
+      } },
     { accessorKey: 'http_status', header: 'Status', cell: (c) => {
-        const s = c.getValue<number>(); return s ? <span className={'sx-badge px-2 py-0.5 text-xs ' + statusCls(s)}>{s}</span> : <span className="text-sx-muted">—</span> } },
+        const s = c.getValue<number>()
+        return s ? <Badge className={statusCls(s)}>{s}</Badge> : <span className="text-sx-muted">—</span> } },
     { accessorKey: 'page_title', header: 'Title', cell: (c) => <span className="text-sx-muted">{c.getValue<string>() || '—'}</span> },
     { accessorKey: 'webserver', header: 'Web server', cell: (c) => <span className="text-sx-muted">{c.getValue<string>() || '—'}</span> },
-    { accessorKey: 'content_length', header: 'Length', cell: (c) => c.getValue<number>() || '—' },
+    { accessorKey: 'content_length', header: 'Length', cell: (c) => <span className="sx-num text-sx-muted">{c.getValue<number>() || '—'}</span> },
     { accessorKey: 'cdn_name', header: 'CDN', cell: (c) => <span className="text-sx-muted">{c.getValue<string>() || '—'}</span> },
   ], [])
 
   return (
     <div>
-      <h1 className="mb-4 sx-uplabel text-xl font-semibold">Subdomains</h1>
-      {isLoading && <p className="text-sx-muted">Loading…</p>}
-      {isError && <p className="text-sx-critical">Failed to load.</p>}
-      {data && (
-        <DataTable data={data} columns={columns} countLabel="subdomains" initialSort={[{ id: 'name', desc: false }]} />
-      )}
+      <PageHeader
+        icon={<Network size={20} />}
+        title="Subdomains"
+        subtitle="Subdomains discovered in this project."
+      />
+      <DataTable
+        data={data ?? []}
+        columns={columns}
+        countLabel="subdomains"
+        initialSort={[{ id: 'name', desc: false }]}
+        loading={isLoading}
+        error={isError}
+        emptyIcon={<Network size={22} />}
+        emptyLabel="No subdomains discovered yet."
+      />
     </div>
   )
 }

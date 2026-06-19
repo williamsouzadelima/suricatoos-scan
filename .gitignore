@@ -71,3 +71,6 @@ get-docker.sh
 .env
 # Ignore .env backups (e.g. .env.bak.YYYYMMDD-*) but keep .env.example tracked
 .env.bak*
+.superpowers/
+core
+core.*
