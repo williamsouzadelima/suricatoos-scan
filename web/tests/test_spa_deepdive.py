@@ -155,3 +155,50 @@ class ScreenshotApiTest(DeepDiveBaseTest):
 	def test_missing_screenshot_404(self):
 		bare = Subdomain.objects.create(scan_history=self.scan, name='b.ex.com')
 		self.assertEqual(self.client.get(f'/api/scan-screenshot/{bare.id}/').status_code, 404)
+
+
+class EndpointProjectScopeTest(DeepDiveBaseTest):
+	"""Top-level Endpoints screen scopes by ?project= (in addition to ?scan_history=)."""
+	def setUp(self):
+		super().setUp()
+		EndPoint.objects.create(scan_history=self.scan, http_url='http://ex.com/p', http_status=200)
+		EndPoint.objects.create(scan_history=self.other, http_url='http://ex.com/q', http_status=200)
+
+	def test_project_scope_lists_project_endpoints(self):
+		r = self.client.get('/api/endpoints/', {'project': self.project.slug})
+		self.assertEqual(r.status_code, 200)
+		# both scans belong to the same project's domain -> both endpoints returned
+		self.assertEqual(sorted(e['http_url'] for e in r.json()),
+			['http://ex.com/p', 'http://ex.com/q'])
+
+	def test_unscoped_list_is_empty(self):
+		self.assertEqual(self.client.get('/api/endpoints/').json(), [])
+
+
+from startScan.models import LeakedSecret
+
+
+class LeakedSecretSpaTest(DeepDiveBaseTest):
+	"""Top-level Leaked Secrets screen: project-scoped, masked-only, auth-gated."""
+	def setUp(self):
+		super().setUp()
+		LeakedSecret.objects.create(
+			scan_history=self.scan, source='gitleaks', rule_id='aws-access-key',
+			secret_redacted='AKIA****REDACTED', severity=4)
+
+	def test_project_scope_returns_masked_secret(self):
+		r = self.client.get('/api/secrets/', {'project': self.project.slug})
+		self.assertEqual(r.status_code, 200)
+		row = r.json()[0]
+		self.assertEqual(row['rule_id'], 'aws-access-key')
+		self.assertEqual(row['secret_redacted'], 'AKIA****REDACTED')
+		# the serializer allowlist must never expose a raw secret field
+		self.assertNotIn('secret', row)
+
+	def test_unscoped_list_is_empty(self):
+		self.assertEqual(self.client.get('/api/secrets/').json(), [])
+
+	def test_requires_auth(self):
+		anon = APIClient()
+		self.assertEqual(
+			anon.get('/api/secrets/', {'project': self.project.slug}).status_code, 401)

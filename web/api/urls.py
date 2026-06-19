@@ -29,6 +29,7 @@ router.register(r'listIps', IpAddressViewSet)
 router.register(r'listActivityLogs', ListActivityLogsViewSet)
 router.register(r'listScanLogs', ListScanLogsViewSet)
 router.register(r'screenshots', SpaScreenshotViewSet, basename='spa_screenshots')
+router.register(r'secrets', SpaLeakedSecretViewSet, basename='spa_secrets')
 router.register(r'notifications', InAppNotificationManagerViewSet, basename='notification')
 router.register(r'hackerone-programs', HackerOneProgramViewSet, basename='hackerone_program')
 

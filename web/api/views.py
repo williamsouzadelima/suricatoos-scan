@@ -3425,19 +3425,44 @@ class SpaSubdomainViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class SpaEndpointViewSet(viewsets.ReadOnlyModelViewSet):
-	"""Scan-scoped endpoint list for the SPA deep-dive (?scan_history=)."""
+	"""Endpoint list for the SPA: scan-scoped deep-dive (?scan_history=) OR the
+	project-scoped top-level screen (?project=)."""
 	queryset = EndPoint.objects.none()
 	serializer_class = EndpointSpaSerializer
 	pagination_class = None
 
 	def get_queryset(self):
 		scan_id = self.request.query_params.get('scan_history')
-		if self.action == 'list' and not scan_id:
+		slug = self.request.query_params.get('project')
+		if self.action == 'list' and not scan_id and not slug:
 			return EndPoint.objects.none()
 		qs = EndPoint.objects.all()
 		if scan_id:
 			qs = qs.filter(scan_history_id=scan_id)
+		if slug:
+			qs = qs.filter(scan_history__domain__project__slug=slug)
 		return qs.order_by('-http_status', 'http_url').distinct()
+
+
+class SpaLeakedSecretViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Project-/scan-scoped leaked-secret list for the SPA (plain JSON array).
+	Reuses LeakedSecretSerializer (masked-only allowlist — never a raw secret).
+	?project= for the top-level screen, ?scan_history= for a single scan."""
+	queryset = LeakedSecret.objects.none()
+	serializer_class = LeakedSecretSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		scan_id = self.request.query_params.get('scan_history')
+		slug = self.request.query_params.get('project')
+		if self.action == 'list' and not scan_id and not slug:
+			return LeakedSecret.objects.none()
+		qs = LeakedSecret.objects.all()
+		if scan_id:
+			qs = qs.filter(scan_history_id=scan_id)
+		if slug:
+			qs = qs.filter(scan_history__domain__project__slug=slug)
+		return qs.order_by('-severity', 'rule_id').distinct()
 
 
 class SpaIpViewSet(viewsets.ReadOnlyModelViewSet):
