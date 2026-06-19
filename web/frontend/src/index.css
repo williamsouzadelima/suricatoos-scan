@@ -130,3 +130,15 @@ html[data-sx-theme="slate-pro"] {
   border-top-left-radius: inherit; border-top-right-radius: inherit;
   background: var(--sx-card-accent, transparent);
 }
+
+/* Neon badge: outline in the badge's own color (severity/status). Radius per theme. */
+:root,
+html[data-sx-theme="cyber-grid"] { --sx-badge-radius: 5px; }
+html[data-sx-theme="terminal-noir"] { --sx-badge-radius: 5px; }
+html[data-sx-theme="coral-mirage"] { --sx-badge-radius: 999px; }
+html[data-sx-theme="slate-pro"] { --sx-badge-radius: 6px; }
+.sx-badge {
+  display: inline-block;
+  border-radius: var(--sx-badge-radius, 5px);
+  border: 1px solid color-mix(in srgb, currentColor 38%, transparent);
+}

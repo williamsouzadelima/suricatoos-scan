@@ -18,7 +18,7 @@ export function Osint() {
   })
   return (
     <div>
-      <h1 className="mb-1 text-xl font-semibold">OSINT Intelligence</h1>
+      <h1 className="mb-1 sx-uplabel text-xl font-semibold">OSINT Intelligence</h1>
       
       {isLoading && <p className="text-sx-muted">Loading…</p>}
       {isError && <p className="text-sx-critical">Failed to load.</p>}
@@ -32,7 +32,7 @@ export function Osint() {
               {data.map((o) => (
                 <tr key={o.id} className="border-t border-sx-border">
                   <td className="px-4 py-2">
-                    <span className={'rounded px-2 py-0.5 text-xs ' + (o.is_malicious ? 'bg-sx-critical/20 text-sx-critical' : 'bg-sx-surface-2 text-sx-muted')}>
+                    <span className={'sx-badge px-2 py-0.5 text-xs ' + (o.is_malicious ? 'bg-sx-critical/20 text-sx-critical' : 'bg-sx-surface-2 text-sx-muted')}>
                       {BUCKET_LABEL[o.bucket] ?? o.bucket}
                     </span>
                   </td>

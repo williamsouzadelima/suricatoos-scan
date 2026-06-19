@@ -28,7 +28,7 @@ export function Targets() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">Targets</h1>
+      <h1 className="mb-4 sx-uplabel text-xl font-semibold">Targets</h1>
 
       <div className="mb-6 rounded-xl border border-sx-border bg-sx-surface p-4">
         <div className="mb-2 text-sm font-medium">Add a target</div>

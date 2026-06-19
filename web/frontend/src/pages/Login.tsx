@@ -21,7 +21,7 @@ export function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-sx-bg">
       <form onSubmit={submit} className="w-80 rounded-xl border border-sx-border bg-sx-surface p-6 shadow-lg">
-        <h1 className="mb-1 text-xl font-semibold text-sx-text">Suricatoos</h1>
+        <h1 className="mb-1 text-xl font-bold tracking-wide text-sx-text"><span className="text-sx-primary">◆</span> Suricatoos</h1>
         <p className="mb-5 text-sm text-sx-muted">Sign in to continue</p>
         <input className="mb-3 w-full rounded-lg border border-sx-border bg-sx-surface-2 px-3 py-2 text-sx-text outline-none focus:border-sx-primary"
           placeholder="Username" value={u} onChange={(e) => setU(e.target.value)} autoFocus />

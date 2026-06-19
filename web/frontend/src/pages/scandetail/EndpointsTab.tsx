@@ -19,7 +19,7 @@ export function EndpointsTab({ scanId }: { scanId: number }) {
   const columns = useMemo<ColumnDef<Endpoint>[]>(() => [
     { accessorKey: 'http_url', header: 'URL' },
     { accessorKey: 'http_status', header: 'Status', cell: (c) => {
-        const s = c.getValue<number>(); return s ? <span className={'rounded px-2 py-0.5 text-xs ' + statusCls(s)}>{s}</span> : <span className="text-sx-muted">—</span> } },
+        const s = c.getValue<number>(); return s ? <span className={'sx-badge px-2 py-0.5 text-xs ' + statusCls(s)}>{s}</span> : <span className="text-sx-muted">—</span> } },
     { accessorKey: 'page_title', header: 'Title', cell: (c) => <span className="text-sx-muted">{c.getValue<string>() || '—'}</span> },
     { accessorKey: 'content_type', header: 'Type', cell: (c) => <span className="text-sx-muted">{c.getValue<string>() || '—'}</span> },
     { accessorKey: 'webserver', header: 'Server', cell: (c) => <span className="text-sx-muted">{c.getValue<string>() || '—'}</span> },

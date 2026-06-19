@@ -29,7 +29,7 @@ export function LeakedSecrets() {
 
   const columns = useMemo<ColumnDef<Secret>[]>(() => [
     { accessorKey: 'severity', header: 'Severity', cell: (c) => {
-        const s = SEV[c.getValue<number>()] ?? SEV[-1]; return <span className={'rounded px-2 py-0.5 text-xs ' + s.cls}>{s.label}</span> } },
+        const s = SEV[c.getValue<number>()] ?? SEV[-1]; return <span className={'sx-badge px-2 py-0.5 text-xs ' + s.cls}>{s.label}</span> } },
     { accessorKey: 'rule_id', header: 'Rule', cell: (c) => c.getValue<string>() || '—' },
     { accessorKey: 'source', header: 'Source', cell: (c) => <span className="text-sx-muted">{c.getValue<string>() || '—'}</span> },
     { id: 'location', header: 'Location', cell: (c) => {
@@ -41,7 +41,7 @@ export function LeakedSecrets() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">Leaked Secrets</h1>
+      <h1 className="mb-4 sx-uplabel text-xl font-semibold">Leaked Secrets</h1>
       {isLoading && <p className="text-sx-muted">Loading…</p>}
       {isError && <p className="text-sx-critical">Failed to load.</p>}
       {data && (

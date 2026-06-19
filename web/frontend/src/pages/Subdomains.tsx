@@ -30,7 +30,7 @@ export function Subdomains() {
     { accessorKey: 'name', header: 'Subdomain', cell: (c) => (
         <span>{c.getValue<string>()}{c.row.original.is_important && <span className="ml-2 rounded bg-sx-primary/20 px-1.5 py-0.5 text-xs text-sx-primary">★</span>}</span>) },
     { accessorKey: 'http_status', header: 'Status', cell: (c) => {
-        const s = c.getValue<number>(); return s ? <span className={'rounded px-2 py-0.5 text-xs ' + statusCls(s)}>{s}</span> : <span className="text-sx-muted">—</span> } },
+        const s = c.getValue<number>(); return s ? <span className={'sx-badge px-2 py-0.5 text-xs ' + statusCls(s)}>{s}</span> : <span className="text-sx-muted">—</span> } },
     { accessorKey: 'page_title', header: 'Title', cell: (c) => <span className="text-sx-muted">{c.getValue<string>() || '—'}</span> },
     { accessorKey: 'webserver', header: 'Web server', cell: (c) => <span className="text-sx-muted">{c.getValue<string>() || '—'}</span> },
     { accessorKey: 'content_length', header: 'Length', cell: (c) => c.getValue<number>() || '—' },
@@ -39,7 +39,7 @@ export function Subdomains() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold">Subdomains</h1>
+      <h1 className="mb-4 sx-uplabel text-xl font-semibold">Subdomains</h1>
       {isLoading && <p className="text-sx-muted">Loading…</p>}
       {isError && <p className="text-sx-critical">Failed to load.</p>}
       {data && (
