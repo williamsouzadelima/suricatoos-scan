@@ -3496,3 +3496,27 @@ class SpaTargetViewSet(viewsets.ReadOnlyModelViewSet):
 		if slug:
 			qs = qs.filter(project__slug=slug)
 		return qs.order_by('name').distinct()
+
+
+class ScanDirectories(APIView):
+	"""Flat directory-fuzzing results for a scan (?scan_history=)."""
+
+	def get(self, request):
+		scan_id = request.query_params.get('scan_history')
+		if not scan_id:
+			return Response([])
+		subs = Subdomain.objects.filter(scan_history_id=scan_id).prefetch_related(
+			'directories__directory_files')
+		rows = []
+		for sub in subs:
+			for ds in sub.directories.all():
+				for f in ds.directory_files.all():
+					rows.append({
+						'subdomain_name': sub.name,
+						'name': f.name,
+						'http_status': f.http_status,
+						'length': f.length,
+						'words': f.words,
+						'lines': f.lines,
+					})
+		return Response(rows)

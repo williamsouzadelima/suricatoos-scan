@@ -81,3 +81,30 @@ class TechApiTest(DeepDiveBaseTest):
 
 	def test_unscoped_empty(self):
 		self.assertEqual(self.client.get('/api/technologies/').json(), [])
+
+
+from startScan.models import DirectoryScan, DirectoryFile
+
+
+class DirectoryApiTest(DeepDiveBaseTest):
+	def setUp(self):
+		super().setUp()
+		sub = Subdomain.objects.create(scan_history=self.scan, name='a.ex.com')
+		ds = DirectoryScan.objects.create()
+		df = DirectoryFile.objects.create(name='admin', http_status=200, length=12, words=2, lines=1)
+		ds.directory_files.add(df)
+		sub.directories.add(ds)
+
+	def test_lists_scan_directories(self):
+		r = self.client.get('/api/scan-directories/', {'scan_history': self.scan.id})
+		self.assertEqual(r.status_code, 200)
+		row = r.json()[0]
+		self.assertEqual(row['name'], 'admin')
+		self.assertEqual(row['subdomain_name'], 'a.ex.com')
+		self.assertEqual(row['http_status'], 200)
+
+	def test_unscoped_empty(self):
+		self.assertEqual(self.client.get('/api/scan-directories/').json(), [])
+
+	def test_requires_auth(self):
+		self.assertEqual(APIClient().get('/api/scan-directories/', {'scan_history': self.scan.id}).status_code, 401)

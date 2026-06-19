@@ -271,10 +271,11 @@ urlpatterns = [
         CreateProjectApi.as_view(),
         name='create_project'),
     path(
-        'toggle-bug-bounty-mode/', 
-        ToggleBugBountyModeView.as_view(), 
+        'toggle-bug-bounty-mode/',
+        ToggleBugBountyModeView.as_view(),
         name='toggle_bug_bounty_mode'
     ),
+	path('scan-directories/', ScanDirectories.as_view(), name='scan_directories'),
 ]
 
 urlpatterns += router.urls
