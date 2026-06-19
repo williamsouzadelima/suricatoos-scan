@@ -28,6 +28,7 @@ router.register(r'listEndPointChanges', EndPointChangesViewSet)
 router.register(r'listIps', IpAddressViewSet)
 router.register(r'listActivityLogs', ListActivityLogsViewSet)
 router.register(r'listScanLogs', ListScanLogsViewSet)
+router.register(r'screenshots', SpaScreenshotViewSet, basename='spa_screenshots')
 router.register(r'notifications', InAppNotificationManagerViewSet, basename='notification')
 router.register(r'hackerone-programs', HackerOneProgramViewSet, basename='hackerone_program')
 
@@ -276,6 +277,7 @@ urlpatterns = [
         name='toggle_bug_bounty_mode'
     ),
 	path('scan-directories/', ScanDirectories.as_view(), name='scan_directories'),
+	path('scan-screenshot/<int:subdomain_id>/', ScanScreenshotImage.as_view(), name='scan_screenshot_image'),
 ]
 
 urlpatterns += router.urls

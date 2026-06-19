@@ -108,3 +108,50 @@ class DirectoryApiTest(DeepDiveBaseTest):
 
 	def test_requires_auth(self):
 		self.assertEqual(APIClient().get('/api/scan-directories/', {'scan_history': self.scan.id}).status_code, 401)
+
+
+import os, tempfile
+from django.conf import settings
+
+
+class ScreenshotApiTest(DeepDiveBaseTest):
+	def setUp(self):
+		super().setUp()
+		self.shot_dir = os.path.join(settings.MEDIA_ROOT, 'sx_test_shots')
+		os.makedirs(self.shot_dir, exist_ok=True)
+		self.shot = os.path.join(self.shot_dir, 's.png')
+		with open(self.shot, 'wb') as f:
+			f.write(b'\x89PNG\r\n')
+		self.sub = Subdomain.objects.create(
+			scan_history=self.scan, name='a.ex.com', screenshot_path=self.shot)
+
+	def tearDown(self):
+		try:
+			os.remove(self.shot); os.rmdir(self.shot_dir)
+		except OSError:
+			pass
+
+	def test_list_returns_image_url(self):
+		r = self.client.get('/api/screenshots/', {'scan_history': self.scan.id})
+		self.assertEqual(r.status_code, 200)
+		row = r.json()[0]
+		self.assertEqual(row['subdomain_id'], self.sub.id)
+		self.assertEqual(row['image_url'], f'/api/scan-screenshot/{self.sub.id}/')
+
+	def test_image_served_with_auth(self):
+		r = self.client.get(f'/api/scan-screenshot/{self.sub.id}/')
+		self.assertEqual(r.status_code, 200)
+		self.assertTrue(r['Content-Type'].startswith('image'))
+
+	def test_image_requires_auth(self):
+		self.assertEqual(APIClient().get(f'/api/scan-screenshot/{self.sub.id}/').status_code, 401)
+
+	def test_image_traversal_blocked(self):
+		# screenshot_path pointing outside MEDIA_ROOT is refused even if it exists
+		self.sub.screenshot_path = '/etc/hostname'
+		self.sub.save()
+		self.assertEqual(self.client.get(f'/api/scan-screenshot/{self.sub.id}/').status_code, 404)
+
+	def test_missing_screenshot_404(self):
+		bare = Subdomain.objects.create(scan_history=self.scan, name='b.ex.com')
+		self.assertEqual(self.client.get(f'/api/scan-screenshot/{bare.id}/').status_code, 404)

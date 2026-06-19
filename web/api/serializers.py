@@ -1146,3 +1146,15 @@ class VulnerabilitySerializer(serializers.ModelSerializer):
 		model = Vulnerability
 		fields = '__all__'
 		depth = 2
+
+
+class ScreenshotSpaSerializer(serializers.ModelSerializer):
+	subdomain_id = serializers.IntegerField(source='id', read_only=True)
+	subdomain_name = serializers.CharField(source='name', read_only=True)
+	image_url = serializers.SerializerMethodField()
+	class Meta:
+		model = Subdomain
+		fields = ['subdomain_id', 'subdomain_name', 'image_url']
+
+	def get_image_url(self, obj):
+		return f'/api/scan-screenshot/{obj.id}/'

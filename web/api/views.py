@@ -3520,3 +3520,52 @@ class ScanDirectories(APIView):
 						'lines': f.lines,
 					})
 		return Response(rows)
+
+
+import os
+import mimetypes
+from django.conf import settings
+from django.http import FileResponse, Http404
+
+
+class SpaScreenshotViewSet(viewsets.ReadOnlyModelViewSet):
+	"""Scan-scoped subdomains that have a screenshot (?scan_history=)."""
+	queryset = Subdomain.objects.none()
+	serializer_class = ScreenshotSpaSerializer
+	pagination_class = None
+
+	def get_queryset(self):
+		scan_id = self.request.query_params.get('scan_history')
+		if self.action == 'list' and not scan_id:
+			return Subdomain.objects.none()
+		qs = Subdomain.objects.exclude(
+			screenshot_path__isnull=True).exclude(screenshot_path='')
+		if scan_id:
+			qs = qs.filter(scan_history_id=scan_id)
+		return qs.order_by('name').distinct()
+
+
+class ScanScreenshotImage(APIView):
+	"""Stream a subdomain's screenshot to JWT clients. Path comes from the DB
+	(Subdomain.screenshot_path) and is containment-checked under MEDIA_ROOT, so no
+	request value reaches the filesystem call (no traversal)."""
+
+	def get(self, request, subdomain_id):
+		try:
+			sub = Subdomain.objects.get(id=subdomain_id)
+		except Subdomain.DoesNotExist:
+			raise Http404
+		stored = sub.screenshot_path or ''
+		if not stored:
+			raise Http404
+		media_root = os.path.realpath(settings.MEDIA_ROOT)
+		# screenshot_path may be absolute or relative to MEDIA_ROOT.
+		candidate = stored if os.path.isabs(stored) else os.path.join(media_root, stored)
+		file_path = os.path.realpath(candidate)
+		if os.path.commonpath([media_root, file_path]) != media_root:
+			raise Http404
+		if not os.path.isfile(file_path):
+			raise Http404
+		content_type, _ = mimetypes.guess_type(file_path)
+		return FileResponse(open(file_path, 'rb'),
+			content_type=content_type or 'application/octet-stream')
