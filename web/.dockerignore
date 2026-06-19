@@ -14,3 +14,5 @@ staticfiles/
 *.log
 .pytest_cache
 .mypy_cache
+core
+core.*

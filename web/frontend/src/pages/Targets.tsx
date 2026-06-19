@@ -1,9 +1,14 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { type ColumnDef } from '@tanstack/react-table'
+import { Target as TargetIcon, Plus, CalendarPlus, Radar, Globe } from 'lucide-react'
 import { api } from '../api/client'
 import { useProject } from '../project/project'
 import { useToast } from '../components/ui/Toast'
-import { Modal } from '../components/ui/Dialog'
+import { PageHeader } from '../components/ui/PageHeader'
+import { Card, SectionHeader } from '../components/ui/Card'
+import { Badge } from '../components/ui/Badge'
+import { DataTable } from '../components/DataTable'
 
 type Target = { id: number; name: string; insert_date: string | null; start_scan_date: string | null }
 function fmt(d: string | null) { return d ? new Date(d).toLocaleDateString() : '—' }
@@ -13,7 +18,6 @@ export function Targets() {
   const qc = useQueryClient()
   const toast = useToast()
   const [domain, setDomain] = useState('')
-  const [open, setOpen] = useState(false)
 
   const targets = useQuery({
     queryKey: ['targets', currentSlug],
@@ -25,55 +29,90 @@ export function Targets() {
     onSuccess: (d: any) => {
       if (d?.status === false) { toast({ title: 'Could not add target', description: d.message, variant: 'error' }); return }
       toast({ title: 'Target added', description: domain, variant: 'success' })
-      setDomain(''); setOpen(false); qc.invalidateQueries({ queryKey: ['targets'] })
+      setDomain(''); qc.invalidateQueries({ queryKey: ['targets'] })
     },
     onError: () => toast({ title: 'Could not add target', variant: 'error' }),
   })
 
+  const columns = useMemo<ColumnDef<Target>[]>(() => [
+    {
+      accessorKey: 'name', header: 'Target', cell: (c) => (
+        <span className="flex items-center gap-2 font-medium text-sx-text">
+          <Globe size={14} className="shrink-0 text-sx-muted" />
+          <span className="break-all">{c.getValue<string>()}</span>
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'insert_date', header: 'Added', cell: (c) => (
+        <span className="inline-flex items-center gap-1.5 text-sx-muted">
+          <CalendarPlus size={13} className="shrink-0 opacity-70" />
+          {fmt(c.getValue<string | null>())}
+        </span>
+      ),
+    },
+    {
+      accessorKey: 'start_scan_date', header: 'Last scanned', cell: (c) => {
+        const d = c.getValue<string | null>()
+        return d
+          ? (
+            <Badge className="text-sx-success">
+              <Radar size={12} />
+              {fmt(d)}
+            </Badge>
+          )
+          : <span className="text-sx-muted">Never scanned</span>
+      },
+    },
+  ], [])
+
+  const canSubmit = !!domain.trim() && !!currentSlug && !add.isPending
+
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h1 className="sx-uplabel text-xl font-semibold">Targets</h1>
-        <button onClick={() => setOpen(true)} disabled={!currentSlug}
-          className="rounded-lg bg-sx-primary px-4 py-1.5 text-sm font-semibold text-white hover:bg-sx-primary-600 disabled:opacity-50">
-          + Add target
-        </button>
-      </div>
+      <PageHeader
+        icon={<TargetIcon size={20} />}
+        title="Targets"
+        subtitle="Add and manage reconnaissance targets."
+      />
 
-      <Modal open={open} onOpenChange={setOpen} title="Add target" description="Add a domain to this project.">
-        <input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="example.com" autoFocus
-          onKeyDown={(e) => { if (e.key === 'Enter' && domain) add.mutate() }}
-          className="mb-4 w-full rounded-lg border border-sx-border bg-sx-surface-2 px-3 py-2 text-sm outline-none focus:border-sx-primary" />
-        <div className="flex justify-end gap-2">
-          <button onClick={() => setOpen(false)} className="rounded-lg border border-sx-border px-4 py-1.5 text-sm text-sx-muted hover:text-sx-text">Cancel</button>
-          <button disabled={!domain || add.isPending} onClick={() => add.mutate()}
-            className="rounded-lg bg-sx-primary px-4 py-1.5 text-sm font-semibold text-white hover:bg-sx-primary-600 disabled:opacity-50">
+      <Card accent className="mb-6">
+        <SectionHeader title="Add target" icon={<Plus size={14} />} />
+        <form
+          className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center"
+          onSubmit={(e) => { e.preventDefault(); if (canSubmit) add.mutate() }}
+        >
+          <div className="relative flex-1">
+            <Globe size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sx-muted" />
+            <input
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="example.com"
+              className="w-full rounded-lg border border-sx-border bg-sx-surface-2 py-2 pl-9 pr-3 text-sm outline-none transition-colors focus:border-sx-primary"
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={!canSubmit}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-sx-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-sx-primary-600 disabled:opacity-50"
+          >
+            <Plus size={15} />
             {add.isPending ? 'Adding…' : 'Add target'}
           </button>
-        </div>
-      </Modal>
+        </form>
+      </Card>
 
-      {targets.isLoading && <p className="text-sx-muted">Loading…</p>}
-      {targets.isError && <p className="text-sx-critical">Failed to load targets.</p>}
-      {targets.data && (
-        <div className="overflow-x-auto rounded-xl border border-sx-border">
-          <table className="w-full text-sm">
-            <thead className="bg-sx-surface-2 text-left text-sx-muted">
-              <tr><th className="sx-uplabel px-4 py-2 text-[11px]">Target</th><th className="sx-uplabel px-4 py-2 text-[11px]">Added</th><th className="sx-uplabel px-4 py-2 text-[11px]">Last scanned</th></tr>
-            </thead>
-            <tbody>
-              {targets.data.map((t) => (
-                <tr key={t.id} className="border-t border-sx-border">
-                  <td className="px-4 py-2">{t.name}</td>
-                  <td className="px-4 py-2 text-sx-muted">{fmt(t.insert_date)}</td>
-                  <td className="px-4 py-2 text-sx-muted">{fmt(t.start_scan_date)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {targets.data.length === 0 && <p className="px-4 py-3 text-sx-muted">No targets in this project yet.</p>}
-        </div>
-      )}
+      <DataTable
+        data={targets.data ?? []}
+        columns={columns}
+        countLabel="targets"
+        loading={targets.isLoading}
+        error={targets.isError}
+        initialSort={[{ id: 'name', desc: false }]}
+        searchPlaceholder="Search targets…"
+        emptyIcon={<TargetIcon size={22} />}
+        emptyLabel="No targets in this project yet."
+      />
     </div>
   )
 }

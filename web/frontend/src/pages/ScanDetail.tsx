@@ -1,6 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { useParams, useSearchParams, Link } from 'react-router-dom'
+import { type ComponentType } from 'react'
+import {
+  Crosshair, ChevronLeft, LayoutDashboard, Globe, Network,
+  Image, FolderTree, Cpu, type LucideProps,
+} from 'lucide-react'
 import { api } from '../api/client'
+import { PageHeader } from '../components/ui/PageHeader'
+import { Badge } from '../components/ui/Badge'
+import { Skeleton } from '../components/ui/Skeleton'
 import { type ScanDetail as ScanDetailT, STATUS } from './scandetail/types'
 import { OverviewTab } from './scandetail/OverviewTab'
 import { EndpointsTab } from './scandetail/EndpointsTab'
@@ -11,9 +19,13 @@ import { TechTab } from './scandetail/TechTab'
 
 const TABS = ['overview', 'endpoints', 'ips', 'screenshots', 'directories', 'tech'] as const
 type Tab = typeof TABS[number]
-const TAB_LABEL: Record<Tab, string> = {
-  overview: 'Overview', endpoints: 'Endpoints', ips: 'Ports & IPs',
-  screenshots: 'Screenshots', directories: 'Directories', tech: 'Tech',
+const TAB_META: Record<Tab, { label: string; icon: ComponentType<LucideProps> }> = {
+  overview: { label: 'Overview', icon: LayoutDashboard },
+  endpoints: { label: 'Endpoints', icon: Globe },
+  ips: { label: 'Ports & IPs', icon: Network },
+  screenshots: { label: 'Screenshots', icon: Image },
+  directories: { label: 'Directories', icon: FolderTree },
+  tech: { label: 'Tech', icon: Cpu },
 }
 
 export function ScanDetail() {
@@ -25,28 +37,74 @@ export function ScanDetail() {
     queryFn: async () => (await api.get<ScanDetailT>(`/scans/${id}/`)).data,
     refetchInterval: (q) => (q.state.data?.scan_status === 1 ? 5000 : false),
   })
-  if (isLoading) return <p className="text-sx-muted">Loading…</p>
-  if (isError || !data) return <p className="text-sx-critical">Failed to load scan.</p>
+
+  if (isLoading) {
+    return (
+      <div>
+        <Link to="/scans" className="mb-4 inline-flex items-center gap-1 text-sm text-sx-muted transition-colors hover:text-sx-text">
+          <ChevronLeft size={15} /> Scans
+        </Link>
+        <div className="mb-6 flex items-center gap-3">
+          <Skeleton className="h-10 w-10 rounded-lg" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-56" />
+            <Skeleton className="h-3 w-32" />
+          </div>
+        </div>
+        <Skeleton className="h-10 w-full max-w-2xl rounded-xl" />
+      </div>
+    )
+  }
+  if (isError || !data) {
+    return (
+      <div>
+        <Link to="/scans" className="mb-4 inline-flex items-center gap-1 text-sm text-sx-muted transition-colors hover:text-sx-text">
+          <ChevronLeft size={15} /> Scans
+        </Link>
+        <p className="text-sm text-sx-critical">Failed to load scan.</p>
+      </div>
+    )
+  }
+
   const st = STATUS[data.scan_status] ?? STATUS[-1]
   const scanId = Number(id)
+
   return (
     <div>
-      <div className="mb-4 flex items-center gap-3">
-        <Link to="/scans" className="text-sm text-sx-muted hover:text-sx-text">← Scans</Link>
+      <Link to="/scans" className="mb-4 inline-flex items-center gap-1 text-sm text-sx-muted transition-colors hover:text-sx-text">
+        <ChevronLeft size={15} /> Scans
+      </Link>
+
+      <PageHeader
+        icon={<Crosshair size={20} />}
+        title={data.domain_name}
+        subtitle={data.engine_name}
+        actions={<Badge className={st.cls}>{st.label}</Badge>}
+      />
+
+      {/* Segmented tab control */}
+      <div className="mb-6 flex flex-wrap gap-1.5">
+        {TABS.map((t) => {
+          const { label, icon: Icon } = TAB_META[t]
+          const isActive = active === t
+          return (
+            <button
+              key={t}
+              onClick={() => setParams(t === 'overview' ? {} : { tab: t }, { replace: true })}
+              className={
+                'sx-uplabel flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ' +
+                (isActive
+                  ? 'border-sx-primary/40 bg-sx-primary/10 text-sx-primary'
+                  : 'border-transparent text-sx-muted hover:bg-sx-surface-2 hover:text-sx-text')
+              }
+            >
+              <Icon size={15} />
+              {label}
+            </button>
+          )
+        })}
       </div>
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-semibold">{data.domain_name}</h1>
-        <span className="text-sx-muted">{data.engine_name}</span>
-        <span className={'sx-badge px-2 py-0.5 text-xs ' + st.cls}>{st.label}</span>
-      </div>
-      <div className="mb-6 flex gap-1 border-b border-sx-border">
-        {TABS.map((t) => (
-          <button key={t} onClick={() => setParams(t === 'overview' ? {} : { tab: t }, { replace: true })}
-            className={'sx-uplabel px-3 py-2 text-xs font-semibold ' + (active === t ? 'border-b-2 border-sx-primary text-sx-primary' : 'text-sx-muted hover:text-sx-text')}>
-            {TAB_LABEL[t]}
-          </button>
-        ))}
-      </div>
+
       {active === 'overview' && <OverviewTab data={data} />}
       {active === 'endpoints' && <EndpointsTab scanId={scanId} />}
       {active === 'ips' && <IpsTab scanId={scanId} />}

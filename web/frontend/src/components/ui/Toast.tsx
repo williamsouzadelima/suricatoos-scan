@@ -37,7 +37,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             onOpenChange={(open) => { if (!open) remove(t.id) }}
             className={cn(
               'flex items-start gap-3 rounded-lg border border-l-4 border-sx-border bg-sx-surface px-4 py-3 shadow-xl',
-              'data-[state=open]:animate-in data-[state=closed]:animate-out',
+              'data-[state=open]:animate-in data-[state=open]:slide-in-from-right-full',
+              'data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[swipe=end]:animate-out',
               ACCENT[t.variant],
             )}
           >

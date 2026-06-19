@@ -12,8 +12,8 @@ export function Modal({ open, onOpenChange, title, description, children }: {
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
-        <RD.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in" />
-        <RD.Content className="fixed left-1/2 top-1/2 z-50 w-[420px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-sx-border bg-sx-surface p-6 shadow-2xl outline-none">
+        <RD.Overlay className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0" />
+        <RD.Content className="fixed left-1/2 top-1/2 z-50 w-[420px] max-w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2 rounded-xl border border-sx-border bg-sx-surface p-6 shadow-2xl outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95">
           <div className="mb-1 flex items-center justify-between">
             <RD.Title className="sx-uplabel text-base font-bold text-sx-text">{title}</RD.Title>
             <RD.Close className="text-sx-muted hover:text-sx-text" aria-label="Close">✕</RD.Close>

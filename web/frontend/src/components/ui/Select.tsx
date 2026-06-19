@@ -29,7 +29,7 @@ export function Select({ value, onValueChange, options, placeholder, title, clas
         <RS.Content
           position="popper"
           sideOffset={6}
-          className="z-50 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-sx-border bg-sx-surface shadow-xl"
+          className="z-50 min-w-[var(--radix-select-trigger-width)] overflow-hidden rounded-lg border border-sx-border bg-sx-surface shadow-xl data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95"
         >
           <RS.Viewport className="p-1">
             {options.map((o) => (
