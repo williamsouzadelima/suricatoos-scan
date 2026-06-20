@@ -1070,6 +1070,19 @@ def get_hackerone_key_username():
 	return (hackerone_key[0].username, hackerone_key[0].key) if hackerone_key else None
 
 
+def get_credential(provider):
+	"""Return (key, extra_dict) for an enabled credential, else (None, {})."""
+	cred = ApiCredential.objects.filter(provider=provider, enabled=True).first()
+	if not cred:
+		return None, {}
+	return cred.decrypted()
+
+
+def get_api_key(provider):
+	"""Return the decrypted primary key for an enabled credential, else None."""
+	return get_credential(provider)[0]
+
+
 def parse_llm_vulnerability_report(report):
 	report = report.replace('**', '')
 	data = {}

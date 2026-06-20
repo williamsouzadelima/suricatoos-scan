@@ -6,6 +6,7 @@ from django.test import TestCase, override_settings
 from cryptography.fernet import Fernet
 from dashboard import crypto, providers
 from dashboard.models import ApiCredential
+from Suricatoos.common_func import get_api_key, get_credential
 
 
 class CryptoTests(TestCase):
@@ -75,3 +76,21 @@ class ApiCredentialModelTests(TestCase):
     def test_str_has_no_secret(self):
         c = ApiCredential.upsert('shodan', 'sk-supersecret')
         self.assertNotIn('sk-supersecret', str(c))
+
+
+class AccessorTests(TestCase):
+    def test_get_api_key_returns_decrypted_for_enabled(self):
+        ApiCredential.upsert('openai', 'sk-live')
+        self.assertEqual(get_api_key('openai'), 'sk-live')
+
+    def test_disabled_returns_none(self):
+        ApiCredential.upsert('openai', 'sk-live', enabled=False)
+        self.assertIsNone(get_api_key('openai'))
+
+    def test_missing_returns_none(self):
+        self.assertIsNone(get_api_key('nope'))
+
+    def test_get_credential_returns_extra(self):
+        ApiCredential.upsert('hackerone', 'tok', extra={'username': 'alice'})
+        self.assertEqual(get_credential('hackerone'), ('tok', {'username': 'alice'}))
+
