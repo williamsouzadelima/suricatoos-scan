@@ -116,3 +116,16 @@ class BuildSpiderfootConfigTests(TestCase):
         self.assertEqual(build_spiderfoot_config()['sfp_fraudguard:api_key'], 'fg')
 
 
+from dashboard.models import OpenAiAPIKey, HackerOneAPIKey
+
+
+class LegacyMigrationTests(TestCase):
+    def test_forward_func_migrates_existing_keys(self):
+        # Simulate pre-migration rows, then run the migration's forward function.
+        OpenAiAPIKey.objects.create(key='sk-legacy')
+        HackerOneAPIKey.objects.create(username='alice', key='h1-legacy')
+        from dashboard.migrations import _legacy_loader  # helper exposed by the migration module
+        _legacy_loader.run(None)  # apps=None path uses real models in tests
+        self.assertEqual(get_api_key('openai'), 'sk-legacy')
+        self.assertEqual(get_credential('hackerone'), ('h1-legacy', {'username': 'alice'}))
+
