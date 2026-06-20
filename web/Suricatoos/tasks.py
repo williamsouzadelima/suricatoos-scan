@@ -474,17 +474,33 @@ def subdomain_discovery(
 		if tool in default_subdomain_tools:
 			if tool == 'amass-passive':
 				use_amass_config = config.get(USE_AMASS_CONFIG, False)
+				# Cap runtime: amass -timeout is in MINUTES. Without it, dead/slow DNS
+				# resolvers make enumeration hang for hours and stall the whole scan
+				# (the task waits for amass before saving subdomains and advancing).
+				# Coerced to int so no user-supplied value reaches the command string.
+				try:
+					amass_timeout = max(1, int(config.get(AMASS_TIMEOUT, 10)))
+				except (TypeError, ValueError):
+					amass_timeout = 10
 				cmd = f'amass enum -passive -d {shlex.quote(host)} -o {self.results_dir}/subdomains_amass.txt'
 				cmd += ' -config /root/.config/amass.ini' if use_amass_config else ''
+				cmd += f' -timeout {amass_timeout}'
 
 			elif tool == 'amass-active':
 				use_amass_config = config.get(USE_AMASS_CONFIG, False)
 				# wordlist name is user-editable: allowlist it (blocks injection and ../ traversal).
 				amass_wordlist_name = _allow(config.get(AMASS_WORDLIST, 'deepmagic.com-prefixes-top50000'), SAFE_TOKEN_RE, 'deepmagic.com-prefixes-top50000')
 				wordlist_path = f'/usr/src/wordlist/{amass_wordlist_name}.txt'
+				# Cap the active brute-force (50k-prefix wordlist) so slow/dead resolvers
+				# can't hang the scan forever. amass -timeout is in MINUTES; int-coerced.
+				try:
+					amass_timeout = max(1, int(config.get(AMASS_TIMEOUT, 10)))
+				except (TypeError, ValueError):
+					amass_timeout = 10
 				cmd = f'amass enum -active -d {shlex.quote(host)} -o {self.results_dir}/subdomains_amass_active.txt'
 				cmd += ' -config /root/.config/amass.ini' if use_amass_config else ''
 				cmd += f' -brute -w {shlex.quote(wordlist_path)}'
+				cmd += f' -timeout {amass_timeout}'
 
 			elif tool == 'sublist3r':
 				cmd = f'python3 /usr/src/github/Sublist3r/sublist3r.py -d {shlex.quote(host)} -t {threads} -o {self.results_dir}/subdomains_sublister.txt'
@@ -1241,23 +1257,29 @@ def h8mail(config, host, scan_history_id, activity_id, results_dir, ctx={}):
 		logger.error(f'Could not open {output_file}')
 		return []
 	try:
-		with open(output_file) as f:
-			data = json.load(f)
-	except json.JSONDecodeError:
-		logger.error(f'Invalid JSON in {output_file}')
-		return []
-	creds = data.get('targets', [])
+		try:
+			with open(output_file) as f:
+				data = json.load(f)
+		except json.JSONDecodeError:
+			logger.error(f'Invalid JSON in {output_file}')
+			return []
+		creds = data.get('targets', [])
 
-	# TODO: go through h8mail output and save emails to DB
-	for cred in creds:
-		logger.warning(cred)
-		email_address = cred['target']
-		pwn_num = cred['pwn_num']
-		pwn_data = cred.get('data', [])
-		email, created = save_email(email_address, scan_history=scan_history)
-		# if email:
-		# 	self.notify(fields={'Emails': f'• `{email.address}`'})
-	return creds
+		# TODO: go through h8mail output and save emails to DB
+		for cred in creds:
+			# Do NOT log the raw record: cred['data'] holds breach hits (plaintext
+			# passwords/hashes/PII). Log only non-sensitive triage fields.
+			email_address = cred.get('target')
+			pwn_num = cred.get('pwn_num')
+			logger.info(f'h8mail: {email_address} found in {pwn_num} breach source(s)')
+			email, created = save_email(email_address, scan_history=scan_history)
+			# if email:
+			# 	self.notify(fields={'Emails': f'• `{email.address}`'})
+		return creds
+	finally:
+		# Remove the raw report so leaked breach credentials are never left on disk
+		# (results_dir is also web-served via nginx). Mirrors gitleaks/ggshield.
+		_safe_remove(output_file)
 
 
 @app.task(name='screenshot', queue='main_scan_queue', base=SuricatoosTask, bind=True)
@@ -2814,6 +2836,44 @@ def _validation_target_url(url, allow_private=True):
 		if always_blocked or (not allow_private and addr.is_private):
 			return None, f'blocked internal/metadata address {ip}'
 	return s, None
+
+
+def is_blocked_fetch_target(host_or_url, allow_private=False):
+	"""SSRF guard for operator-facing fetch tools (WAF/CMS detectors, A10-1).
+
+	Given a bare host/domain or a full URL, resolve it and decide whether it points
+	at an internal/metadata address that an arbitrary-URL fetch must NOT reach.
+	Returns (blocked: bool, reason). Always blocks loopback/link-local/cloud-metadata
+	(169.254.169.254 is link-local)/unspecified/multicast/reserved; RFC1918/ULA private
+	ranges are blocked too unless allow_private (these endpoints take an UNbound URL
+	straight from a request param, so the secure default is to block private as well).
+	Mirrors _validation_target_url's address classification.
+	"""
+	s = str(host_or_url or '').strip()
+	if not s:
+		return True, 'empty target'
+	host = urlparse(s).hostname if '://' in s else s
+	# strip an optional :port from a bare host (ipv6 literals use [..]:port)
+	if host and not host.startswith('[') and host.count(':') == 1:
+		host = host.split(':', 1)[0]
+	host = (host or '').strip('[]')
+	if not host:
+		return True, 'no host in target'
+	try:
+		infos = socket.getaddrinfo(host, None)
+	except Exception:
+		return True, f'host {host} does not resolve'
+	for info in infos:
+		ip = info[4][0]
+		try:
+			addr = ipaddress.ip_address(ip)
+		except ValueError:
+			return True, f'unparseable address {ip}'
+		if (addr.is_loopback or addr.is_link_local or addr.is_unspecified
+				or addr.is_multicast or addr.is_reserved
+				or (not allow_private and addr.is_private)):
+			return True, f'blocked internal/metadata address {ip}'
+	return False, None
 
 
 def _retest_nuclei_finding(template_id, http_url, allow_private, timeout,

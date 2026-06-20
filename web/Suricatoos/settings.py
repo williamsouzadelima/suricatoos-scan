@@ -40,8 +40,48 @@ DEFAULT_THREADS = env.int('DEFAULT_THREADS', default=30)
 DEFAULT_GET_GPT_REPORT = env.bool('DEFAULT_GET_GPT_REPORT', default=True)
 
 # Globals
-ALLOWED_HOSTS = ['*']
+# OWASP A05-2: env-driven so a deployment can restrict the accepted Host headers
+# (e.g. ALLOWED_HOSTS=recon.example.com,127.0.0.1). Defaults to the wildcard to
+# preserve the inherited behaviour for IP-accessed dev boxes; production should set it.
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['*'])
 SECRET_KEY = first_run(SECRET_FILE, BASE_DIR)
+
+# --- Security hardening (OWASP A05/A02/A07) -------------------------------
+# Env-flagged so dev/HTTP and the CI test runner keep working. Real users reach
+# the app through the nginx HTTPS proxy (443); Secure cookies apply there.
+_SECURE_COOKIES = env.bool('SURICATOOS_SECURE_COOKIES', default=not DEBUG)
+SESSION_COOKIE_SECURE = _SECURE_COOKIES
+CSRF_COOKIE_SECURE = _SECURE_COOKIES
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+# W008 (SECURE_SSL_REDIRECT) is intentionally accepted: nginx owns the http->https
+# redirect; enabling it in Django would break internal :8000 health checks. Silenced
+# so `check --deploy --fail-level WARNING` can gate genuinely-new misconfiguration.
+SILENCED_SYSTEM_CHECKS = ['security.W008']
+# HSTS + proxy-SSL-header are OPT-IN (default OFF). Reason: setting
+# SECURE_PROXY_SSL_HEADER makes Django treat the proxied request as HTTPS, which
+# turns on CSRF strict-referer checking. In this nginx setup that rejects the
+# login POST (403 CSRF) unless CSRF_TRUSTED_ORIGINS lists the real public
+# domain(s). Enabling this safely needs the deployment's real domain configured
+# in CSRF_TRUSTED_ORIGINS + a verified login flow — staged for review, not on by
+# default. nginx still owns the http->https redirect; it can also emit HSTS.
+if env.bool('SURICATOOS_BEHIND_TLS_PROXY', default=False):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=31536000)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+# A07-4: bound the session lifetime (default 14 days is too long for an admin tool
+# that stores 3rd-party API keys). Default 8h; env-overridable.
+SESSION_COOKIE_AGE = env.int('SESSION_COOKIE_AGE', default=28800)
+SESSION_EXPIRE_AT_BROWSER_CLOSE = env.bool('SESSION_EXPIRE_AT_BROWSER_CLOSE', default=False)
+# A05-1: baseline Content-Security-Policy emitted by ContentSecurityPolicyMiddleware.
+# Safe subset that does not require touching inline scripts; env-overridable.
+CONTENT_SECURITY_POLICY = env(
+    'SURICATOOS_CSP',
+    default="object-src 'none'; base-uri 'self'; frame-ancestors 'none'")
 
 # Suricatoos version
 # reads current version from a file called .version
@@ -106,6 +146,7 @@ MIDDLEWARE = [
     'login_required.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'Suricatoos.middleware.ContentSecurityPolicyMiddleware',
     'Suricatoos.middleware.UserPreferencesMiddleware',
 ]
 TEMPLATES = [

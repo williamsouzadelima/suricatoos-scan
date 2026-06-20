@@ -420,10 +420,14 @@ function parse_technology(data, color, scan_id = null, domain_id=null) {
 	var badge = `<span data-toggle="tooltip" title="Technology" class='badge-link badge badge-soft-` + color + ` mt-1 me-1'`;
 	var data_with_span = "";
 	for (var key in data) {
+		// Technology names are scan-derived (httpx fingerprint of the target) and
+		// attacker-influenceable. The onclick is a JS string inside an HTML attribute,
+		// so it needs jsEscape (\uXXXX survives HTML-entity decoding); the visible body
+		// is HTML text, so it needs htmlEncode.
 		if (scan_id) {
-			data_with_span += badge + ` onclick="get_tech_details('${data[key]['name']}', ${scan_id}, domain_id=null)">` + data[key]['name'] + "</span>";
+			data_with_span += badge + ` onclick="get_tech_details('${jsEscape(data[key]['name'])}', ${scan_id}, domain_id=null)">` + htmlEncode(data[key]['name']) + "</span>";
 		} else if (domain_id) {
-			data_with_span += badge + ` onclick="get_tech_details('${data[key]['name']}', scan_id=null, domain_id=domain_id)">` + data[key]['name'] + "</span>";
+			data_with_span += badge + ` onclick="get_tech_details('${jsEscape(data[key]['name'])}', scan_id=null, domain_id=domain_id)">` + htmlEncode(data[key]['name']) + "</span>";
 		}
 	}
 	return data_with_span;
@@ -1093,7 +1097,8 @@ function show_subscan_results(subscan_id) {
 						if (port["is_uncommon"]) {
 							port_color = 'danger';
 						}
-						$(`#${id_name}`).append(`<li><span class="ms-1 mt-1 me-1 badge badge-soft-${port_color}">${port['number']}</span>/<span class="ms-1 mt-1 me-1 badge badge-soft-${port_color}">${port['service_name']}</span>/<span class="ms-1 mt-1 me-1 badge badge-soft-${port_color}">${port['description']}</span></li>`);
+						// service_name/description come from nmap banners on the scanned host (attacker-influenceable) -> htmlEncode.
+						$(`#${id_name}`).append(`<li><span class="ms-1 mt-1 me-1 badge badge-soft-${port_color}">${port['number']}</span>/<span class="ms-1 mt-1 me-1 badge badge-soft-${port_color}">${htmlEncode(port['service_name'])}</span>/<span class="ms-1 mt-1 me-1 badge badge-soft-${port_color}">${htmlEncode(port['description'])}</span></li>`);
 					}
 				}
 				$('#xl-modal-footer').append(`<span class="text-danger">* Uncommon Ports</span>`);
@@ -3352,9 +3357,13 @@ async function show_attack_surface_modal(id){
 		const data = await send_gpt__attack_surface_api_request(id);
 		Swal.close();
 		if (data.status) {
-			$('#modal_title').html(`Attack Surface Suggestion for ${data.subdomain_name} (BETA)`);
+			$('#modal_title').html(`Attack Surface Suggestion for ${htmlEncode(data.subdomain_name)} (BETA)`);
 			$('#modal-content').empty();
-			$('#modal-content').append(data.description.replace(new RegExp('\r?\n','g'), '<br />'));
+			// htmlEncode the LLM output (fed target-controlled scan data) per LINE, so a
+			// prompt-steered <img onerror=...> can't execute. Split on the raw newlines
+			// FIRST: htmlEncode turns \n into &#10; (it's not [\w. ]), which would otherwise
+			// leave the subsequent newline->\<br/> replace nothing to match (run-on text).
+			$('#modal-content').append(data.description.split(/\r?\n/).map(htmlEncode).join('<br />'));
 			$('#modal_dialog').modal('show');
 		}
 		else{

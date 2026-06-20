@@ -111,11 +111,11 @@ $(document).ready(function() {
 						}
 
 						if (row['content_type']) {
-							content_type = `<div><span class='mt-1 badge badge-soft-blue bs-tooltip' title="Content Type">${row['content_type']}</span></div>`;
+							content_type = `<div><span class='mt-1 badge badge-soft-blue bs-tooltip' title="Content Type">${htmlEncode(row['content_type'])}</span></div>`;
 						}
 
 						if (row['webserver']) {
-							web_server = `<div><span class='mt-1 badge badge-soft-info bs-tooltip' title="Web Server">${row['webserver']}</span></div>`;
+							web_server = `<div><span class='mt-1 badge badge-soft-info bs-tooltip' title="Web Server">${htmlEncode(row['webserver'])}</span></div>`;
 						}
 
 						if (interesting_badge) {
@@ -175,7 +175,10 @@ $(document).ready(function() {
 
 						if (row['http_url']) {
 							if (row['cname']) {
-								cname_badge = `<div><span class="text-dark">CNAME<br><span class="text-warning"> ❯ </span>` + row['cname'].replace(',', '<br><span class="text-warning"> ❯ </span>') + `</div>`;
+								// htmlEncode each CNAME segment (scan-derived, attacker-influenceable) before
+								// re-inserting the visual separators, so a crafted CNAME can't inject markup.
+								var cname_html = String(row['cname']).split(',').map(htmlEncode).join('<br><span class="text-warning"> ❯ </span>');
+								cname_badge = `<div><span class="text-dark">CNAME<br><span class="text-warning"> ❯ </span>` + cname_html + `</div>`;
 								return badges + `<div class="clipboard copy-txt"><a href="` + row['http_url'] + `" class="text-primary" target="_blank"><span id='subdomain-${row['id']}'>` + data + `${copy_icon} </span></a>` + `</div>` + cname_badge + waf_badge + end_vuln_badge + tech_badge + todo_badge;
 							}
 							return badges + `<div class="clipboard copy-txt"><a href="` + row['http_url'] + `" class="text-primary" target="_blank"><span id='subdomain-${row['id']}'>` + data + `${copy_icon} </span></a>` + `</div>` + waf_badge + end_vuln_badge + tech_badge + todo_badge;

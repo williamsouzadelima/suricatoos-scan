@@ -372,7 +372,8 @@ def test_hackerone(request, slug):
         r = requests.get(
             'https://api.hackerone.com/v1/hackers/payments/balance',
             auth=(body['username'], body['api_key']),
-            headers = headers
+            headers = headers,
+            timeout=(10, 30)  # A04-2: bound the web-path fetch
         )
         if r.status_code == 200:
             return http.JsonResponse({"status": 200})
@@ -492,7 +493,7 @@ def tool_arsenal_section(request, slug):
 def llm_toolkit_section(request, slug):
     context = {}
     list_all_models_url = f'{OLLAMA_INSTANCE}/api/tags'
-    response = requests.get(list_all_models_url)
+    response = requests.get(list_all_models_url, timeout=(10, 30))  # A04-2: bound the web-path fetch
     all_models = []
     selected_model = None
     all_models = DEFAULT_GPT_MODELS.copy()

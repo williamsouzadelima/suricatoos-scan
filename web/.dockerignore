@@ -1,4 +1,11 @@
 # Build context = ./web. Keep it lean and reproducible.
+# Secrets must never enter the build context / image layers (A02-1). The Django
+# SECRET_KEY lives in ./web/secret at runtime (bind-mounted); baking it into the
+# image would let anyone who pulls/exports the image forge session cookies.
+secret
+.env
+*.pem
+*.key
 # Runtime-collected static lives in the static_volume, not the image.
 staticfiles/
 # Python/editor cruft
