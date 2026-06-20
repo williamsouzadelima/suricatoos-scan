@@ -5849,3 +5849,19 @@ msgstr ": activar para ordenar la columna en orden ascendente"
 
 msgid ": activate to sort column descending"
 msgstr ": activar para ordenar la columna en orden descendente"
+
+#: startScan/templates/startScan/history.html startScan/templates/startScan/detail_scan.html
+msgid "Export Report"
+msgstr "Exportar informe"
+
+#: templates/base/_items/report_modal.html
+msgid "Generating Report!"
+msgstr "¡Generando informe!"
+
+#: templates/base/_items/report_modal.html
+msgid "Please wait until we generate a report for you!"
+msgstr "¡Espere mientras generamos el informe para usted!"
+
+#: templates/base/_items/report_modal.html
+msgid "Oops! Unable to generate report!"
+msgstr "¡Vaya! No se pudo generar el informe."
