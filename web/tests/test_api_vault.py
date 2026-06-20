@@ -116,6 +116,18 @@ class BuildSpiderfootConfigTests(TestCase):
         self.assertEqual(build_spiderfoot_config()['sfp_fraudguard:api_key'], 'fg')
 
 
+class ConsumerWiringTests(TestCase):
+    def test_openai_gate_uses_vault(self):
+        # The GPT-report gate should see a vault-only OpenAI key.
+        ApiCredential.upsert('openai', 'sk-vault')
+        self.assertEqual(get_api_key('openai'), 'sk-vault')
+
+    def test_hackerone_credential_from_vault(self):
+        ApiCredential.upsert('hackerone', 'h1tok', extra={'username': 'bob'})
+        key, extra = get_credential('hackerone')
+        self.assertEqual((key, extra['username']), ('h1tok', 'bob'))
+
+
 from dashboard.models import OpenAiAPIKey, HackerOneAPIKey
 
 

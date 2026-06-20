@@ -2381,13 +2381,11 @@ def nuclei_individual_severity_module(self, cmd, severity, enable_http_crawl, sh
 			3. severity is not info or low
 		"""
 		hackerone_query = Hackerone.objects.filter(send_report=True)
-		api_key_check_query = HackerOneAPIKey.objects.filter(
-			Q(username__isnull=False) & Q(key__isnull=False)
-		)
+		_h1_key, _h1_extra = get_credential('hackerone')
 
 		send_report = (
 			hackerone_query.exists() and
-			api_key_check_query.exists() and
+			bool(_h1_key and _h1_extra.get('username')) and
 			severity not in ('info', 'low') and
 			vuln.target_domain.h1_team_handle
 		)
@@ -2429,7 +2427,7 @@ def nuclei_individual_severity_module(self, cmd, severity, enable_http_crawl, sh
 	# after vulnerability scan is done, we need to run gpt if
 	# should_fetch_gpt_report and openapi key exists
 
-	if should_fetch_gpt_report and OpenAiAPIKey.objects.all().first():
+	if should_fetch_gpt_report and get_api_key('openai'):
 		logger.info('Getting Vulnerability GPT Report')
 		vulns = Vulnerability.objects.filter(
 			scan_history__id=self.scan_id
@@ -3030,11 +3028,7 @@ def run_ggshield_scan(self, scan_path):
 	"""Run ggshield (GitGuardian) secret scan over a path. The GitGuardian API key
 	is read from the API vault (Settings -> API), falling back to the
 	GITGUARDIAN_API_KEY environment variable."""
-	gg_key = None
-	db_key = GitGuardianAPIKey.objects.first()
-	if db_key and db_key.key:
-		gg_key = db_key.key
-	gg_key = gg_key or os.environ.get('GITGUARDIAN_API_KEY')
+	gg_key = get_api_key('gitguardian') or os.environ.get('GITGUARDIAN_API_KEY')
 	if not gg_key:
 		logger.warning('ggshield: no GitGuardian API key (set it in Settings -> API or the GITGUARDIAN_API_KEY env var), skipping ggshield scan')
 		return 0
@@ -3381,7 +3375,7 @@ def dalfox_xss_scan(self, urls=[], ctx={}, description=None):
 	# after vulnerability scan is done, we need to run gpt if
 	# should_fetch_gpt_report and openapi key exists
 
-	if should_fetch_gpt_report and OpenAiAPIKey.objects.all().first():
+	if should_fetch_gpt_report and get_api_key('openai'):
 		logger.info('Getting Dalfox Vulnerability GPT Report')
 		vulns = Vulnerability.objects.filter(
 			scan_history__id=self.scan_id
@@ -3512,7 +3506,7 @@ def crlfuzz_scan(self, urls=[], ctx={}, description=None):
 	# after vulnerability scan is done, we need to run gpt if
 	# should_fetch_gpt_report and openapi key exists
 
-	if should_fetch_gpt_report and OpenAiAPIKey.objects.all().first():
+	if should_fetch_gpt_report and get_api_key('openai'):
 		logger.info('Getting CRLFuzz Vulnerability GPT Report')
 		vulns = Vulnerability.objects.filter(
 			scan_history__id=self.scan_id
@@ -4081,9 +4075,10 @@ def send_hackerone_report(vulnerability_id):
 
 	# can only send vulnerability report if team_handle exists and send_report is True and api_key exists
 	hackerone = Hackerone.objects.filter(send_report=True).first()
-	api_key = HackerOneAPIKey.objects.filter(username__isnull=False, key__isnull=False).first()
+	h1_key, h1_extra = get_credential('hackerone')
+	h1_username = h1_extra.get('username') if h1_extra else None
 
-	if not (vulnerability.target_domain.h1_team_handle and hackerone and api_key):
+	if not (vulnerability.target_domain.h1_team_handle and hackerone and h1_key and h1_username):
 		logger.error('Missing required data: team handle, Hackerone config, or API key.')
 		return {"status_code": 400, "message": "Missing required data"}
 
@@ -4123,7 +4118,7 @@ def send_hackerone_report(vulnerability_id):
 
 	r = requests.post(
 		'https://api.hackerone.com/v1/hackers/reports',
-		auth=(api_key.username, api_key.key),
+		auth=(h1_username, h1_key),
 		json=data,
 		headers=headers
 	)

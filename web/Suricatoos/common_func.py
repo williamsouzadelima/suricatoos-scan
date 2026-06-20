@@ -1048,27 +1048,26 @@ def get_domain_historical_ip_address(domain):
 
 
 def get_open_ai_key():
-	openai_key = OpenAiAPIKey.objects.all()
-	return openai_key[0] if openai_key else None
+	return get_api_key('openai')
 
 
 def get_netlas_key():
-	netlas_key = NetlasAPIKey.objects.all()
-	return netlas_key[0] if netlas_key else None
+	return get_api_key('netlas')
 
 
 def get_chaos_key():
-	chaos_key = ChaosAPIKey.objects.all()
-	return chaos_key[0] if chaos_key else None
+	return get_api_key('chaos')
 
 
 def get_hackerone_key_username():
 	"""
-		Get the HackerOne API key username from the database.
-		Returns: a tuple of the username and api key
+		Get the HackerOne API key username from the vault.
+		Returns: a tuple of (username, api_key), or None if not configured.
 	"""
-	hackerone_key = HackerOneAPIKey.objects.all()
-	return (hackerone_key[0].username, hackerone_key[0].key) if hackerone_key else None
+	key, extra = get_credential('hackerone')
+	if not key:
+		return None
+	return (extra.get('username'), key)
 
 
 def get_credential(provider):
