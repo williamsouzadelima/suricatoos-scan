@@ -3359,9 +3359,11 @@ async function show_attack_surface_modal(id){
 		if (data.status) {
 			$('#modal_title').html(`Attack Surface Suggestion for ${htmlEncode(data.subdomain_name)} (BETA)`);
 			$('#modal-content').empty();
-			// htmlEncode the LLM output (fed target-controlled scan data) BEFORE turning
-			// newlines into <br/>, so a prompt-steered <img onerror=...> can't execute.
-			$('#modal-content').append(htmlEncode(data.description).replace(new RegExp('\r?\n','g'), '<br />'));
+			// htmlEncode the LLM output (fed target-controlled scan data) per LINE, so a
+			// prompt-steered <img onerror=...> can't execute. Split on the raw newlines
+			// FIRST: htmlEncode turns \n into &#10; (it's not [\w. ]), which would otherwise
+			// leave the subsequent newline->\<br/> replace nothing to match (run-on text).
+			$('#modal-content').append(data.description.split(/\r?\n/).map(htmlEncode).join('<br />'));
 			$('#modal_dialog').modal('show');
 		}
 		else{
