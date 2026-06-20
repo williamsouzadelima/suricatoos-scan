@@ -5,6 +5,7 @@ from unittest import mock
 from django.test import TestCase, override_settings
 from cryptography.fernet import Fernet
 from dashboard import crypto, providers
+from dashboard.models import ApiCredential
 
 
 class CryptoTests(TestCase):
@@ -51,3 +52,26 @@ class ProviderRegistryTests(TestCase):
         self.assertFalse(providers.is_valid_custom_option('rm -rf /'))
         self.assertFalse(providers.is_valid_custom_option('sfp_x'))  # no :option
         self.assertEqual(providers.custom_provider_slug('sfp_x:api_key'), 'custom:sfp_x:api_key')
+
+
+class ApiCredentialModelTests(TestCase):
+    def test_upsert_encrypts_and_decrypts(self):
+        c = ApiCredential.upsert('shodan', 'sk-123', label='Shodan')
+        self.assertNotIn('sk-123', c.key_enc)              # stored encrypted
+        key, extra = c.decrypted()
+        self.assertEqual(key, 'sk-123')
+        self.assertEqual(extra, {})
+
+    def test_upsert_is_idempotent_on_provider(self):
+        ApiCredential.upsert('shodan', 'one')
+        ApiCredential.upsert('shodan', 'two')
+        self.assertEqual(ApiCredential.objects.filter(provider='shodan').count(), 1)
+        self.assertEqual(ApiCredential.objects.get(provider='shodan').decrypted()[0], 'two')
+
+    def test_extra_round_trips(self):
+        c = ApiCredential.upsert('hackerone', 'tok', extra={'username': 'alice'})
+        self.assertEqual(c.decrypted(), ('tok', {'username': 'alice'}))
+
+    def test_str_has_no_secret(self):
+        c = ApiCredential.upsert('shodan', 'sk-supersecret')
+        self.assertNotIn('sk-supersecret', str(c))
