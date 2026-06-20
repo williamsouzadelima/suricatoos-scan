@@ -2838,6 +2838,44 @@ def _validation_target_url(url, allow_private=True):
 	return s, None
 
 
+def is_blocked_fetch_target(host_or_url, allow_private=False):
+	"""SSRF guard for operator-facing fetch tools (WAF/CMS detectors, A10-1).
+
+	Given a bare host/domain or a full URL, resolve it and decide whether it points
+	at an internal/metadata address that an arbitrary-URL fetch must NOT reach.
+	Returns (blocked: bool, reason). Always blocks loopback/link-local/cloud-metadata
+	(169.254.169.254 is link-local)/unspecified/multicast/reserved; RFC1918/ULA private
+	ranges are blocked too unless allow_private (these endpoints take an UNbound URL
+	straight from a request param, so the secure default is to block private as well).
+	Mirrors _validation_target_url's address classification.
+	"""
+	s = str(host_or_url or '').strip()
+	if not s:
+		return True, 'empty target'
+	host = urlparse(s).hostname if '://' in s else s
+	# strip an optional :port from a bare host (ipv6 literals use [..]:port)
+	if host and not host.startswith('[') and host.count(':') == 1:
+		host = host.split(':', 1)[0]
+	host = (host or '').strip('[]')
+	if not host:
+		return True, 'no host in target'
+	try:
+		infos = socket.getaddrinfo(host, None)
+	except Exception:
+		return True, f'host {host} does not resolve'
+	for info in infos:
+		ip = info[4][0]
+		try:
+			addr = ipaddress.ip_address(ip)
+		except ValueError:
+			return True, f'unparseable address {ip}'
+		if (addr.is_loopback or addr.is_link_local or addr.is_unspecified
+				or addr.is_multicast or addr.is_reserved
+				or (not allow_private and addr.is_private)):
+			return True, f'blocked internal/metadata address {ip}'
+	return False, None
+
+
 def _retest_nuclei_finding(template_id, http_url, allow_private, timeout,
 		history_file=None, scan_id=None, activity_id=None):
 	"""Authoritatively re-test a nuclei finding by re-running ONLY that template
