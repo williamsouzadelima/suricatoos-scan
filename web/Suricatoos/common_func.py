@@ -31,6 +31,7 @@ from dashboard.models import *
 from startScan.models import *
 from targetApp.models import *
 from Suricatoos.utilities import is_valid_url
+from dashboard.providers import PROVIDERS, sf_destination
 
 
 logger = get_task_logger(__name__)
@@ -1081,6 +1082,29 @@ def get_credential(provider):
 def get_api_key(provider):
 	"""Return the decrypted primary key for an enabled credential, else None."""
 	return get_credential(provider)[0]
+
+
+def build_spiderfoot_config():
+	"""Flat {module:option -> value} for enabled SF-backed + custom credentials."""
+	cfg = {}
+	for cred in ApiCredential.objects.filter(enabled=True):
+		key, extra = cred.decrypted()
+		if cred.provider.startswith('custom:'):
+			option = cred.provider[len('custom:'):]
+			if key:
+				cfg[option] = key
+			continue
+		spec = PROVIDERS.get(cred.provider)
+		if not spec:
+			continue
+		# map each registry field -> its value (primary 'key' or a name in extra)
+		values = {'key': key, **(extra or {})}
+		for field_name, dest in spec['fields']:
+			option = sf_destination(dest)
+			val = values.get(field_name)
+			if option and val:
+				cfg[option] = val
+	return cfg
 
 
 def parse_llm_vulnerability_report(report):

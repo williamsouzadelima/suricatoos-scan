@@ -6,7 +6,7 @@ from django.test import TestCase, override_settings
 from cryptography.fernet import Fernet
 from dashboard import crypto, providers
 from dashboard.models import ApiCredential
-from Suricatoos.common_func import get_api_key, get_credential
+from Suricatoos.common_func import get_api_key, get_credential, build_spiderfoot_config
 
 
 class CryptoTests(TestCase):
@@ -93,4 +93,26 @@ class AccessorTests(TestCase):
     def test_get_credential_returns_extra(self):
         ApiCredential.upsert('hackerone', 'tok', extra={'username': 'alice'})
         self.assertEqual(get_credential('hackerone'), ('tok', {'username': 'alice'}))
+
+
+class BuildSpiderfootConfigTests(TestCase):
+    def test_single_and_multi_field(self):
+        ApiCredential.upsert('shodan', 'shod')
+        ApiCredential.upsert('censys', 'uid', extra={'secret': 'sec'})
+        cfg = build_spiderfoot_config()
+        self.assertEqual(cfg['sfp_shodan:api_key'], 'shod')
+        self.assertEqual(cfg['sfp_censys:api_key_uid'], 'uid')
+        self.assertEqual(cfg['sfp_censys:api_key_secret'], 'sec')
+
+    def test_consumer_and_disabled_skipped(self):
+        ApiCredential.upsert('openai', 'sk')           # consumer:llm
+        ApiCredential.upsert('shodan', 'x', enabled=False)
+        cfg = build_spiderfoot_config()
+        self.assertNotIn('sfp_shodan:api_key', cfg)
+        self.assertFalse(any(k.startswith('sfp_') and 'openai' in k for k in cfg))
+
+    def test_custom_entry_passthrough(self):
+        ApiCredential.upsert('custom:sfp_fraudguard:api_key', 'fg')
+        self.assertEqual(build_spiderfoot_config()['sfp_fraudguard:api_key'], 'fg')
+
 
