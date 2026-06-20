@@ -4,7 +4,7 @@ from unittest import mock
 
 from django.test import TestCase, override_settings
 from cryptography.fernet import Fernet
-from dashboard import crypto
+from dashboard import crypto, providers
 
 
 class CryptoTests(TestCase):
@@ -29,3 +29,25 @@ class CryptoTests(TestCase):
                     self.assertEqual(crypto.decrypt(token), 'persist-me')
             finally:
                 crypto._fernet = None  # reset so sibling tests re-resolve cleanly
+
+
+class ProviderRegistryTests(TestCase):
+    def test_curated_providers_present(self):
+        for slug in ('shodan', 'haveibeenpwned', 'censys', 'openai', 'hackerone'):
+            self.assertIn(slug, providers.PROVIDERS)
+
+    def test_sf_destination_extracts_module_option(self):
+        self.assertEqual(providers.sf_destination('sfp_shodan:api_key'), 'sfp_shodan:api_key')
+        self.assertIsNone(providers.sf_destination('consumer:llm'))
+
+    def test_censys_is_multifield(self):
+        fields = providers.PROVIDERS['censys']['fields']
+        dests = [d for _, d in fields]
+        self.assertIn('sfp_censys:api_key_uid', dests)
+        self.assertIn('sfp_censys:api_key_secret', dests)
+
+    def test_custom_option_validation(self):
+        self.assertTrue(providers.is_valid_custom_option('sfp_fraudguard:api_key'))
+        self.assertFalse(providers.is_valid_custom_option('rm -rf /'))
+        self.assertFalse(providers.is_valid_custom_option('sfp_x'))  # no :option
+        self.assertEqual(providers.custom_provider_slug('sfp_x:api_key'), 'custom:sfp_x:api_key')
