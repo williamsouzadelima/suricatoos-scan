@@ -19,6 +19,7 @@ EMAIL_REGEX = re.compile(r'[\w\.-]+@[\w\.-]+')
 
 ALL = 'all'
 AMASS_WORDLIST = 'amass_wordlist'
+AMASS_TIMEOUT = 'amass_timeout'  # minutes; caps amass enum so dead resolvers can't hang the scan
 AUTO_CALIBRATION = 'auto_calibration'
 CUSTOM_HEADERS = 'custom_headers'
 CUSTOM_HEADER = 'custom_header'

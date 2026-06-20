@@ -474,17 +474,33 @@ def subdomain_discovery(
 		if tool in default_subdomain_tools:
 			if tool == 'amass-passive':
 				use_amass_config = config.get(USE_AMASS_CONFIG, False)
+				# Cap runtime: amass -timeout is in MINUTES. Without it, dead/slow DNS
+				# resolvers make enumeration hang for hours and stall the whole scan
+				# (the task waits for amass before saving subdomains and advancing).
+				# Coerced to int so no user-supplied value reaches the command string.
+				try:
+					amass_timeout = max(1, int(config.get(AMASS_TIMEOUT, 10)))
+				except (TypeError, ValueError):
+					amass_timeout = 10
 				cmd = f'amass enum -passive -d {shlex.quote(host)} -o {self.results_dir}/subdomains_amass.txt'
 				cmd += ' -config /root/.config/amass.ini' if use_amass_config else ''
+				cmd += f' -timeout {amass_timeout}'
 
 			elif tool == 'amass-active':
 				use_amass_config = config.get(USE_AMASS_CONFIG, False)
 				# wordlist name is user-editable: allowlist it (blocks injection and ../ traversal).
 				amass_wordlist_name = _allow(config.get(AMASS_WORDLIST, 'deepmagic.com-prefixes-top50000'), SAFE_TOKEN_RE, 'deepmagic.com-prefixes-top50000')
 				wordlist_path = f'/usr/src/wordlist/{amass_wordlist_name}.txt'
+				# Cap the active brute-force (50k-prefix wordlist) so slow/dead resolvers
+				# can't hang the scan forever. amass -timeout is in MINUTES; int-coerced.
+				try:
+					amass_timeout = max(1, int(config.get(AMASS_TIMEOUT, 10)))
+				except (TypeError, ValueError):
+					amass_timeout = 10
 				cmd = f'amass enum -active -d {shlex.quote(host)} -o {self.results_dir}/subdomains_amass_active.txt'
 				cmd += ' -config /root/.config/amass.ini' if use_amass_config else ''
 				cmd += f' -brute -w {shlex.quote(wordlist_path)}'
+				cmd += f' -timeout {amass_timeout}'
 
 			elif tool == 'sublist3r':
 				cmd = f'python3 /usr/src/github/Sublist3r/sublist3r.py -d {shlex.quote(host)} -t {threads} -o {self.results_dir}/subdomains_sublister.txt'
