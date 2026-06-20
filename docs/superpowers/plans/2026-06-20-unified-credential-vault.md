@@ -16,7 +16,14 @@
 - **Additive only:** new model columns are `null=True, blank=True`; old key models are kept (deprecated), not deleted.
 - **No regressions:** if the vault is empty or the key is missing, scans behave exactly as today (key-less, no crash).
 - **Working dir:** the feature branch `feat/api-credential-vault` (worktree `/root/suricatoos-vault`). All paths below are relative to the repo root; app code lives under `web/`.
-- **Running tests:** Django tests need the app environment (Postgres + installed deps). Run them in the project's `web` container against this branch's code, e.g. `python3 manage.py test tests.<module> -v 2` from `/usr/src/app`. The executor is responsible for making this branch's `web/` reachable by the container (bind-mount the worktree or run on the branch in a calm window — never mid-scan). Every test command below assumes that working Django environment.
+- **Running tests (validated harness):** run every `python3 manage.py …` command below inside an **ephemeral container** that mounts this worktree, joined to the live Postgres — it does NOT touch the live deploy. Exact command (run from `/root/suricatoos`):
+  ```bash
+  docker run --rm --network suricatoos_suricatoos_network --env-file .env \
+    -e RENGINE_VAULT_KEY=$(python3 -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())") \
+    -v /root/suricatoos-vault/web:/usr/src/app -w /usr/src/app \
+    --entrypoint python3 suricatoos/web:latest manage.py test tests.<module> -v 2
+  ```
+  `manage.py test` builds an isolated `test_suricatoos` DB (the `suricatoos` role has CREATEDB), applies all migrations there, and drops it — the live `suricatoos` DB is never modified. `makemigrations` only writes files. **Never run `manage.py migrate` against the live DB here.**
 - **Commit after every task** (each task ends with a commit step). Conventional-commit messages, ending with the project's `Co-Authored-By` trailer.
 
 ## File Structure
@@ -399,14 +406,13 @@ class ApiCredential(models.Model):
         return key, extra
 ```
 
-- [ ] **Step 4: Generate + run the schema migration, then the tests**
+- [ ] **Step 4: Generate the schema migration, then run the tests**
 
 ```bash
 python3 manage.py makemigrations dashboard --name apicredential
-python3 manage.py migrate dashboard
 python3 manage.py test tests.test_api_vault.ApiCredentialModelTests -v 2
 ```
-Expected: migration created and applied; tests PASS (4).
+Expected: migration file created; tests PASS (4). **Do NOT run `manage.py migrate` against the live DB** — `manage.py test` builds an isolated `test_*` DB and applies all migrations there. The live migration is a separate, authorized deploy step (see T15).
 
 - [ ] **Step 5: Commit**
 
@@ -683,13 +689,12 @@ class Migration(migrations.Migration):
     operations = [migrations.RunPython(forward, backward)]
 ```
 
-- [ ] **Step 4: Run the migration + tests**
+- [ ] **Step 4: Run the tests (test harness applies the migration in its isolated DB)**
 
 ```bash
-python3 manage.py migrate dashboard
 python3 manage.py test tests.test_api_vault.LegacyMigrationTests -v 2
 ```
-Expected: migration applies cleanly; test PASSES.
+Expected: test PASSES. **Do NOT run `manage.py migrate` against the live DB** — the isolated test DB exercises the data migration; live application is the authorized deploy step (T15).
 
 - [ ] **Step 5: Commit**
 
@@ -1139,14 +1144,13 @@ Expected: FAIL — unexpected keyword `module` / `BUCKET_ORG` missing.
     confidence = models.IntegerField(null=True, blank=True)
 ```
 
-- [ ] **Step 4: Migrate + test**
+- [ ] **Step 4: Generate the migration, then test**
 
 ```bash
 python3 manage.py makemigrations startScan --name osintresult_capture
-python3 manage.py migrate startScan
 python3 manage.py test tests.test_osint_capture.OsintSchemaTests -v 2
 ```
-Expected: PASS (2).
+Expected: migration file created; tests PASS (2). **Do NOT run `manage.py migrate` against the live DB** — the test harness applies it in its isolated DB; live migration is the authorized deploy step (T15).
 
 - [ ] **Step 5: Commit**
 
