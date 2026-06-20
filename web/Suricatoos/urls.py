@@ -3,14 +3,12 @@ from django.conf.urls import url
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from django.urls import include, path, re_path
+from django.urls import include, path
 from drf_yasg import openapi
 from drf_yasg.views import get_schema_view
 from rest_framework import permissions
 
-from Suricatoos.views import serve_protected_media, serve_branding_asset, serve_spa
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView, TokenRefreshView, TokenBlacklistView)
+from Suricatoos.views import serve_protected_media, serve_branding_asset
 
 schema_view = get_schema_view(
    openapi.Info(
@@ -34,11 +32,6 @@ urlpatterns = [
     # API first: reserve the /api/ namespace so it never collides with the
     # dashboard's <slug:slug>/... routes (e.g. /api/projects/ vs <slug>/projects/).
     path('api/', include('api.urls', 'api')),
-    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    # Logout: blacklist the refresh token server-side (the SPA calls this so a
-    # token is revoked, not just dropped from localStorage).
-    path('api/token/logout/', TokenBlacklistView.as_view(), name='token_blacklist'),
     path(
         '',
         include('dashboard.urls')),
@@ -62,8 +55,6 @@ urlpatterns = [
         'logout/',
         auth_views.LogoutView.as_view(template_name='base/logout.html'),
         name='logout'),
-    # SPA mounted at /app/* (client-side routing -> serve the shell for any subpath)
-    re_path(r'^app(?:/.*)?$', serve_spa, name='spa'),
     path(
         'media/<path:path>',
         serve_protected_media,

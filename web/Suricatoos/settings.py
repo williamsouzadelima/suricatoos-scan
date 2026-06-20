@@ -26,12 +26,6 @@ SURICATOOS_RESULTS = env('SURICATOOS_RESULTS', default=f'{SURICATOOS_HOME}/scan_
 SURICATOOS_CACHE_ENABLED = env.bool('SURICATOOS_CACHE_ENABLED', default=False)
 SURICATOOS_RECORD_ENABLED = env.bool('SURICATOOS_RECORD_ENABLED', default=True)
 SURICATOOS_RAISE_ON_ERROR = env.bool('SURICATOOS_RAISE_ON_ERROR', default=False)
-# Hard cutover to the React SPA (/app/): when on, UICutoverMiddleware redirects
-# every legacy server-rendered page to the SPA, forcing the migration. Default
-# off so a fresh checkout is never locked out; activate per-environment via the
-# SURICATOOS_UI_CUTOVER env var (see docker-compose.yml). Flip off + restart to
-# fully restore the legacy interface.
-UI_CUTOVER = env.bool('SURICATOOS_UI_CUTOVER', default=False)
 
 # Common env vars
 DEBUG = env.bool('DEBUG', default=False)
@@ -91,8 +85,6 @@ INSTALLED_APPS = [
     'django.contrib.humanize',
     'rest_framework',
     'rest_framework_datatables',
-    'rest_framework_simplejwt.token_blacklist',
-    'corsheaders',
     'dashboard.apps.DashboardConfig',
     'targetApp.apps.TargetappConfig',
     'scanEngine.apps.ScanengineConfig',
@@ -106,16 +98,11 @@ INSTALLED_APPS = [
 ]
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
-    # CorsMiddleware must sit high (before CommonMiddleware) to answer preflight.
-    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.locale.LocaleMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
-    # Cutover gate runs before LoginRequired so legacy pages redirect straight
-    # to the SPA instead of bouncing through /login first.
-    'Suricatoos.middleware.UICutoverMiddleware',
     'login_required.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -141,15 +128,14 @@ TEMPLATES = [
 }]
 ROOT_URLCONF = 'Suricatoos.urls'
 REST_FRAMEWORK = {
-    # JWT for the SPA / external clients; Session kept so the existing
-    # template-driven (DataTables) API calls keep working unchanged.
+    # Session auth: the template-driven (DataTables) API calls authenticate with
+    # the logged-in Django session cookie.
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
         'rest_framework.authentication.SessionAuthentication',
     ),
-    # /api/ is exempted from LoginRequiredMiddleware below (so JWT clients aren't
-    # 302'd to /login before DRF auth runs); require auth at the DRF layer instead
-    # so endpoints without an explicit permission_classes are never public.
+    # /api/ is exempted from LoginRequiredMiddleware below so DRF returns proper
+    # 401/403 JSON instead of a 302 to /login; require auth at the DRF layer
+    # instead so endpoints without an explicit permission_classes are never public.
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
     ),
@@ -166,28 +152,6 @@ REST_FRAMEWORK = {
     ),
     'PAGE_SIZE': 500,
 }
-
-# --- SPA / external-client API foundation ---
-from datetime import timedelta
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    # Blacklist the old refresh token on rotation and on explicit logout
-    # (token_blacklist app) so a leaked/rotated refresh token can be revoked
-    # server-side instead of staying valid for its full 7-day lifetime.
-    'BLACKLIST_AFTER_ROTATION': True,
-}
-# CORS: dev SPA runs on the Vite server (different origin); production serves the
-# built SPA same-origin. Origins are env-driven; default to the Vite dev server.
-CORS_ALLOWED_ORIGINS = env.list(
-    'CORS_ALLOWED_ORIGINS',
-    default=['http://localhost:5173', 'http://127.0.0.1:5173'])
-# The SPA authenticates with a Bearer header (not cookies), so credentialed CORS
-# is unnecessary. Keeping it False avoids arming cross-origin cookie exfiltration
-# if CORS_ALLOWED_ORIGINS is ever broadened. Override via env only if a future
-# cookie-based cross-origin client genuinely needs it.
-CORS_ALLOW_CREDENTIALS = env.bool('CORS_ALLOW_CREDENTIALS', default=False)
 
 WSGI_APPLICATION = 'Suricatoos.wsgi.application'
 
@@ -240,20 +204,9 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, "static"),
 ]
-# The SPA bundle is built by the Docker image into /opt/spa (see Dockerfile's
-# spa-builder stage) and published under the "spa/" prefix by collectstatic.
-# Inserted FIRST so the image-built bundle always wins over any stale static/spa
-# left in a bind-mounted source tree. Guarded so host runs without the
-# image-built dir don't warn.
-if os.path.isdir('/opt/spa'):
-    STATICFILES_DIRS.insert(0, ('spa', '/opt/spa'))
 
 LOGIN_REQUIRED_IGNORE_VIEW_NAMES = [
     'login',
-    # JWT endpoints must be reachable without a session (chicken-and-egg).
-    'token_obtain_pair',
-    'token_refresh',
-    'token_blacklist',
     # White-label logo/favicon must render on the unauthenticated login page.
     # The view serves only files referenced by the branding model (no path
     # traversal), so exposing it without a session is safe.
@@ -261,12 +214,10 @@ LOGIN_REQUIRED_IGNORE_VIEW_NAMES = [
 ]
 
 # Let DRF own auth on the whole API surface: LoginRequiredMiddleware would 302
-# JWT clients to /login before DRF's JWTAuthentication runs. DEFAULT_PERMISSION_CLASSES
+# API calls to /login before DRF auth runs. DEFAULT_PERMISSION_CLASSES
 # (IsAuthenticated) keeps these endpoints protected at the DRF layer.
 LOGIN_REQUIRED_IGNORE_PATHS = [
     r'^/api/.*$',
-    # SPA shell + its assets: the SPA handles its own JWT auth in the browser.
-    r'^/app(/.*)?$',
 ]
 
 LOGIN_URL = 'login'

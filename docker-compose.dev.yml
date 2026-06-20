@@ -90,9 +90,6 @@ services:
     image: suricatoos/web:latest
     environment:
       - DEBUG=1
-      # SPA hard cutover (force /app/, redirect the legacy UI). Wired but OFF until
-      # the SPA quality clears the legacy bar — set to 1 to activate.
-      - SURICATOOS_UI_CUTOVER=0
       - CELERY_BROKER=redis://redis:6379/0
       - CELERY_BACKEND=redis://redis:6379/0
       - DOMAIN_NAME=${DOMAIN_NAME}

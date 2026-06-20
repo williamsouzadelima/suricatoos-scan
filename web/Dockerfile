@@ -1,20 +1,3 @@
-# --- SPA build stage -------------------------------------------------------
-# Builds the React/Vite SPA from ./frontend so the artifact is produced by the
-# image build instead of being committed to the repo. The compiled bundle is
-# copied into the final image at /opt/spa (a path NOT shadowed by the
-# ./web:/usr/src/app bind mount), and entrypoint.sh's collectstatic publishes it
-# under /staticfiles/spa/ (served by nginx).
-# --platform=$BUILDPLATFORM: the bundle is architecture-independent JS/CSS, so
-# build it natively on the runner (amd64) instead of emulating Node/Vite under
-# QEMU on the arm64 matrix leg — much faster multi-arch builds.
-FROM --platform=$BUILDPLATFORM node:24-alpine AS spa-builder
-WORKDIR /spa
-# Install deps against the lockfile first for layer caching.
-COPY frontend/package.json frontend/package-lock.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build   # vite -> /spa/dist (base /staticfiles/spa/)
-
 # --- Base image ------------------------------------------------------------
 FROM ubuntu:22.04
 
@@ -158,8 +141,3 @@ RUN pip3 install --no-cache-dir fuzzywuzzy \
 
 # Copy source code
 COPY . /usr/src/app/
-
-# Publish the SPA bundle built in the spa-builder stage. /opt/spa is outside the
-# ./web:/usr/src/app bind mount, so it survives in dev/prod; settings.py adds it
-# to STATICFILES_DIRS under the "spa" prefix and entrypoint.sh runs collectstatic.
-COPY --from=spa-builder /spa/dist /opt/spa
