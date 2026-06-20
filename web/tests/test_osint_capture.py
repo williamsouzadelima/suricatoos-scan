@@ -8,6 +8,7 @@ from scanEngine.models import EngineType
 from Suricatoos.tasks import save_osint_result
 from Suricatoos import tasks
 from targetApp.models import Domain
+from api.serializers import OsintResultSerializer
 
 
 class OsintSchemaTests(TestCase):
@@ -73,3 +74,14 @@ class SpiderfootRoutingTests(TestCase):
                     'source': 'delphos.com.br', 'generated': 1781925945}])
         row = OsintResult.objects.get(event_type='DNS TXT Record')
         self.assertEqual((row.module, row.parent), ('sfp_dnsraw', 'delphos.com.br'))
+
+
+class OsintSerializerTests(TestCase):
+    def test_new_fields_serialized(self):
+        o = OsintResult.objects.create(event_type='X', data='d', module='sfp_dnsraw',
+                                       parent='delphos.com.br', confidence=70)
+        out = OsintResultSerializer(o).data
+        for f in ('module', 'parent', 'confidence'):
+            self.assertIn(f, out)
+        self.assertEqual(out['confidence'], 70)
+
