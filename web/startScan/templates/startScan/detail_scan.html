@@ -40,6 +40,13 @@
 	<a href="javascript:get_logs_modal({{history.id}})" class="btn btn-sm btn-soft-danger"><i class="fe-terminal me-1"></i> {% trans "View Logs" %}</a>
 </div>
 {% endif %}
+{% if history.scan_status != -1 %}
+<div class="d-flex justify-content-end mb-2">
+	<button type="button" class="btn btn-primary" onclick="initiate_report(id={{ history.id }}, has_subdomain_scan={% if 'subdomain_discovery' in history.scan_type.tasks %}true{% else %}false{% endif %}, has_vulnerability_scan={% if 'vulnerability_scan' in history.scan_type.tasks %}true{% else %}false{% endif %}, domain_name='{{ history.domain.name }}')">
+		<i class="fe-download me-1"></i> {% trans "Export Report" %}
+	</button>
+</div>
+{% endif %}
 <div class="row">
 	<div class="col-12">
 		<div class="card">
@@ -2871,4 +2878,5 @@ $(document).ready(function() {
   })();
 </script>
 {% endif %}
+{% include 'base/_items/report_modal.html' %}
 {% endblock page_level_script %}
