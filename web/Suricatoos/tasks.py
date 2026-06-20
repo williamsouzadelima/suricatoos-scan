@@ -1257,23 +1257,29 @@ def h8mail(config, host, scan_history_id, activity_id, results_dir, ctx={}):
 		logger.error(f'Could not open {output_file}')
 		return []
 	try:
-		with open(output_file) as f:
-			data = json.load(f)
-	except json.JSONDecodeError:
-		logger.error(f'Invalid JSON in {output_file}')
-		return []
-	creds = data.get('targets', [])
+		try:
+			with open(output_file) as f:
+				data = json.load(f)
+		except json.JSONDecodeError:
+			logger.error(f'Invalid JSON in {output_file}')
+			return []
+		creds = data.get('targets', [])
 
-	# TODO: go through h8mail output and save emails to DB
-	for cred in creds:
-		logger.warning(cred)
-		email_address = cred['target']
-		pwn_num = cred['pwn_num']
-		pwn_data = cred.get('data', [])
-		email, created = save_email(email_address, scan_history=scan_history)
-		# if email:
-		# 	self.notify(fields={'Emails': f'• `{email.address}`'})
-	return creds
+		# TODO: go through h8mail output and save emails to DB
+		for cred in creds:
+			# Do NOT log the raw record: cred['data'] holds breach hits (plaintext
+			# passwords/hashes/PII). Log only non-sensitive triage fields.
+			email_address = cred.get('target')
+			pwn_num = cred.get('pwn_num')
+			logger.info(f'h8mail: {email_address} found in {pwn_num} breach source(s)')
+			email, created = save_email(email_address, scan_history=scan_history)
+			# if email:
+			# 	self.notify(fields={'Emails': f'• `{email.address}`'})
+		return creds
+	finally:
+		# Remove the raw report so leaked breach credentials are never left on disk
+		# (results_dir is also web-served via nginx). Mirrors gitleaks/ggshield.
+		_safe_remove(output_file)
 
 
 @app.task(name='screenshot', queue='main_scan_queue', base=SuricatoosTask, bind=True)
