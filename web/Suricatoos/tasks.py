@@ -16,7 +16,7 @@ import tldextract
 import concurrent.futures
 import base64
 
-from datetime import datetime
+from datetime import datetime, timezone as datetime_timezone
 from urllib.parse import urlparse
 from api.serializers import SubdomainSerializer
 from celery import chain, chord, group
@@ -2688,7 +2688,8 @@ def _sf_bucket(event_type):
 
 
 def save_osint_result(scan_history, bucket, event_type, data, source='spiderfoot',
-		extra=None, is_malicious=False, severity=0):
+		extra=None, is_malicious=False, severity=0,
+		module=None, parent=None, confidence=None, generated=None):
 	"""Idempotently persist a generic OSINT finding (de-dup per scan/bucket/type/data)."""
 	if not data:
 		return None, False
@@ -2698,6 +2699,12 @@ def save_osint_result(scan_history, bucket, event_type, data, source='spiderfoot
 	data = ' '.join(data.split()).strip()
 	if not data:
 		return None, False
+	discovered = timezone.now()
+	if generated:
+		try:
+			discovered = datetime.fromtimestamp(int(generated), tz=datetime_timezone.utc)
+		except (ValueError, OSError, OverflowError):
+			pass
 	target = scan_history.domain if scan_history else None
 	obj, created = OsintResult.objects.get_or_create(
 		scan_history=scan_history, bucket=bucket, event_type=event_type,
@@ -2706,7 +2713,8 @@ def save_osint_result(scan_history, bucket, event_type, data, source='spiderfoot
 			'target_domain': target, 'source': source,
 			'extra': (str(extra)[:2000] if extra else None),
 			'is_malicious': is_malicious, 'severity': severity,
-			'discovered_date': timezone.now(),
+			'module': module, 'parent': (str(parent)[:500] if parent else None),
+			'confidence': confidence, 'discovered_date': discovered,
 		})
 	return obj, created
 
