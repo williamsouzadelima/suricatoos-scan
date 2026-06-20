@@ -7,6 +7,7 @@ import re
 import shlex
 import socket
 import subprocess
+import sys
 import time
 import validators
 import xmltodict
@@ -45,6 +46,34 @@ Celery tasks.
 """
 
 logger = get_task_logger(__name__)
+
+# The SpiderFoot package is NOT pip-installed — it lives at SPIDERFOOT_DIR
+# (/usr/src/github/spiderfoot, a shared volume) and is normally invoked as a
+# subprocess. Add it to sys.path and import SpiderFootDb under a guard so a host
+# WITHOUT that volume (e.g. the test container) keeps tasks.py importable —
+# SpiderFootDb is then None and seeding is a graceful no-op. The celery worker
+# (where spiderfoot_scan actually runs) HAS the volume, so it gets the real class.
+# Keeping SpiderFootDb at module scope makes it patchable in tests
+# (mock.patch.object(tasks, 'SpiderFootDb')).
+if SPIDERFOOT_DIR not in sys.path:
+    sys.path.insert(0, SPIDERFOOT_DIR)
+try:
+    from spiderfoot import SpiderFootDb
+except Exception:   # noqa: BLE001 - package or its deps absent in this environment
+    SpiderFootDb = None
+
+
+def seed_spiderfoot_config(cfg):
+    """Persist vault-sourced API keys into spiderfoot.db so the CLI scan loads them.
+    Returns True on write, False on empty/missing-package/failure (never raises into a scan)."""
+    if not cfg or SpiderFootDb is None:
+        return False
+    try:
+        SpiderFootDb({'__database': SPIDERFOOT_DB_PATH}, init=True).configSet(cfg)
+        return True
+    except Exception as e:   # noqa: BLE001 - seeding must never break a scan
+        logger.warning(f'spiderfoot: could not seed API keys into config: {e}')
+        return False
 
 
 def is_valid_domain(name):
@@ -2689,6 +2718,9 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 	osint.enable_spiderfoot config flag.
 	"""
 	scan_history = ScanHistory.objects.get(pk=scan_history_id)
+	seeded = seed_spiderfoot_config(build_spiderfoot_config())
+	if seeded:
+		logger.info('spiderfoot: seeded API keys from the credential vault')
 	# str() so a list/dict YAML value fails the allowlist safely instead of raising.
 	preset = str(config.get(SPIDERFOOT_PRESET, 'passive'))
 	if preset not in SPIDERFOOT_PRESETS:

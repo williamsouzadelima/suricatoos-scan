@@ -121,6 +121,10 @@ DEFAULT_SCAN_INTENSITY = 'normal'
 # Suricatoos — secret scan / spiderfoot OSINT defaults
 SPIDERFOOT_DIR = '/usr/src/github/spiderfoot'
 SPIDERFOOT_EXEC_PATH = '/usr/src/github/spiderfoot/sf.py'
+import os as _os
+SPIDERFOOT_DB_PATH = _os.path.join(
+    _os.environ.get('SPIDERFOOT_DATA', _os.path.expanduser('~/.spiderfoot')),
+    'spiderfoot.db')
 DEFAULT_RUN_GITLEAKS = True
 DEFAULT_RUN_GGSHIELD = False
 # On by default so OSINT scans actually surface SpiderFoot data. Uses the

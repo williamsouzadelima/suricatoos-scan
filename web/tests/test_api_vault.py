@@ -141,3 +141,21 @@ class LegacyMigrationTests(TestCase):
         self.assertEqual(get_api_key('openai'), 'sk-legacy')
         self.assertEqual(get_credential('hackerone'), ('h1-legacy', {'username': 'alice'}))
 
+
+class SeedSpiderfootTests(TestCase):
+    def test_seed_calls_configset_with_built_dict(self):
+        ApiCredential.upsert('shodan', 'shod')
+        from Suricatoos import tasks
+        with mock.patch.object(tasks, 'SpiderFootDb') as DB:
+            ok = tasks.seed_spiderfoot_config(tasks.build_spiderfoot_config())
+        self.assertTrue(ok)
+        DB.return_value.configSet.assert_called_once()
+        sent = DB.return_value.configSet.call_args[0][0]
+        self.assertEqual(sent['sfp_shodan:api_key'], 'shod')
+
+    def test_seed_empty_is_noop(self):
+        from Suricatoos import tasks
+        with mock.patch.object(tasks, 'SpiderFootDb') as DB:
+            self.assertFalse(tasks.seed_spiderfoot_config({}))
+            DB.assert_not_called()
+
