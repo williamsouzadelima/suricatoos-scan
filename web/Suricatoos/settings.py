@@ -54,6 +54,10 @@ SESSION_COOKIE_SAMESITE = 'Lax'
 CSRF_COOKIE_SAMESITE = 'Lax'
 SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = 'same-origin'
+# W008 (SECURE_SSL_REDIRECT) is intentionally accepted: nginx owns the http->https
+# redirect; enabling it in Django would break internal :8000 health checks. Silenced
+# so `check --deploy --fail-level WARNING` can gate genuinely-new misconfiguration.
+SILENCED_SYSTEM_CHECKS = ['security.W008']
 # HSTS + proxy-SSL-header are OPT-IN (default OFF). Reason: setting
 # SECURE_PROXY_SSL_HEADER makes Django treat the proxied request as HTTPS, which
 # turns on CSRF strict-referer checking. In this nginx setup that rejects the
