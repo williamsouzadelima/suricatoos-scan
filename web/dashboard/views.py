@@ -213,12 +213,19 @@ def admin_interface_update(request, slug):
     if user_id:
         UserModel = get_user_model()
         user = UserModel.objects.get(id=user_id)
-    if request.method == 'GET':
+    if request.method == 'POST':
         if mode == 'change_status':
-            user.is_active = not user.is_active
-            user.save()
-    elif request.method == 'POST':
-        if mode == 'delete':
+            # A07-1: enable/disable is a POST so CsrfViewMiddleware protects it. As a
+            # GET it was a state-changing, CSRF-unprotected mutation exploitable via a
+            # cross-site request (e.g. <img src=".../update?mode=change_status&user=N">).
+            try:
+                user.is_active = not user.is_active
+                user.save()
+                messageData = {'status': True}
+            except Exception as e:
+                logger.error(e)
+                messageData = {'status': False}
+        elif mode == 'delete':
             try:
                 user.delete()
                 messages.add_message(
