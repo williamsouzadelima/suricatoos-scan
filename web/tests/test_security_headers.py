@@ -37,3 +37,17 @@ class SecuritySettingsTests(TestCase):
         # an unauthenticated request to a protected legacy page must not 200
         resp = self.client.get('/scanEngine/default/', follow=False)
         self.assertIn(resp.status_code, (301, 302))  # redirected to /login
+
+    def test_session_age_is_bounded(self):
+        # OWASP A07-4: the 14-day default session is too long for an admin tool
+        # that stores 3rd-party API keys. Cap it (default 8h).
+        self.assertLessEqual(settings.SESSION_COOKIE_AGE, 28800)
+
+    def test_csp_header_present_with_safe_directives(self):
+        # OWASP A05-1: a baseline CSP must ship on responses. The safe subset does
+        # not require touching inline scripts but adds real defense-in-depth.
+        resp = self.client.get('/login/')
+        csp = resp.headers.get('Content-Security-Policy', '')
+        self.assertIn("object-src 'none'", csp)
+        self.assertIn("base-uri 'self'", csp)
+        self.assertIn("frame-ancestors 'none'", csp)
