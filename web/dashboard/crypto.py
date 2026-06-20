@@ -47,7 +47,7 @@ def encrypt(plaintext: str) -> str:
     return _get_fernet().encrypt(plaintext.encode()).decode()
 
 
-def decrypt(token: str):
+def decrypt(token: str) -> str | None:
     if not token:
         return None
     try:
