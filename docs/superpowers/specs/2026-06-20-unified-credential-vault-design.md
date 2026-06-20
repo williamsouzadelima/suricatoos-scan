@@ -1,17 +1,21 @@
-# Design — Unified API Credential Vault + SpiderFoot key injection
+# Design — Unified API Credential Vault + SpiderFoot key injection + OSINT field capture
 
 - **Date:** 2026-06-20
 - **Branch:** `feat/api-credential-vault` (off `main` @ 1c8d714)
-- **Status:** Approved design (pending spec review)
-- **Related:** OSINT gap analysis of scan #13 (delphos.com.br) — SpiderFoot produced only passive DNS/affiliate data because **no API keys are configured** and the richest modules (Shodan ports, HaveIBeenPwned breaches, VirusTotal, etc.) stayed dark.
+- **Status:** Approved (spec reviewed; scope expanded to include Front B)
+- **Related:** OSINT gap analysis of scan #13 (delphos.com.br). An adversarial workflow (20 agents, 0 refutations) isolated **two distinct root causes** for the user's complaint that "OSINT brings little data and few fields vs SpiderFoot":
+  - **(A) "little data"** — preset `passive` + **zero API keys** → the richest modules (Shodan ports, HaveIBeenPwned breaches, VirusTotal, …) stay dark.
+  - **(B) "few fields"** — the persistence layer discards what SpiderFoot does emit: the per-event `source` (provenance edge), the native `generated` timestamp, all confidence/risk signal, and it hard-drops 37/226 events (internal URLs, the target org name, unresolved subdomains).
 
 ## 1. Problem & Goal
 
-SpiderFoot's highest-value OSINT modules (breached credentials, open ports, malicious reputation, passive DNS, email discovery) require per-module API keys. Today there is **no way to set them**, and SpiderFoot's own key store (`~/.spiderfoot/spiderfoot.db`) lives inside the ephemeral celery container, so it is neither centralized nor web-configurable.
+This work has **two fronts**, both validated by the scan-#13 analysis:
 
-Separately, the existing integration keys (OpenAI, Netlas, Chaos, GitGuardian, HackerOne) are **scattered** across five singleton models in `dashboard/models.py`, each with a hand-written block in the `api_vault` view and `settings/api.html` form — boilerplate that does not scale.
+**Front A — Unified credential vault (fixes "little data").** SpiderFoot's highest-value OSINT modules require per-module API keys. Today there is **no way to set them**, and SpiderFoot's own key store (`~/.spiderfoot/spiderfoot.db`) lives inside the ephemeral celery container, so it is neither centralized nor web-configurable. Separately, the existing integration keys (OpenAI, Netlas, Chaos, GitGuardian, HackerOne) are **scattered** across five singleton models in `dashboard/models.py`, each with a hand-written block in the `api_vault` view and `settings/api.html` form — boilerplate that does not scale.
 
-**Goal:** one centralized, web-configurable, encrypted credential vault that holds *all* integration keys — the existing five **plus** SpiderFoot's modules — and injects the SpiderFoot keys into each scan.
+**Front B — OSINT field capture (fixes "few fields", cheap subset).** The `spiderfoot_scan` persistence path drops SpiderFoot's provenance/timestamp/confidence and silently discards whole event families. The **low-effort** fixes (new columns + read `generated` + stop-dropping intel-bearing events + widen host routing + surface the fields) are folded into this work. The **large** items (invoke SpiderFoot's correlation engine; affiliate relevance deny-list; raw-record parsing) are explicit follow-ups — see §7.
+
+**Goal:** one centralized, web-configurable, encrypted credential vault holding *all* integration keys (the five existing **plus** SpiderFoot's modules) that seeds each scan; **and** an OSINT persistence layer that keeps SpiderFoot's provenance, real timestamp, confidence, and the currently-dropped intel.
 
 ## 2. Decisions (from brainstorming)
 
@@ -23,6 +27,7 @@ Separately, the existing integration keys (OpenAI, Netlas, Chaos, GitGuardian, H
 | Vault key source | **Dedicated env `RENGINE_VAULT_KEY`**, fallback to HKDF(`SECRET_KEY`) with a warning. |
 | SpiderFoot injection | **Seed `~/.spiderfoot/spiderfoot.db` config each scan** via `SpiderFootDb.configSet()`. |
 | Credential scope | **Global** (one set app-wide, matches current singletons). |
+| OSINT "few fields" (Front B) | **Include the cheap fixes** (provenance/`module`/confidence columns, `generated` timestamp, stop-dropping intel, widen `SF_HOSTS`, surface fields). Correlation engine = follow-up. |
 
 ## 3. Architecture
 
@@ -133,6 +138,29 @@ Extend the existing **legacy** API Vault page (the SPA is removed):
 - **Data migration:** for each existing row in `OpenAiAPIKey/NetlasAPIKey/ChaosAPIKey/GitGuardianAPIKey/HackerOneAPIKey`, encrypt and upsert into `ApiCredential` (HackerOne → `key_enc`=token, `extra_enc`={'username':...}). Guard for the vault key being resolvable at migrate time (it always is — env or SECRET_KEY).
 - The five old models are **kept but deprecated** (no longer read/written) so a rollback or manual recovery is possible; a follow-up release drops them. `dashboard/admin.py` registers `ApiCredential` (masked) and de-registers the old ones from active use.
 
+### 3.8 OSINT field capture (Front B — `startScan/models.py::OsintResult` + `Suricatoos/tasks.py`)
+The cheap fixes that close "few fields". All changes are additive (nullable columns + routing), so existing rows and the API stay backward-compatible.
+
+**New nullable columns on `OsintResult`** (one migration):
+```python
+module      = models.CharField(max_length=120, null=True, blank=True)  # SF module, e.g. sfp_dnsraw
+parent      = models.CharField(max_length=500, null=True, blank=True)  # ev['source'] — provenance edge
+confidence  = models.IntegerField(null=True, blank=True)               # SF per-source confidence (0-100) when present
+```
+- `save_osint_result(...)` gains `module=`, `parent=`, `confidence=`, `generated=` args; the `spiderfoot_scan` call site passes `ev.get('module')`, `ev.get('source')`, and `ev.get('generated')`.
+- **`discovered_date`** is set from `ev['generated']` (unix→aware datetime) when present, falling back to `timezone.now()`.
+- `extra` stays as-is (free-form); `module` moves to its own column (today it is crammed into `extra`).
+
+**Stop dropping intel-bearing events** (in `spiderfoot_scan`, before `_sf_bucket`):
+- `Linked URL - Internal` → `save_endpoint()` (real discovered URLs; mirrors the theHarvester `interesting_urls` path) — removed from `SF_DROP`.
+- `Internet Name - Unresolved` → `save_subdomain()` (valid attack-surface) by widening `SF_HOSTS`/normalizing the label — removed from `SF_DROP`.
+- `Company Name` (the target org's own name) → a new `BUCKET_ORG` (`'organization'`) so it is captured instead of falling through `_sf_bucket → None`.
+- Add a one-line **drop-telemetry** counter to the summary log: how many events were dropped and the top dropped `event_type`s (so future blind spots are visible, not silent).
+
+**Surface the new fields** in `api/serializers.py::OsintResultSerializer` (add `module`, `parent`, `confidence`) and the OSINT template/columns so the richer data actually renders.
+
+> Explicitly **not** in Front B (kept as §7 follow-ups): SpiderFoot's correlation engine, an affiliate/third-party relevance deny-list, and parsing `Raw DNS Records`/`Raw Data from RIRs/APIs`.
+
 ## 4. Module boundaries
 
 | Unit | Responsibility | Depends on |
@@ -142,10 +170,13 @@ Extend the existing **legacy** API Vault page (the SPA is removed):
 | `dashboard/models.py::ApiCredential` | encrypted storage | crypto |
 | `common_func.get_credential/get_api_key` | decrypted read path for consumers | models, crypto, providers |
 | `common_func.build_spiderfoot_config` | flat SF config dict from enabled creds | models, crypto, providers |
-| `tasks.spiderfoot_scan` (edit) | seed `spiderfoot.db`, then scan | build_spiderfoot_config, SpiderFootDb |
+| `tasks.spiderfoot_scan` (edit) | seed `spiderfoot.db`, then scan; **route+capture events (Front B)** | build_spiderfoot_config, SpiderFootDb |
 | `scanEngine.api_vault` (rewrite) + `api.html` | UI + generic upsert | models, crypto, providers |
+| `startScan/models.py::OsintResult` (edit) | **+module/parent/confidence columns (Front B)** | — |
+| `tasks.save_osint_result` (edit) | **persist provenance/timestamp/confidence (Front B)** | OsintResult |
+| `api/serializers.py::OsintResultSerializer` (edit) | **expose new fields (Front B)** | OsintResult |
 
-Each is independently testable; the registry is the contract between storage and both consumers (UI, SF build).
+Each is independently testable; the registry is the contract between storage and both consumers (UI, SF build). Front A and Front B touch disjoint models (`ApiCredential` vs `OsintResult`); the only shared file is `tasks.py::spiderfoot_scan` (seeding at the top, event routing in the loop).
 
 ## 5. Error handling
 - Missing/invalid vault key → decrypt returns `None`; treated as "not configured"; scans run key-less; UI shows a clear banner.
@@ -160,9 +191,12 @@ Each is independently testable; the registry is the contract between storage and
 4. **migration**: existing OpenAI/Netlas/Chaos/GitGuardian/HackerOne rows land in `ApiCredential` decryptable and intact (incl. HackerOne username in `extra`).
 5. **UI**: POST creates/updates; blank field leaves value unchanged; clear removes; rendered value is masked; custom `module:option` validation.
 6. **security**: no plaintext secret in `__str__`, admin list, logs, or template context; `RENGINE_VAULT_KEY` documented in `.env.example`.
+7. **OSINT capture (Front B)**: `save_osint_result` persists `module`/`parent`/`confidence`; `discovered_date` derives from `ev['generated']` when present (else `now()`); `Linked URL - Internal` lands as an endpoint; `Internet Name - Unresolved` lands as a subdomain; `Company Name` lands in `BUCKET_ORG`; serializer exposes the new fields. Fixture: a small synthetic SpiderFoot JSON event list drives these.
 
-## 7. Out of scope (YAGNI / future)
-- Running SpiderFoot via the in-process Python API + enabling its **correlation engine** (a strong follow-up that further closes the OSINT gap — noted, not now).
+## 7. Out of scope (YAGNI / explicit follow-ups)
+- SpiderFoot's **correlation engine** (in-process Python API / correlation pass + a new `Correlation` model) — the biggest remaining OSINT win, deliberately deferred as a `large` item.
+- Affiliate / third-party **relevance deny-list** (down-rank Google/MarkMonitor/CDN pivots) and target-owned scoping of `is_malicious`.
+- Parsing `Raw DNS Records` / `Raw Data from RIRs/APIs` for SPF/DMARC/abuse-contact.
 - Per-project credential scoping.
 - Live "test this key" buttons.
 - Encrypting unrelated existing secrets beyond these integration keys.
