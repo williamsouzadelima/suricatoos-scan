@@ -43,6 +43,30 @@ DEFAULT_GET_GPT_REPORT = env.bool('DEFAULT_GET_GPT_REPORT', default=True)
 ALLOWED_HOSTS = ['*']
 SECRET_KEY = first_run(SECRET_FILE, BASE_DIR)
 
+# --- Security hardening (OWASP A05/A02/A07) -------------------------------
+# Env-flagged so dev/HTTP and the CI test runner keep working. Real users reach
+# the app through the nginx HTTPS proxy (443); Secure cookies apply there.
+_SECURE_COOKIES = env.bool('SURICATOOS_SECURE_COOKIES', default=not DEBUG)
+SESSION_COOKIE_SECURE = _SECURE_COOKIES
+CSRF_COOKIE_SECURE = _SECURE_COOKIES
+SESSION_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SAMESITE = 'Lax'
+SECURE_CONTENT_TYPE_NOSNIFF = True
+SECURE_REFERRER_POLICY = 'same-origin'
+# HSTS + proxy-SSL-header are OPT-IN (default OFF). Reason: setting
+# SECURE_PROXY_SSL_HEADER makes Django treat the proxied request as HTTPS, which
+# turns on CSRF strict-referer checking. In this nginx setup that rejects the
+# login POST (403 CSRF) unless CSRF_TRUSTED_ORIGINS lists the real public
+# domain(s). Enabling this safely needs the deployment's real domain configured
+# in CSRF_TRUSTED_ORIGINS + a verified login flow — staged for review, not on by
+# default. nginx still owns the http->https redirect; it can also emit HSTS.
+if env.bool('SURICATOOS_BEHIND_TLS_PROXY', default=False):
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=31536000)
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+
 # Suricatoos version
 # reads current version from a file called .version
 VERSION_FILE = os.path.join(BASE_DIR, '.version')
