@@ -210,3 +210,12 @@ class ApiVaultViewTests(TestCase):
         response = self.client.get(self._url())
         self.assertEqual(response.status_code, 200)
 
+
+class SecondWritePathTests(TestCase):
+    def test_admin_str_masked(self):
+        from django.contrib import admin
+        from dashboard.models import ApiCredential as AC
+        self.assertIn(AC, admin.site._registry)   # registered
+        c = AC.upsert('shodan', 'sk-secret-xyz')
+        self.assertNotIn('sk-secret-xyz', str(c))
+
