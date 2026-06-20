@@ -100,9 +100,9 @@
                 <td>
                   {% if user != muser %}
                     {% if muser.is_active %}
-                    <a href="./update?mode=change_status&user={{ muser.id }}" class="action-icon" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Disable Account' %}"> <i class="mdi mdi-account-cancel"></i></a>
+                    <a href="#" onclick="change_user_status({{ muser.id }})" class="action-icon" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Disable Account' %}"> <i class="mdi mdi-account-cancel"></i></a>
                     {% else %}
-                    <a href="./update?mode=change_status&user={{ muser.id }}" class="action-icon" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Enable Account' %}"> <i class="mdi mdi-account-check"></i></a>
+                    <a href="#" onclick="change_user_status({{ muser.id }})" class="action-icon" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Enable Account' %}"> <i class="mdi mdi-account-check"></i></a>
                     {% endif %}
                   {% else %}
                   &nbsp;
@@ -126,6 +126,29 @@
 
 {% block page_level_script %}
 <script type="text/javascript">
+function change_user_status(id) {
+  // A07-1: enable/disable via CSRF-protected POST (was a state-changing GET link).
+  function _status_error() {
+    if (typeof Swal !== 'undefined') {
+      Swal.fire({ icon: 'error', title: '{% trans "Error" %}', text: '{% trans "Could not change the account status." %}' });
+    } else {
+      alert('{% trans "Could not change the account status." %}');
+    }
+  }
+  fetch("./update?mode=change_status&user=" + id, {
+    method: 'POST',
+    credentials: "same-origin",
+    headers: {
+      "X-CSRFToken": getCookie("csrftoken")
+    }
+  })
+  .then(function (response) { return response.ok ? response.json() : { status: false }; })
+  .then(function (data) {
+    if (data && data.status) { location.reload(); }
+    else { _status_error(); }
+  })
+  .catch(function () { _status_error(); });
+}
 function delete_user(id, username) {
   const delAPI = "./update?mode=delete&user=" + id;
   swal.queue([{
