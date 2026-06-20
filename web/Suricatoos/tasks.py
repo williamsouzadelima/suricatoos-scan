@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import time
+from collections import Counter
 import validators
 import xmltodict
 import yaml
@@ -2656,7 +2657,7 @@ def _shell_false_headers(headers):
 # raw/noise dumps. Emails/hosts/IPs are handled by the typed models before this.
 SF_DROP = {
 	'Raw Data from RIRs/APIs', 'Raw DNS Records', 'Affiliate Description - Category',
-	'Internet Name - Unresolved', 'Hash', 'Linked URL - Internal',
+	'Hash',
 }
 
 
@@ -2684,6 +2685,8 @@ def _sf_bucket(event_type):
 		return (OsintResult.BUCKET_GEO, False, 0)
 	if 'web analytics' in tl or 'web framework' in tl or 'software used' in tl:
 		return (OsintResult.BUCKET_WEB_TECH, False, 0)
+	if t in ('Company Name', 'Domain Name - Organisation'):
+		return (OsintResult.BUCKET_ORG, False, 0)
 	return None
 
 
@@ -2760,11 +2763,14 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 	# Affiliate emails are the bulk of real email intel (plain 'Email Address' is
 	# usually empty), so capture both. Hosts/IPs feed the typed models in-scope.
 	SF_EMAILS = {'Email Address', 'Affiliate - Email Address', 'EMAILADDR', 'AFFILIATE_EMAILADDR'}
-	SF_HOSTS = {'Domain Name', 'Internet Name', 'DOMAIN_NAME', 'INTERNET_NAME'}
+	SF_HOSTS = {'Domain Name', 'Internet Name', 'DOMAIN_NAME', 'INTERNET_NAME',
+	            'Internet Name - Unresolved'}
 	SF_IPS = {'IP Address', 'IPv6 Address', 'IP_ADDRESS', 'IPV6_ADDRESS'}
 	SF_NAMES = {'Human Name', 'HUMAN_NAME'}
+	SF_URLS = {'Linked URL - Internal'}
 	saved = 0
 	intel = 0
+	dropped = Counter()
 	for ev in events:
 		etype = ev.get('type')
 		data = ev.get('data')
@@ -2783,21 +2789,29 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 			elif etype in SF_NAMES:
 				save_employee(data, designation='spiderfoot', scan_history=scan_history)
 				saved += 1
+			elif etype in SF_URLS:
+				save_endpoint(data, ctx=ctx)
+				saved += 1
 			else:
 				# Rich intel (malicious/blacklist, repos, infra/DNS, affiliates,
 				# co-hosted, netblock/ASN, geo, web tech) -> OsintResult bucket.
 				route = _sf_bucket(etype)
 				if not route:
+					dropped[etype] += 1
 					continue
 				bucket, is_mal, sev = route
 				save_osint_result(
 					scan_history, bucket, etype, data,
-					extra=ev.get('module'), is_malicious=is_mal, severity=sev)
+					extra=ev.get('module'), is_malicious=is_mal, severity=sev,
+					module=ev.get('module'), parent=ev.get('source'),
+					generated=ev.get('generated'))
 				intel += 1
 		except Exception as e:
 			logger.warning(f'spiderfoot: could not save {etype}={data}: {e}')
+	n_dropped = sum(dropped.values())
 	logger.info(
-		f'spiderfoot: processed {len(events)} event(s), saved {saved} typed + {intel} intel for {host}')
+		f'spiderfoot: processed {len(events)} event(s), saved {saved} typed + {intel} intel for {host}; '
+		f'{n_dropped} dropped (top: {dropped.most_common(3)})')
 	return events
 
 
