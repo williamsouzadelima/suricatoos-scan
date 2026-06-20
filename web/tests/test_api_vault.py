@@ -159,3 +159,54 @@ class SeedSpiderfootTests(TestCase):
             self.assertFalse(tasks.seed_spiderfoot_config({}))
             DB.assert_not_called()
 
+
+from django.contrib.auth.models import User
+from django.urls import reverse
+from django.utils import timezone
+
+
+class ApiVaultViewTests(TestCase):
+    def setUp(self):
+        # The on_user_logged_in signal handler in dashboard.views accesses
+        # request.user, but Django's login() sends the signal before attaching
+        # user to request.  Disconnect it for these tests to avoid AttributeError.
+        from django.contrib.auth.signals import user_logged_in
+        from dashboard.views import on_user_logged_in
+        user_logged_in.disconnect(on_user_logged_in)
+        self.addCleanup(user_logged_in.connect, on_user_logged_in)
+
+        self.user = User.objects.create_superuser('admin_vault', 'av@a.io', 'pw')
+        self.client.force_login(self.user)
+        # api_vault is slug-scoped; create a project with required fields
+        from dashboard.models import Project
+        self.slug = Project.objects.create(
+            name='p', slug='pvault', insert_date=timezone.now()
+        ).slug
+
+    def _url(self):
+        return reverse('api_vault', kwargs={'slug': self.slug})
+
+    def test_post_creates_credential(self):
+        self.client.post(self._url(), {'cred_shodan_key': 'sk-1'})
+        self.assertEqual(get_api_key('shodan'), 'sk-1')
+
+    def test_blank_leaves_value_unchanged(self):
+        ApiCredential.upsert('shodan', 'keep-me')
+        self.client.post(self._url(), {'cred_shodan_key': ''})
+        self.assertEqual(get_api_key('shodan'), 'keep-me')
+
+    def test_custom_entry_validated(self):
+        self.client.post(self._url(), {'custom_option': 'sfp_x:api_key', 'custom_key': 'v'})
+        self.assertEqual(get_api_key('custom:sfp_x:api_key'), 'v')
+        self.client.post(self._url(), {'custom_option': 'bad input', 'custom_key': 'v'})
+        self.assertIsNone(get_api_key('custom:bad input'))
+
+    def test_rendered_value_is_masked(self):
+        ApiCredential.upsert('shodan', 'sk-abcdef')
+        html = self.client.get(self._url()).content.decode()
+        self.assertNotIn('sk-abcdef', html)
+
+    def test_get_returns_200(self):
+        response = self.client.get(self._url())
+        self.assertEqual(response.status_code, 200)
+

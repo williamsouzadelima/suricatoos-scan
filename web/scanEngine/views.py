@@ -17,6 +17,8 @@ from Suricatoos.tasks import (run_command, send_discord_message, send_slack_mess
 from scanEngine.forms import *
 from scanEngine.forms import ConfigurationForm
 from scanEngine.models import *
+from dashboard.models import ApiCredential
+from dashboard.providers import PROVIDERS, is_valid_custom_option, custom_provider_slug
 
 
 def index(request, slug):
@@ -523,84 +525,65 @@ def llm_toolkit_section(request, slug):
     return render(request, 'scanEngine/settings/llm_toolkit.html', context)
 
 
+def _mask_key(value):
+    """Return a masked representation of a key for display (never the full value)."""
+    if not value:
+        return ''
+    return value[:2] + '••••' + value[-2:] if len(value) > 4 else '••••'
+
+
 @has_permission_decorator(PERM_MODIFY_SYSTEM_CONFIGURATIONS, redirect_url=FOUR_OH_FOUR_URL)
 def api_vault(request, slug):
     context = {}
-    if request.method == "POST":
-        # strip() the keys at intake: netlas/chaos keys are interpolated into recon
-        # shell commands, so trailing whitespace must never reach the command line
-        # (the tasks layer additionally allowlists them before use).
-        key_openai = (request.POST.get('key_openai') or '').strip()
-        key_netlas = (request.POST.get('key_netlas') or '').strip()
-        key_chaos = (request.POST.get('key_chaos') or '').strip()
-        key_gitguardian = (request.POST.get('key_gitguardian') or '').strip()
-        key_hackerone = (request.POST.get('key_hackerone') or '').strip()
-        username_hackerone = (request.POST.get('username_hackerone') or '').strip()
-
-
-        if key_openai:
-            openai_api_key = OpenAiAPIKey.objects.first()
-            if openai_api_key:
-                openai_api_key.key = key_openai
-                openai_api_key.save()
-            else:
-                OpenAiAPIKey.objects.create(key=key_openai)
-
-        if key_netlas:
-            netlas_api_key = NetlasAPIKey.objects.first()
-            if netlas_api_key:
-                netlas_api_key.key = key_netlas
-                netlas_api_key.save()
-            else:
-                NetlasAPIKey.objects.create(key=key_netlas)
-
-        if key_chaos:
-            chaos_api_key = ChaosAPIKey.objects.first()
-            if chaos_api_key:
-                chaos_api_key.key = key_chaos
-                chaos_api_key.save()
-            else:
-                ChaosAPIKey.objects.create(key=key_chaos)
-
-        if key_gitguardian:
-            gitguardian_api_key = GitGuardianAPIKey.objects.first()
-            if gitguardian_api_key:
-                gitguardian_api_key.key = key_gitguardian
-                gitguardian_api_key.save()
-            else:
-                GitGuardianAPIKey.objects.create(key=key_gitguardian)
-
-        if key_hackerone and username_hackerone:
-            hackerone_api_key = HackerOneAPIKey.objects.first()
-            if hackerone_api_key:
-                hackerone_api_key.username = username_hackerone
-                hackerone_api_key.key = key_hackerone
-                hackerone_api_key.save()
-            else:
-                HackerOneAPIKey.objects.create(
-                    username=username_hackerone, 
-                    key=key_hackerone
+    if request.method == 'POST':
+        # Generic handler: iterate all registered providers and upsert credentials
+        # when the submitted field is non-empty (blank = leave stored value unchanged).
+        for prov_slug, spec in PROVIDERS.items():
+            field_names = [fn for fn, _dest in spec['fields']]
+            primary = field_names[0]
+            # Read all fields for this provider from POST
+            posted = {fn: (request.POST.get(f'cred_{prov_slug}_{fn}') or '').strip()
+                      for fn in field_names}
+            key = posted.get(primary, '')
+            extra = {fn: v for fn, v in posted.items() if fn != primary and v}
+            if key:
+                ApiCredential.upsert(
+                    prov_slug, key,
+                    extra=extra or None,
+                    label=spec['label'],
                 )
+            # else: blank leaves the stored value untouched
 
-    openai_key = OpenAiAPIKey.objects.first()
-    netlas_key = NetlasAPIKey.objects.first()
-    chaos_key = ChaosAPIKey.objects.first()
-    gitguardian_key = GitGuardianAPIKey.objects.first()
-    h1_key = HackerOneAPIKey.objects.first()
-    if h1_key:
-        hackerone_key = h1_key.key
-        hackerone_username = h1_key.username
-    else:
-        hackerone_key = None
-        hackerone_username = None
+        # Custom SpiderFoot module:option entry
+        opt = (request.POST.get('custom_option') or '').strip()
+        cval = (request.POST.get('custom_key') or '').strip()
+        if opt and cval and is_valid_custom_option(opt):
+            ApiCredential.upsert(custom_provider_slug(opt), cval, label=opt)
 
-    context['openai_key'] = openai_key
-    context['netlas_key'] = netlas_key
-    context['chaos_key'] = chaos_key
-    context['gitguardian_key'] = gitguardian_key
-    context['hackerone_key'] = hackerone_key
-    context['hackerone_username'] = hackerone_username
-    
+    # Build vault_rows for template rendering (masked values, never raw keys)
+    rows = []
+    for prov_slug, spec in PROVIDERS.items():
+        cred = ApiCredential.objects.filter(provider=prov_slug).first()
+        primary_val = cred.decrypted()[0] if cred else None
+        rows.append({
+            'slug': prov_slug,
+            'label': spec['label'],
+            'url': spec.get('url'),
+            'fields': spec['fields'],
+            'masked': _mask_key(primary_val),
+            'enabled': cred.enabled if cred else True,
+        })
+    context['vault_rows'] = rows
+
+    # Custom entries (provider starts with 'custom:')
+    context['custom_rows'] = [
+        {
+            'option': c.provider[len('custom:'):],
+            'masked': _mask_key(c.decrypted()[0]),
+        }
+        for c in ApiCredential.objects.filter(provider__startswith='custom:')
+    ]
+
     return render(request, 'scanEngine/settings/api.html', context)
 
 
