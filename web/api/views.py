@@ -526,7 +526,7 @@ class QueryInterestingSubdomains(APIView):
 		return Response(InterestingSubdomainSerializer(queryset, many=True).data)
 
 
-class ListTargetsDatatableViewSet(viewsets.ModelViewSet):
+class ListTargetsDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = Domain.objects.all()
 	serializer_class = DomainSerializer
 
@@ -2059,7 +2059,7 @@ class ListIPs(APIView):
 		return Response({"ips": serializer.data})
 
 
-class IpAddressViewSet(viewsets.ModelViewSet):
+class IpAddressViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = Subdomain.objects.none()
 	serializer_class = IpSubdomainSerializer
 
@@ -2083,7 +2083,7 @@ class IpAddressViewSet(viewsets.ModelViewSet):
 			queryset, self.request, view=self)
 
 
-class SubdomainsViewSet(viewsets.ModelViewSet):
+class SubdomainsViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = Subdomain.objects.none()
 	serializer_class = SubdomainSerializer
 
@@ -2336,7 +2336,7 @@ class InterestingEndpointViewSet(viewsets.ModelViewSet):
 			queryset, self.request, view=self)
 
 
-class SubdomainDatatableViewSet(viewsets.ModelViewSet):
+class SubdomainDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = Subdomain.objects.none()
 	serializer_class = SubdomainSerializer
 
@@ -2651,7 +2651,7 @@ class ListEndpoints(APIView):
 		return Response({'endpoints': endpoints_serializer.data})
 
 
-class EndPointViewSet(viewsets.ModelViewSet):
+class EndPointViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = EndPoint.objects.none()
 	serializer_class = EndpointSerializer
 
@@ -2894,7 +2894,7 @@ class EndPointViewSet(viewsets.ModelViewSet):
 		return qs
 
 
-class DirectoryViewSet(viewsets.ModelViewSet):
+class DirectoryViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = DirectoryFile.objects.none()
 	serializer_class = DirectoryFileSerializer
 
@@ -2973,7 +2973,7 @@ class OsintResultViewSet(viewsets.ReadOnlyModelViewSet):
 		return qs.order_by('-is_malicious', 'bucket', 'event_type').distinct()
 
 
-class VulnerabilityViewSet(viewsets.ModelViewSet):
+class VulnerabilityViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = Vulnerability.objects.none()
 	serializer_class = VulnerabilitySerializer
 

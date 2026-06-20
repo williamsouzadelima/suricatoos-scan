@@ -273,11 +273,18 @@ def on_user_logged_out(sender, request, **kwargs):
 
 
 @receiver(user_logged_in)
-def on_user_logged_in(sender, request, **kwargs):
+def on_user_logged_in(sender, request, user, **kwargs):
+    # Use the signal's `user` argument: request.user is not guaranteed to be set
+    # when login() fires this signal (e.g. synthetic requests), and `user` is the
+    # authoritative just-authenticated account. The welcome flash is best-effort:
+    # a synthetic/non-middleware request (API auth, test login) has no message
+    # storage, and authentication must never fail over a UI nicety.
+    if request is None or not hasattr(request, '_messages'):
+        return
     messages.add_message(
         request,
         messages.INFO,
-        _('Hi @%(username)s welcome back!') % {'username': request.user.username})
+        _('Hi @%(username)s welcome back!') % {'username': user.username})
 
 
 def search(request, slug):

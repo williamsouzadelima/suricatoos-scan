@@ -745,9 +745,10 @@ def change_scheduled_task_status(request, id):
     return HttpResponse('')
 
 
+@has_permission_decorator(PERM_MODIFY_SCAN_RESULTS, redirect_url=FOUR_OH_FOUR_URL)
 def change_vuln_status(request, id):
     if request.method == 'POST':
-        vuln = Vulnerability.objects.get(id=id)
+        vuln = get_object_or_404(Vulnerability, id=id)
         vuln.open_status = not vuln.open_status
         vuln.save()
     return HttpResponse('')
