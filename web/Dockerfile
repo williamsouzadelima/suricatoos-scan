@@ -141,3 +141,9 @@ RUN pip3 install --no-cache-dir fuzzywuzzy \
 
 # Copy source code
 COPY . /usr/src/app/
+
+# A02-1 (belt-and-suspenders): never ship the Django SECRET_KEY inside the image.
+# .dockerignore already excludes ./web/secret from the build context; this guards
+# against a stale context/cache that still carries it. The live key is bind-mounted
+# from ./web/secret (or sourced from SURICATOOS_SECRET_KEY) at runtime.
+RUN rm -f /usr/src/app/secret
