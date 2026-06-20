@@ -1630,10 +1630,8 @@ msgid "Branding (White-label)"
 msgstr "Identidade Visual (White-label)"
 
 #: scanEngine/templates/scanEngine/settings/branding.html:12
-#, fuzzy
-#| msgid "Pending"
 msgid "Branding"
-msgstr "Pendente"
+msgstr "Identidade Visual"
 
 #: scanEngine/templates/scanEngine/settings/branding.html:24
 msgid "White-label branding"
@@ -1644,10 +1642,8 @@ msgid "Replace the Suricatoos logo, favicon and name across the whole applicatio
 msgstr "Substitua o logo, o favicon e o nome do Suricatoos em toda a aplicação (barra superior, login e favicon) e nos relatórios PDF. Deixe um campo vazio para manter o padrão Suricatoos. São aceitos SVG, PNG, JPG, WEBP e GIF (o favicon também aceita ICO)."
 
 #: scanEngine/templates/scanEngine/settings/branding.html:31
-#, fuzzy
-#| msgid "Domain name"
 msgid "Brand name"
-msgstr "Nome de domínio"
+msgstr "Nome da marca"
 
 #: scanEngine/templates/scanEngine/settings/branding.html:33
 msgid "Shown in the collapsed top bar and used as the report attribution."
@@ -1678,10 +1674,8 @@ msgid "Browser tab icon (32x32 recommended)."
 msgstr "Ícone da aba do navegador (32x32 recomendado)."
 
 #: scanEngine/templates/scanEngine/settings/branding.html:75
-#, fuzzy
-#| msgid "Scan Findings"
 msgid "Save branding"
-msgstr "Resultados da Varredura"
+msgstr "Salvar identidade visual"
 
 #: scanEngine/templates/scanEngine/settings/hackerone.html:7
 #: templates/base/_items/top_nav.html:135
@@ -2612,10 +2606,8 @@ msgid "Report Settings updated."
 msgstr "Configurações de relatório atualizadas."
 
 #: scanEngine/views.py:469
-#, fuzzy
-#| msgid "Report Settings updated."
 msgid "Branding settings updated."
-msgstr "Configurações de relatório atualizadas."
+msgstr "Identidade visual atualizada."
 
 #: scanEngine/views.py:634
 msgid "External Tool Successfully Added!"
@@ -3843,15 +3835,13 @@ msgstr "(passivo — SpiderFoot/theHarvester)"
 
 #: startScan/templates/startScan/detail_scan.html:1198
 #: templates/report/default.html:664 templates/report/modern.html:875
-#, fuzzy
-#| msgid "Tool Category"
 msgid "Category"
-msgstr "Categoria da Ferramenta"
+msgstr "Categoria"
 
 #: startScan/templates/startScan/detail_scan.html:1200
 #: templates/report/default.html:666 templates/report/modern.html:877
 msgid "Data"
-msgstr ""
+msgstr "Dados"
 
 #: startScan/templates/startScan/detail_scan.html:1210
 msgid "Dorking Results"
@@ -5817,3 +5807,45 @@ msgstr "Instruções de atualização"
 #: templates/base/base.html
 msgid "Dismiss"
 msgstr "Dispensar"
+
+msgid "Search:"
+msgstr "Pesquisar:"
+
+msgid "Show _MENU_ entries"
+msgstr "Mostrar _MENU_ registros"
+
+msgid "Showing _START_ to _END_ of _TOTAL_ entries"
+msgstr "Mostrando _START_ a _END_ de _TOTAL_ registros"
+
+msgid "Showing 0 to 0 of 0 entries"
+msgstr "Mostrando 0 a 0 de 0 registros"
+
+msgid "(filtered from _MAX_ total entries)"
+msgstr "(filtrado de _MAX_ registros no total)"
+
+msgid "No matching records found"
+msgstr "Nenhum registro correspondente encontrado"
+
+msgid "No data available in table"
+msgstr "Nenhum dado disponível na tabela"
+
+msgid "Processing..."
+msgstr "Processando..."
+
+msgid "First"
+msgstr "Primeiro"
+
+msgid "Last"
+msgstr "Último"
+
+msgid "Next"
+msgstr "Próximo"
+
+msgid "Previous"
+msgstr "Anterior"
+
+msgid ": activate to sort column ascending"
+msgstr ": ativar para ordenar a coluna em ordem crescente"
+
+msgid ": activate to sort column descending"
+msgstr ": ativar para ordenar a coluna em ordem decrescente"
