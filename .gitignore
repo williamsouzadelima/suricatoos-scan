@@ -58,9 +58,6 @@ docs/_build/
 
 **/.DS_Store
 staticfiles/
-# SPA bundle is built by the Docker image (spa-builder stage), not committed.
-web/static/spa/
-web/frontend/dist/
 
 secret
 /secrets

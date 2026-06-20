@@ -99,9 +99,6 @@ services:
       - POSTGRES_PORT=${POSTGRES_PORT}
       - POSTGRES_HOST=${POSTGRES_HOST}
       - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD}
-      # SPA hard cutover (force /app/, redirect the legacy UI). Wired but OFF until
-      # the SPA quality clears the legacy bar — set to 1 + `docker compose up -d web`.
-      - SURICATOOS_UI_CUTOVER=0
     volumes:
       - ./web:/usr/src/app
       - github_repos:/usr/src/github
