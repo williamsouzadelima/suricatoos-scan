@@ -2070,6 +2070,16 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 		cmd_map['gau'] += f' --threads {threads}'
 		cmd_map['gospider'] += f' -t {threads}'
 		cmd_map['katana'] += f' -c {threads}'
+	# WAF-evasion throttle: katana honours -rl (req/s); gospider --delay (sec) +
+	# --random-delay (jitter). gau/waybackurls hit archives/APIs with no native rate
+	# flag, so their lever is threads above. Stealth engines set a low rate_limit;
+	# aggressive engines keep the 150 default (= no behavioural change).
+	rate_limit = _safe_int(config.get(RATE_LIMIT) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT), DEFAULT_RATE_LIMIT)
+	delay = _safe_int(config.get(DELAY) or self.yaml_configuration.get(DELAY, 0), 0)
+	if rate_limit > 0:
+		cmd_map['katana'] += f' -rl {rate_limit}'
+	if delay > 0:
+		cmd_map['gospider'] += f' --delay {delay} --random-delay {delay}'
 	# custom headers are user-editable: keep only header-shaped values (no newline /
 	# control chars) and shell-quote each before they hit the shell=True command.
 	safe_headers = [str(h) for h in custom_headers if re.match(r'^[A-Za-z0-9-]+:[\x20-\x7E]*$', str(h))]
