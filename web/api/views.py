@@ -37,9 +37,17 @@ from targetApp.models import *
 from api.shared_api_tasks import import_hackerone_programs_task, sync_bookmarked_programs_task
 from api.permissions import *
 from api.serializers import *
+from urllib.parse import quote as _url_quote
 
 
 logger = logging.getLogger(__name__)
+
+# Bounded timeout for outbound HTTP issued on the synchronous web request path so a
+# slow/unresponsive upstream can't pin a gunicorn/web worker indefinitely (OWASP A04-2).
+WEB_FETCH_TIMEOUT = (10, 30)  # (connect, read) seconds
+# Strict CVE-id shape, used to validate+encode the cve_id before it is concatenated
+# into the circl.lu URL (avoid path traversal / unexpected endpoints).
+CVE_ID_RE = re.compile(r'\ACVE-\d{4}-\d{4,19}\Z', re.IGNORECASE)
 
 
 class ToggleBugBountyModeView(APIView):
@@ -139,7 +147,8 @@ class HackerOneProgramViewSet(viewsets.ViewSet):
 			response = requests.get(
 				url,
 				headers=headers,
-				auth=(username, api_key)
+				auth=(username, api_key),
+				timeout=WEB_FETCH_TIMEOUT
 			)
 
 			if response.status_code == 401:
@@ -200,7 +209,8 @@ class HackerOneProgramViewSet(viewsets.ViewSet):
 		response = requests.get(
 			url,
 			headers=headers,
-			auth=(username, api_key)
+			auth=(username, api_key),
+			timeout=WEB_FETCH_TIMEOUT
 		)
 
 		if response.status_code == 401:
@@ -523,7 +533,7 @@ class QueryInterestingSubdomains(APIView):
 		return Response(InterestingSubdomainSerializer(queryset, many=True).data)
 
 
-class ListTargetsDatatableViewSet(viewsets.ModelViewSet):
+class ListTargetsDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = Domain.objects.all()
 	serializer_class = DomainSerializer
 
@@ -577,8 +587,16 @@ class WafDetector(APIView):
 			response['message'] = _('Invalid Domain/URL provided!')
 			return Response(response)
 
+		# A10-1 (SSRF): validators.url/domain is a command-injection check, NOT an SSRF
+		# gate — IMDS (169.254.169.254), loopback and RFC1918 all pass it. Block
+		# internal/metadata targets before wafw00f issues an HTTP request to the host.
+		blocked, _reason = is_blocked_fetch_target(url)
+		if blocked:
+			response['message'] = _('Invalid Domain/URL provided!')
+			return Response(response)
+
 		wafw00f_command = f'wafw00f {url}'
-		_, output = run_command(wafw00f_command, remove_ansi_sequence=True)
+		_unused, output = run_command(wafw00f_command, remove_ansi_sequence=True)
 		regex = r"behind (.*?) WAF"
 		group = re.search(regex, output)
 		if group:
@@ -855,7 +873,14 @@ class CVEDetails(APIView):
 		if not cve_id:
 			return Response({'status': False, 'message': _('CVE ID not provided')})
 
-		response = requests.get('https://cve.circl.lu/api/cve/' + cve_id)
+		# A04-2: validate the CVE id shape and URL-encode it before building the URL,
+		# and bound the outbound fetch with a timeout (no unbounded worker hang).
+		if not CVE_ID_RE.match(cve_id):
+			return Response({'status': False, 'message': _('Invalid CVE ID provided')})
+
+		response = requests.get(
+			'https://cve.circl.lu/api/cve/' + _url_quote(cve_id, safe=''),
+			timeout=WEB_FETCH_TIMEOUT)
 
 		if response.status_code != 200:
 			return  Response({'status': False, 'message': _('Unknown Error Occured!')})
@@ -1256,7 +1281,7 @@ class SuricatoosUpdateCheck(APIView):
 		req = self.request
 		github_api = \
 			'https://api.github.com/repos/williamsouzadelima/suricatoos-scan/releases'
-		response = requests.get(github_api).json()
+		response = requests.get(github_api, timeout=WEB_FETCH_TIMEOUT).json()
 		if 'message' in response:
 			return Response({'status': False, 'message': 'RateLimited'})
 
@@ -1445,7 +1470,7 @@ class GithubToolCheckGetLatestRelease(APIView):
 		tool_github_url = tool.github_url.replace('http://github.com/', '').replace('https://github.com/', '')
 		tool_github_url = remove_lead_and_trail_slash(tool_github_url)
 		github_api = f'https://api.github.com/repos/{tool_github_url}/releases'
-		response = requests.get(github_api).json()
+		response = requests.get(github_api, timeout=WEB_FETCH_TIMEOUT).json()
 		# check if api rate limit exceeded
 		if 'message' in response and response['message'] == 'RateLimited':
 			return Response({'status': False, 'message': 'RateLimited'})
@@ -1568,6 +1593,12 @@ class CMSDetector(APIView):
 			response['message'] = _('Invalid Domain/URL provided!')
 			return Response(response)
 
+		# A10-1 (SSRF): block internal/metadata targets before CMSeeK fetches the URL.
+		blocked, _reason = is_blocked_fetch_target(url)
+		if blocked:
+			response['message'] = _('Invalid Domain/URL provided!')
+			return Response(response)
+
 		try:
 			# response = get_cms_details(url)
 			response = {}
@@ -1575,7 +1606,7 @@ class CMSDetector(APIView):
 			cms_detector_command += ' --random-agent --batch --follow-redirect'
 			cms_detector_command += f' -u {url}'
 
-			_, output = run_command(cms_detector_command, remove_ansi_sequence=True)
+			_unused, output = run_command(cms_detector_command, remove_ansi_sequence=True)
 
 			response['message'] = _('Could not detect CMS!')
 
@@ -2056,7 +2087,7 @@ class ListIPs(APIView):
 		return Response({"ips": serializer.data})
 
 
-class IpAddressViewSet(viewsets.ModelViewSet):
+class IpAddressViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = Subdomain.objects.none()
 	serializer_class = IpSubdomainSerializer
 
@@ -2080,7 +2111,7 @@ class IpAddressViewSet(viewsets.ModelViewSet):
 			queryset, self.request, view=self)
 
 
-class SubdomainsViewSet(viewsets.ModelViewSet):
+class SubdomainsViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = Subdomain.objects.none()
 	serializer_class = SubdomainSerializer
 
@@ -2333,7 +2364,7 @@ class InterestingEndpointViewSet(viewsets.ModelViewSet):
 			queryset, self.request, view=self)
 
 
-class SubdomainDatatableViewSet(viewsets.ModelViewSet):
+class SubdomainDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = Subdomain.objects.none()
 	serializer_class = SubdomainSerializer
 
@@ -2648,7 +2679,7 @@ class ListEndpoints(APIView):
 		return Response({'endpoints': endpoints_serializer.data})
 
 
-class EndPointViewSet(viewsets.ModelViewSet):
+class EndPointViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = EndPoint.objects.none()
 	serializer_class = EndpointSerializer
 
@@ -2891,7 +2922,7 @@ class EndPointViewSet(viewsets.ModelViewSet):
 		return qs
 
 
-class DirectoryViewSet(viewsets.ModelViewSet):
+class DirectoryViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = DirectoryFile.objects.none()
 	serializer_class = DirectoryFileSerializer
 
@@ -2970,7 +3001,7 @@ class OsintResultViewSet(viewsets.ReadOnlyModelViewSet):
 		return qs.order_by('-is_malicious', 'bucket', 'event_type').distinct()
 
 
-class VulnerabilityViewSet(viewsets.ModelViewSet):
+class VulnerabilityViewSet(viewsets.ReadOnlyModelViewSet):
 	queryset = Vulnerability.objects.none()
 	serializer_class = VulnerabilitySerializer
 

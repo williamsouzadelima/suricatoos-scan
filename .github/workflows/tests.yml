@@ -43,10 +43,36 @@ jobs:
             -e POSTGRES_HOST=127.0.0.1 \
             -e POSTGRES_PORT=5432 \
             -e DEBUG=1 \
+            -e SURICATOOS_SECURE_COOKIES=1 \
             -e DOMAIN_NAME=localhost:8000 \
             -e CELERY_BROKER=redis://localhost:6379/0 \
             -e CELERY_BACKEND=redis://localhost:6379/0 \
             -v "${{ github.workspace }}/web:/usr/src/app" \
             -w /usr/src/app \
             --entrypoint python3 suricatoos/web:ci \
-            manage.py test tests.test_command_injection tests.test_secret_scan tests.test_nmap -v 2
+            manage.py test tests.test_command_injection tests.test_secret_scan tests.test_nmap tests.test_security_headers tests.test_access_control tests.test_osint_logging tests.test_ssrf_fetch_guard tests.test_password_policy tests.test_admin_csrf -v 2
+
+      - name: 🔧 Django deploy-config check (OWASP A05)
+        run: |
+          docker run --rm \
+            -e DEBUG=0 \
+            -e SURICATOOS_SECURE_COOKIES=1 \
+            -e SURICATOOS_BEHIND_TLS_PROXY=1 \
+            -e POSTGRES_DB=suricatoos \
+            -e POSTGRES_USER=suricatoos \
+            -e POSTGRES_PASSWORD=suricatoos \
+            -e POSTGRES_HOST=127.0.0.1 \
+            -e POSTGRES_PORT=5432 \
+            -e DOMAIN_NAME=localhost:8000 \
+            -e CELERY_BROKER=redis://localhost:6379/0 \
+            -e CELERY_BACKEND=redis://localhost:6379/0 \
+            --network host \
+            -v "${{ github.workspace }}/web:/usr/src/app" \
+            -w /usr/src/app \
+            --entrypoint python3 suricatoos/web:ci \
+            manage.py check --deploy --tag security --fail-level WARNING
+
+      - name: 📦 Dependency vulnerability audit (OWASP A06, report-only)
+        run: |
+          python3 -m pip install --quiet pip-audit
+          pip-audit -r web/requirements.txt || true

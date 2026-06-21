@@ -14,8 +14,18 @@ logger = get_task_logger(__name__)
 DOMAIN_NAME = os.environ['DOMAIN_NAME']
 FIXTURES_DIR = pathlib.Path().absolute() / 'fixtures' / 'nmap_xml'
 
-if not DEBUG:
-    logging.disable(logging.CRITICAL)
+
+def setUpModule():
+    # Silence noisy parser logs during these tests, but ONLY for the duration of
+    # this module's run — doing this at import scope (the old behaviour) globally
+    # disabled logging for the whole test session and broke assertLogs in other
+    # modules (e.g. test_osint_logging). tearDownModule restores it.
+    if not DEBUG:
+        logging.disable(logging.CRITICAL)
+
+
+def tearDownModule():
+    logging.disable(logging.NOTSET)
 
 
 class TestNmapParsing(unittest.TestCase):

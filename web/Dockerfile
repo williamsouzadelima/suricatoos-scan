@@ -45,6 +45,7 @@ RUN apt install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libpcap-dev \
+    jq \
     netcat \
     nmap \
     x11-utils \
@@ -118,14 +119,26 @@ COPY ./requirements.txt /tmp/requirements.txt
 RUN pip3 install --upgrade setuptools==72.1.0
 RUN pip3 install -r /tmp/requirements.txt --no-cache-dir
 
-# install Google Chrome — EyeWitness' modernized selenium_module.py is Chrome-only
-# (webdriver.Chrome / find_chromedriver). Ubuntu 22.04 ships no working chromium deb
-# (it's a snap stub that fails in containers), so use Google's stable channel; the
-# .deb pulls libnss3 and the rest of Chrome's runtime libs. The bundled Firefox +
-# geckodriver above are no longer used by EyeWitness, but kept for other tooling.
-RUN wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
-    && (apt install -y /tmp/google-chrome.deb || (apt update -y && apt install -y /tmp/google-chrome.deb)) \
-    && rm /tmp/google-chrome.deb
+# install a Chrome/Chromium for EyeWitness (selenium_module.py is Chrome-only:
+# webdriver.Chrome / find_chromedriver). ARCH-AWARE: Google publishes NO Linux/arm64
+# Chrome build, and the previous unconditional amd64 .deb broke the arm64 image build
+# (installing an amd64 .deb on arm64 fails). So:
+#   * amd64  -> Google Chrome stable .deb (unchanged behaviour; MUST succeed — this is
+#              the deployed architecture; the .deb pulls libnss3 + Chrome's runtime libs).
+#   * arm64  -> best-effort Chromium from apt, NON-FATAL: screenshots are best-effort on
+#              arm64 (not a deployed target), and a missing browser there must not fail
+#              the image build. Ubuntu 22.04's chromium is a snap stub, so this may no-op.
+RUN if [ "$(dpkg --print-architecture)" = "amd64" ]; then \
+        wget -q -O /tmp/google-chrome.deb https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb \
+        && (apt install -y /tmp/google-chrome.deb || (apt update -y && apt install -y /tmp/google-chrome.deb)) \
+        && rm /tmp/google-chrome.deb; \
+    else \
+        echo "arm64/other: no Linux Google Chrome for $(dpkg --print-architecture); installing Chromium best-effort (screenshots best-effort; amd64 is the deployed target)" \
+        && apt update -y \
+        && (apt install -y chromium-browser chromium-chromedriver \
+            || apt install -y chromium chromium-driver \
+            || echo "WARNING: no Chromium package available on $(dpkg --print-architecture); image built without a browser"); \
+    fi
 
 # install eyewitness
 # - psutil is a hard import in EyeWitness' modules/resource_monitor.py (added by the
@@ -141,3 +154,9 @@ RUN pip3 install --no-cache-dir fuzzywuzzy \
 
 # Copy source code
 COPY . /usr/src/app/
+
+# A02-1 (belt-and-suspenders): never ship the Django SECRET_KEY inside the image.
+# .dockerignore already excludes ./web/secret from the build context; this guards
+# against a stale context/cache that still carries it. The live key is bind-mounted
+# from ./web/secret (or sourced from SURICATOOS_SECRET_KEY) at runtime.
+RUN rm -f /usr/src/app/secret

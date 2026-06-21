@@ -5,9 +5,11 @@ import os
 import pprint
 import re
 import shlex
+import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 from collections import Counter
 import validators
@@ -239,11 +241,12 @@ def initiate_scan(
 		# osint								             	  dalfox xss scan
 		#						 	   		         	  	  screenshot
 		#													  waf_detection
+		# Serialize subdomain_discovery -> osint (was a parallel group): on a small box
+		# running both at scan start let amass-active + spiderfoot/theHarvester contend for
+		# RAM simultaneously (the scan-#19 wedge). Sequencing halves peak memory at kickoff.
 		workflow = chain(
-			group(
-				subdomain_discovery.si(ctx=ctx, description='Subdomain discovery'),
-				osint.si(ctx=ctx, description='OS Intelligence')
-			),
+			subdomain_discovery.si(ctx=ctx, description='Subdomain discovery'),
+			osint.si(ctx=ctx, description='OS Intelligence'),
 			port_scan.si(ctx=ctx, description='Port scan'),
 			fetch_url.si(ctx=ctx, description='Fetch URL'),
 			group(
@@ -514,17 +517,33 @@ def subdomain_discovery(
 		if tool in default_subdomain_tools:
 			if tool == 'amass-passive':
 				use_amass_config = config.get(USE_AMASS_CONFIG, False)
+				# Cap runtime: amass -timeout is in MINUTES. Without it, dead/slow DNS
+				# resolvers make enumeration hang for hours and stall the whole scan
+				# (the task waits for amass before saving subdomains and advancing).
+				# Coerced to int so no user-supplied value reaches the command string.
+				try:
+					amass_timeout = max(1, int(config.get(AMASS_TIMEOUT, 10)))
+				except (TypeError, ValueError):
+					amass_timeout = 10
 				cmd = f'amass enum -passive -d {shlex.quote(host)} -o {self.results_dir}/subdomains_amass.txt'
 				cmd += ' -config /root/.config/amass.ini' if use_amass_config else ''
+				cmd += f' -timeout {amass_timeout}'
 
 			elif tool == 'amass-active':
 				use_amass_config = config.get(USE_AMASS_CONFIG, False)
 				# wordlist name is user-editable: allowlist it (blocks injection and ../ traversal).
 				amass_wordlist_name = _allow(config.get(AMASS_WORDLIST, 'deepmagic.com-prefixes-top50000'), SAFE_TOKEN_RE, 'deepmagic.com-prefixes-top50000')
 				wordlist_path = f'/usr/src/wordlist/{amass_wordlist_name}.txt'
+				# Cap the active brute-force (50k-prefix wordlist) so slow/dead resolvers
+				# can't hang the scan forever. amass -timeout is in MINUTES; int-coerced.
+				try:
+					amass_timeout = max(1, int(config.get(AMASS_TIMEOUT, 10)))
+				except (TypeError, ValueError):
+					amass_timeout = 10
 				cmd = f'amass enum -active -d {shlex.quote(host)} -o {self.results_dir}/subdomains_amass_active.txt'
 				cmd += ' -config /root/.config/amass.ini' if use_amass_config else ''
 				cmd += f' -brute -w {shlex.quote(wordlist_path)}'
+				cmd += f' -timeout {amass_timeout}'
 
 			elif tool == 'sublist3r':
 				cmd = f'python3 /usr/src/github/Sublist3r/sublist3r.py -d {shlex.quote(host)} -t {threads} -o {self.results_dir}/subdomains_sublister.txt'
@@ -1171,7 +1190,8 @@ def theHarvester(config, host, scan_history_id, activity_id, results_dir, ctx={}
 		cwd=theHarvester_dir,
 		history_file=history_file,
 		scan_id=scan_history_id,
-		activity_id=activity_id)
+		activity_id=activity_id,
+		timeout=THEHARVESTER_EXEC_TIMEOUT)
 
 	# Get file location
 	if not os.path.isfile(output_path_json):
@@ -1288,23 +1308,29 @@ def h8mail(config, host, scan_history_id, activity_id, results_dir, ctx={}):
 		logger.error(f'Could not open {output_file}')
 		return []
 	try:
-		with open(output_file) as f:
-			data = json.load(f)
-	except json.JSONDecodeError:
-		logger.error(f'Invalid JSON in {output_file}')
-		return []
-	creds = data.get('targets', [])
+		try:
+			with open(output_file) as f:
+				data = json.load(f)
+		except json.JSONDecodeError:
+			logger.error(f'Invalid JSON in {output_file}')
+			return []
+		creds = data.get('targets', [])
 
-	# TODO: go through h8mail output and save emails to DB
-	for cred in creds:
-		logger.warning(cred)
-		email_address = cred['target']
-		pwn_num = cred['pwn_num']
-		pwn_data = cred.get('data', [])
-		email, created = save_email(email_address, scan_history=scan_history)
-		# if email:
-		# 	self.notify(fields={'Emails': f'• `{email.address}`'})
-	return creds
+		# TODO: go through h8mail output and save emails to DB
+		for cred in creds:
+			# Do NOT log the raw record: cred['data'] holds breach hits (plaintext
+			# passwords/hashes/PII). Log only non-sensitive triage fields.
+			email_address = cred.get('target')
+			pwn_num = cred.get('pwn_num')
+			logger.info(f'h8mail: {email_address} found in {pwn_num} breach source(s)')
+			email, created = save_email(email_address, scan_history=scan_history)
+			# if email:
+			# 	self.notify(fields={'Emails': f'• `{email.address}`'})
+		return creds
+	finally:
+		# Remove the raw report so leaked breach credentials are never left on disk
+		# (results_dir is also web-served via nginx). Mirrors gitleaks/ggshield.
+		_safe_remove(output_file)
 
 
 @app.task(name='screenshot', queue='main_scan_queue', base=SuricatoosTask, bind=True)
@@ -2767,7 +2793,8 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 		shell=True,
 		history_file=history_file,
 		scan_id=scan_history_id,
-		activity_id=activity_id)
+		activity_id=activity_id,
+		timeout=SPIDERFOOT_EXEC_TIMEOUT)
 	try:
 		with open(out) as f:
 			events = json.load(f) or []
@@ -2883,6 +2910,44 @@ def _validation_target_url(url, allow_private=True):
 		if always_blocked or (not allow_private and addr.is_private):
 			return None, f'blocked internal/metadata address {ip}'
 	return s, None
+
+
+def is_blocked_fetch_target(host_or_url, allow_private=False):
+	"""SSRF guard for operator-facing fetch tools (WAF/CMS detectors, A10-1).
+
+	Given a bare host/domain or a full URL, resolve it and decide whether it points
+	at an internal/metadata address that an arbitrary-URL fetch must NOT reach.
+	Returns (blocked: bool, reason). Always blocks loopback/link-local/cloud-metadata
+	(169.254.169.254 is link-local)/unspecified/multicast/reserved; RFC1918/ULA private
+	ranges are blocked too unless allow_private (these endpoints take an UNbound URL
+	straight from a request param, so the secure default is to block private as well).
+	Mirrors _validation_target_url's address classification.
+	"""
+	s = str(host_or_url or '').strip()
+	if not s:
+		return True, 'empty target'
+	host = urlparse(s).hostname if '://' in s else s
+	# strip an optional :port from a bare host (ipv6 literals use [..]:port)
+	if host and not host.startswith('[') and host.count(':') == 1:
+		host = host.split(':', 1)[0]
+	host = (host or '').strip('[]')
+	if not host:
+		return True, 'no host in target'
+	try:
+		infos = socket.getaddrinfo(host, None)
+	except Exception:
+		return True, f'host {host} does not resolve'
+	for info in infos:
+		ip = info[4][0]
+		try:
+			addr = ipaddress.ip_address(ip)
+		except ValueError:
+			return True, f'unparseable address {ip}'
+		if (addr.is_loopback or addr.is_link_local or addr.is_unspecified
+				or addr.is_multicast or addr.is_reserved
+				or (not allow_private and addr.is_private)):
+			return True, f'blocked internal/metadata address {ip}'
+	return False, None
 
 
 def _retest_nuclei_finding(template_id, http_url, allow_private, timeout,
@@ -4906,6 +4971,33 @@ def remove_duplicate_endpoints(
 					ep.delete()
 				logger.warning(msg)
 
+def _arm_command_watchdog(proc, timeout):
+	"""Kill the whole process group if `timeout` seconds elapse.
+
+	Returns (timer, state); state['timed_out'] flips True on fire. We spawn children
+	with start_new_session=True and SIGKILL the GROUP (amass spawns massdns helpers that
+	survive a bare proc.kill()). Uses threading.Timer, which under the gevent worker pool
+	becomes a cooperative greenlet timer that still fires while readline/wait yield — this
+	is the only guard that works there, since Celery's SIGALRM hard limit is a no-op on gevent.
+	"""
+	state = {'timed_out': False}
+	if not timeout or timeout <= 0:
+		return None, state
+	def _kill():
+		state['timed_out'] = True
+		try:
+			os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+		except (ProcessLookupError, PermissionError, OSError):
+			try:
+				proc.kill()
+			except Exception:
+				pass
+	timer = threading.Timer(timeout, _kill)
+	timer.daemon = True
+	timer.start()
+	return timer, state
+
+
 @app.task(name='run_command', bind=False, queue='run_command_queue')
 def run_command(
 		cmd,
@@ -4915,7 +5007,8 @@ def run_command(
 		scan_id=None,
 		activity_id=None,
 		remove_ansi_sequence=False,
-		secret=''
+		secret='',
+		timeout=DEFAULT_COMMAND_EXEC_TIMEOUT
 	):
 	"""Run a given command using subprocess module.
 
@@ -4950,22 +5043,32 @@ def run_command(
 	# secret never touches the stored command, the logs or the history file.
 	exec_cmd = cmd.replace(SECRET_PLACEHOLDER, shlex.quote(secret)) if secret else cmd
 
-	# Run the command using subprocess
+	# Run the command using subprocess (own session so the watchdog can SIGKILL the group)
 	popen = subprocess.Popen(
 		exec_cmd if shell else shlex.split(exec_cmd),
 		shell=shell,
 		stdout=subprocess.PIPE,
 		stderr=subprocess.STDOUT,
 		cwd=cwd,
+		start_new_session=True,
 		universal_newlines=True)
+	_timer, _wd = _arm_command_watchdog(popen, timeout)
 	output = ''
-	for stdout_line in iter(popen.stdout.readline, ""):
-		item = stdout_line.strip()
-		output += '\n' + item
-		logger.debug(item)
-	popen.stdout.close()
-	popen.wait()
+	try:
+		for stdout_line in iter(popen.stdout.readline, ""):
+			item = stdout_line.strip()
+			output += '\n' + item
+			logger.debug(item)
+		popen.stdout.close()
+		popen.wait()
+	finally:
+		if _timer:
+			_timer.cancel()
 	return_code = popen.returncode
+	if _wd['timed_out']:
+		logger.error(f'run_command: timed out after {timeout}s, killed process group: {cmd}')
+		output += f'\n[suricatoos] command timed out after {timeout}s and was killed'
+		return_code = -9
 	command_obj.output = output
 	command_obj.return_code = return_code
 	command_obj.save()
@@ -4984,7 +5087,7 @@ def run_command(
 # Other utils #
 #-------------#
 
-def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-8', scan_id=None, activity_id=None, trunc_char=None, secret=''):
+def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-8', scan_id=None, activity_id=None, trunc_char=None, secret='', timeout=DEFAULT_COMMAND_EXEC_TIMEOUT):
 	# Log cmd (carries only the SECRET_PLACEHOLDER sentinel, never the real secret)
 	logger.info(cmd)
 	# logger.warning(activity_id)
@@ -5003,58 +5106,78 @@ def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-
 	# Sanitize the cmd
 	command = exec_cmd if shell else shlex.split(exec_cmd)
 
-	# Run the command using subprocess
+	# Run the command using subprocess (own session so the watchdog can SIGKILL the group)
 	process = subprocess.Popen(
 		command,
 		stdout=subprocess.PIPE,
 		stderr=subprocess.STDOUT,
 		universal_newlines=True,
+		start_new_session=True,
 		shell=shell)
+	_timer, _wd = _arm_command_watchdog(process, timeout)
 
 	# Log the output in real-time to the database
 	output = ""
 
 	# Process the output
-	for line in iter(lambda: process.stdout.readline(), b''):
-		if not line:
-			break
-		line = line.strip()
-		ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-		line = ansi_escape.sub('', line)
-		line = line.replace('\\x0d\\x0a', '\n')
-		if trunc_char and line.endswith(trunc_char):
-			line = line[:-1]
-		item = line
+	try:
+		for line in iter(lambda: process.stdout.readline(), b''):
+			if not line:
+				break
+			line = line.strip()
+			ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+			line = ansi_escape.sub('', line)
+			line = line.replace('\\x0d\\x0a', '\n')
+			if trunc_char and line.endswith(trunc_char):
+				line = line[:-1]
+			item = line
 
-		# Try to parse the line as JSON
-		try:
-			item = json.loads(line)
-		except json.JSONDecodeError:
-			pass
+			# Try to parse the line as JSON
+			try:
+				item = json.loads(line)
+			except json.JSONDecodeError:
+				pass
 
-		# Yield the line
-		#logger.debug(item)
-		yield item
+			# Yield the line
+			#logger.debug(item)
+			yield item
 
-		# Add the log line to the output
-		output += line + "\n"
+			# Add the log line to the output
+			output += line + "\n"
 
-		# Update the command record in the database
-		command_obj.output = output
+			# Update the command record in the database
+			command_obj.output = output
+			command_obj.save()
+
+		# Retrieve the return code and output
+		process.wait()
+		return_code = process.returncode
+		if _wd['timed_out']:
+			logger.error(f'stream_command: timed out after {timeout}s, killed process group: {cmd}')
+			output += f'\n[suricatoos] command timed out after {timeout}s and was killed'
+			return_code = -9
+
+		# Update the return code and final output in the database
+		command_obj.return_code = return_code
 		command_obj.save()
 
-	# Retrieve the return code and output
-	process.wait()
-	return_code = process.returncode
-
-	# Update the return code and final output in the database
-	command_obj.return_code = return_code
-	command_obj.save()
-
-	# Append the command, return code and output to the history file
-	if history_file is not None:
-		with open(history_file, "a") as f:
-			f.write(f"{cmd}\n{return_code}\n{output}\n")
+		# Append the command, return code and output to the history file
+		if history_file is not None:
+			with open(history_file, "a") as f:
+				f.write(f"{cmd}\n{return_code}\n{output}\n")
+	finally:
+		if _timer:
+			_timer.cancel()
+		# If the generator is abandoned early (GeneratorExit) before the process exits,
+		# kill the group so a running tool is never leaked.
+		if process.poll() is None:
+			try:
+				os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+			except Exception:
+				try:
+					process.kill()
+				except Exception:
+					pass
 
 
 def process_httpx_response(line):

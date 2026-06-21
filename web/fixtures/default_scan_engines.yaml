@@ -105,3 +105,84 @@
       'high', 'critical']\r\n  }\r\n}\r\nsecret_scan: {\r\n  'run_gitleaks': true,\r\n
       \ 'run_ggshield': false,\r\n  'gitleaks_mode': 'dir'\r\n}"
     default_engine: true
+- model: scanEngine.enginetype
+  pk: 7
+  fields:
+    engine_name: Full-Validated
+    # Recommended default for a small (~4GB) box: complete coverage, low false-positive
+    # noise (nuclei info/unknown dropped -> ~94% less), validation on, amass-active and
+    # heavy OSINT presets OFF, concurrency tuned down. Tools that hang are bounded by the
+    # run_command/stream_command watchdog + Celery limits.
+    yaml_configuration: |-
+      subdomain_discovery:
+        uses_tools: [subfinder, amass-passive, ctfr, tlsx, oneforall, sublist3r]
+        enable_http_crawl: true
+        threads: 20
+        timeout: 5
+        amass_timeout: 8
+      http_crawl: {}
+      port_scan:
+        enable_http_crawl: true
+        timeout: 5
+        ports: [top-100]
+        rate_limit: 150
+        threads: 20
+        passive: false
+        enable_nmap: true
+      osint:
+        discover: [emails, metainfo]
+        dorks: [login_pages, admin_panels, config_files, exposed_documents, git_exposed, db_files]
+        intensity: normal
+        documents_limit: 50
+        enable_spiderfoot: true
+        spiderfoot_preset: passive
+      dir_file_fuzz:
+        auto_calibration: true
+        enable_http_crawl: true
+        rate_limit: 150
+        extensions: [php, asp, aspx, json, yml, yaml, config, conf, env, bak, sql, git, log, txt]
+        follow_redirect: false
+        max_time: 600
+        match_http_status: [200, 204]
+        recursive_level: 1
+        stop_on_error: false
+        timeout: 5
+        threads: 20
+        wordlist_name: dicc
+      fetch_url:
+        uses_tools: [katana, gau, waybackurls, gospider]
+        remove_duplicate_endpoints: true
+        duplicate_fields: [content_length, page_title]
+        enable_http_crawl: true
+        gf_patterns: [debug_logic, idor, interestingEXT, interestingparams, interestingsubs, lfi, rce, redirect, sqli, ssrf, ssti, xss]
+        ignore_file_extensions: [png, jpg, jpeg, gif, mp4, mpeg, mp3]
+        threads: 20
+      vulnerability_scan:
+        run_nuclei: true
+        run_dalfox: true
+        run_crlfuzz: true
+        enable_http_crawl: true
+        concurrency: 25
+        intensity: normal
+        rate_limit: 150
+        retries: 1
+        timeout: 5
+        fetch_gpt_report: false
+        validate_vulnerabilities: true
+        validation_timeout: 15
+        validation_allow_private: true
+        nuclei:
+          use_nuclei_config: false
+          severities: [low, medium, high, critical]
+      waf_detection:
+        enable_http_crawl: true
+      screenshot:
+        enable_http_crawl: true
+        intensity: normal
+        timeout: 10
+        threads: 20
+      secret_scan:
+        run_gitleaks: true
+        run_ggshield: false
+        gitleaks_mode: dir
+    default_engine: true

@@ -7,6 +7,7 @@ from django.contrib.auth import get_user_model
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.contrib import messages
 from django.db.models import Count
@@ -214,12 +215,19 @@ def admin_interface_update(request, slug):
     if user_id:
         UserModel = get_user_model()
         user = UserModel.objects.get(id=user_id)
-    if request.method == 'GET':
+    if request.method == 'POST':
         if mode == 'change_status':
-            user.is_active = not user.is_active
-            user.save()
-    elif request.method == 'POST':
-        if mode == 'delete':
+            # A07-1: enable/disable is a POST so CsrfViewMiddleware protects it. As a
+            # GET it was a state-changing, CSRF-unprotected mutation exploitable via a
+            # cross-site request (e.g. <img src=".../update?mode=change_status&user=N">).
+            try:
+                user.is_active = not user.is_active
+                user.save()
+                messageData = {'status': True}
+            except Exception as e:
+                logger.error(e)
+                messageData = {'status': False}
+        elif mode == 'delete':
             try:
                 user.delete()
                 messages.add_message(
@@ -239,6 +247,10 @@ def admin_interface_update(request, slug):
                 clear_roles(user)
                 assign_role(user, role)
                 if change_password:
+                    # A07-2: enforce AUTH_PASSWORD_VALIDATORS (create_user/set_password
+                    # don't run them; only the auth forms do). ValidationError is caught
+                    # below and surfaced as the error.
+                    validate_password(change_password, user)
                     user.set_password(change_password)
                     user.save()
                 messageData = {'status': True}
@@ -252,6 +264,10 @@ def admin_interface_update(request, slug):
                     messageData = {'status': False, 'error': _('Empty passwords are not allowed')}
                     return JsonResponse(messageData)
                 UserModel = get_user_model()
+                # A07-2: enforce AUTH_PASSWORD_VALIDATORS before creating the account.
+                validate_password(
+                    response.get('password'),
+                    UserModel(username=response.get('username')))
                 user = UserModel.objects.create_user(
                     username=response.get('username'),
                     password=response.get('password')
@@ -275,11 +291,18 @@ def on_user_logged_out(sender, request, **kwargs):
 
 
 @receiver(user_logged_in)
-def on_user_logged_in(sender, request, **kwargs):
+def on_user_logged_in(sender, request, user, **kwargs):
+    # Use the signal's `user` argument: request.user is not guaranteed to be set
+    # when login() fires this signal (e.g. synthetic requests), and `user` is the
+    # authoritative just-authenticated account. The welcome flash is best-effort:
+    # a synthetic/non-middleware request (API auth, test login) has no message
+    # storage, and authentication must never fail over a UI nicety.
+    if request is None or not hasattr(request, '_messages'):
+        return
     messages.add_message(
         request,
         messages.INFO,
-        _('Hi @%(username)s welcome back!') % {'username': request.user.username})
+        _('Hi @%(username)s welcome back!') % {'username': user.username})
 
 
 def search(request, slug):
@@ -362,6 +385,8 @@ def onboarding(request):
         try:
             if create_username and create_password and create_user_role:
                 UserModel = get_user_model()
+                # A07-2: enforce AUTH_PASSWORD_VALIDATORS on the bootstrap operator account.
+                validate_password(create_password, UserModel(username=create_username))
                 new_user = UserModel.objects.create_user(
                     username=create_username,
                     password=create_password

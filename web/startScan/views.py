@@ -2,8 +2,9 @@ import markdown
 import base64
 import os
 
+from urllib.parse import urlparse
 from celery import group
-from weasyprint import HTML, CSS
+from weasyprint import HTML, CSS, default_url_fetcher
 from datetime import datetime
 from django.conf import settings
 from django.contrib.staticfiles import finders
@@ -23,10 +24,23 @@ from Suricatoos.celery import app
 from Suricatoos.charts import *
 from Suricatoos.common_func import *
 from Suricatoos.definitions import ABORTED_TASK, SUCCESS_TASK
-from Suricatoos.tasks import create_scan_activity, initiate_scan, run_command
+from Suricatoos.tasks import create_scan_activity, initiate_scan, run_command, is_blocked_fetch_target
 from scanEngine.models import EngineType, BrandingSetting
 from startScan.models import *
 from targetApp.models import *
+
+
+def _report_url_fetcher(url, timeout=5, ssl_context=None):
+    """A06-1: bound + constrain the outbound fetches WeasyPrint makes while rendering
+    a report. Short read timeout so a slow/unreachable font CDN can't hang the worker,
+    and an SSRF check on http(s) targets as defense-in-depth. data:/file: resources
+    (inline base64 charts, local static) pass straight through to the default fetcher."""
+    parsed = urlparse(url)
+    if parsed.scheme in ('http', 'https'):
+        blocked, _reason = is_blocked_fetch_target(url, allow_private=True)
+        if blocked:
+            raise ValueError(f'blocked report resource fetch: {_reason}')
+    return default_url_fetcher(url, timeout=min(timeout, 5), ssl_context=ssl_context)
 
 
 def scan_history(request, slug):
@@ -745,9 +759,10 @@ def change_scheduled_task_status(request, id):
     return HttpResponse('')
 
 
+@has_permission_decorator(PERM_MODIFY_SCAN_RESULTS, redirect_url=FOUR_OH_FOUR_URL)
 def change_vuln_status(request, id):
     if request.method == 'POST':
-        vuln = Vulnerability.objects.get(id=id)
+        vuln = get_object_or_404(Vulnerability, id=id)
         vuln.open_status = not vuln.open_status
         vuln.save()
     return HttpResponse('')
@@ -1046,26 +1061,21 @@ def create_report(request, id):
         report_name = 'Full Scan Report'
 
     scan = ScanHistory.objects.get(id=id)
-    vulns = (
+    # Validation gating: never put validator-flagged false positives in a report; with
+    # ?confirmed_only keep ONLY findings the validator re-confirmed (drops needs_review/error too).
+    confirmed_only = 'confirmed_only' in request.GET
+    base_vulns = (
         Vulnerability.objects
         .filter(scan_history=scan)
-        .order_by('-severity')
-    ) if not is_ignore_info_vuln else (
-        Vulnerability.objects
-        .filter(scan_history=scan)
-        .exclude(severity=0)
-        .order_by('-severity')
+        .exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
     )
+    if confirmed_only:
+        base_vulns = base_vulns.filter(validation_status=Vulnerability.VALIDATION_CONFIRMED)
+    if is_ignore_info_vuln:
+        base_vulns = base_vulns.exclude(severity=0)
+    vulns = base_vulns.order_by('-severity')
     unique_vulns = (
-        Vulnerability.objects
-        .filter(scan_history=scan)
-        .values("name", "severity")
-        .annotate(count=Count('name'))
-        .order_by('-severity', '-count')
-    ) if not is_ignore_info_vuln else (
-        Vulnerability.objects
-        .filter(scan_history=scan)
-        .exclude(severity=0)
+        base_vulns
         .values("name", "severity")
         .annotate(count=Count('name'))
         .order_by('-severity', '-count')
@@ -1119,6 +1129,15 @@ def create_report(request, id):
         'unique_vulnerabilities': unique_vulns,
         'all_vulnerabilities': vulns,
         'all_vulnerabilities_count': vulns.count(),
+        # Per-severity counts derived from the SAME filtered queryset as the detail list, so
+        # the summary badges match it (excludes false positives, honours ?confirmed_only /
+        # ignore_info_vuln). Don't use scan.get_*_vulnerability_count here — those are unfiltered.
+        'critical_count': vulns.filter(severity=4).count(),
+        'high_count': vulns.filter(severity=3).count(),
+        'medium_count': vulns.filter(severity=2).count(),
+        'low_count': vulns.filter(severity=1).count(),
+        'info_count': vulns.filter(severity=0).count(),
+        'unknown_count': vulns.filter(severity=-1).count(),
         'subdomain_alive_count': subdomain_alive_count,
         'interesting_subdomains': interesting_subdomains,
         'subdomains': subdomains,
@@ -1180,7 +1199,7 @@ def create_report(request, id):
         template = get_template('report/default.html')
 
     html = template.render(data)
-    pdf = HTML(string=html).write_pdf()
+    pdf = HTML(string=html, url_fetcher=_report_url_fetcher).write_pdf()
     # pdf = HTML(string=html).write_pdf(stylesheets=[CSS(string='@page { size: A4; margin: 0; }')])
 
     if 'download' in request.GET:

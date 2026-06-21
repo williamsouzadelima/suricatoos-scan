@@ -2,6 +2,9 @@ services:
   db:
     restart: always
     image: "postgres:12.3-alpine"
+    # 3.8GB box shared with co-tenants: cap each container so a runaway tool is OOM-killed
+    # inside its container (detectable, .State.OOMKilled) instead of starving the whole host.
+    mem_limit: 384m
     environment:
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
@@ -18,6 +21,7 @@ services:
     restart: always
     image: "redis:alpine"
     hostname: redis
+    mem_limit: 256m
     networks:
       - suricatoos_network
 
@@ -25,6 +29,10 @@ services:
     build:
       context: ./web
     restart: always
+    # Heaviest container (runs every scan tool). Cap RAM so a runaway tool is OOM-killed inside
+    # this container instead of starving the host; a little swap headroom (Docker default) is
+    # left as a buffer. Hangs are handled by the per-tool watchdog + Celery time limits.
+    mem_limit: 2g
     entrypoint: /usr/src/app/celery-entrypoint.sh
     # command: celery -A Suricatoos worker --autoscale=${MAX_CONCURRENCY},${MIN_CONCURRENCY} -l INFO
     volumes:
@@ -48,7 +56,7 @@ services:
       - POSTGRES_HOST=${POSTGRES_HOST}
       - MAX_CONCURRENCY=${MAX_CONCURRENCY}
       - MIN_CONCURRENCY=${MIN_CONCURRENCY}
-      - SHARED_CONCURRENCY=${SHARED_CONCURRENCY:-50}
+      - SHARED_CONCURRENCY=${SHARED_CONCURRENCY:-10}
       - GITGUARDIAN_API_KEY=${GITGUARDIAN_API_KEY}
     depends_on:
       - db
@@ -87,6 +95,7 @@ services:
       context: ./web
     entrypoint: /usr/src/app/entrypoint.sh
     restart: always
+    mem_limit: 640m
     image: suricatoos/web:latest
     environment:
       - DEBUG=0

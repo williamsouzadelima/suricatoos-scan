@@ -1,5 +1,6 @@
 #!/usr/bin/python
 import logging
+import os
 import re
 
 ###############################################################################
@@ -19,6 +20,7 @@ EMAIL_REGEX = re.compile(r'[\w\.-]+@[\w\.-]+')
 
 ALL = 'all'
 AMASS_WORDLIST = 'amass_wordlist'
+AMASS_TIMEOUT = 'amass_timeout'  # minutes; caps amass enum so dead resolvers can't hang the scan
 AUTO_CALIBRATION = 'auto_calibration'
 CUSTOM_HEADERS = 'custom_headers'
 CUSTOM_HEADER = 'custom_header'
@@ -146,6 +148,21 @@ DEFAULT_VALIDATION_TIMEOUT = 10
 # are allowed by default; set this true in the engine YAML to also block them.
 VALIDATION_ALLOW_PRIVATE = 'validation_allow_private'
 DEFAULT_VALIDATION_ALLOW_PRIVATE = True
+
+# Wall-clock ceiling (seconds) for ANY external tool spawned via run_command /
+# stream_command. A watchdog kills the whole process group on expiry so a tool that
+# never returns (amass-active brute, spiderfoot, theHarvester) can't wedge its Celery
+# task forever (the diagnosed scan-#19 hang). Generous global backstop (raise it if huge
+# nuclei/ffuf scopes legitimately exceed it); per-tool callers pass a tighter value. 0
+# disables. Overridable via the COMMAND_EXEC_TIMEOUT env.
+try:
+    DEFAULT_COMMAND_EXEC_TIMEOUT = int(os.environ.get('COMMAND_EXEC_TIMEOUT', 7200))  # seconds; 2h default
+except (TypeError, ValueError):
+    DEFAULT_COMMAND_EXEC_TIMEOUT = 7200
+# Tighter caps for the known hang-prone OSINT tools (run on the gevent pool, where
+# Celery's SIGALRM hard limit does NOT apply — the watchdog is the only guard there).
+THEHARVESTER_EXEC_TIMEOUT = 600
+SPIDERFOOT_EXEC_TIMEOUT = 900
 
 # amass
 AMASS_DEFAULT_WORDLIST_PATH = (
