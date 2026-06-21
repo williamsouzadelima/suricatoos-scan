@@ -57,19 +57,6 @@ logger = get_task_logger(__name__)
 SECRET_PLACEHOLDER = '__SURICATOOS_SECRET__'
 
 
-def build_exec_cmd(cmd, secret=''):
-	"""Return the string actually executed: the placeholder-bearing ``cmd`` with
-	SECRET_PLACEHOLDER replaced by the shell-quoted secret.
-
-	The substitution happens HERE, at the call site, never inside run_command /
-	stream_command — those hold the log/DB/history-file sinks, so keeping the
-	secret out of their scope is what stops CodeQL's clear-text-storage flow
-	(a guard inside the sink function is not recognized; the flow must be broken).
-	Callers pass the result via ``exec_cmd=``; only subprocess.Popen consumes it.
-	"""
-	return cmd.replace(SECRET_PLACEHOLDER, shlex.quote(secret)) if secret else cmd
-
-
 # The SpiderFoot package is NOT pip-installed — it lives at SPIDERFOOT_DIR
 # (/usr/src/github/spiderfoot, a shared volume) and is normally invoked as a
 # subprocess. Add it to sys.path and import SpiderFootDb under a guard so a host
@@ -521,10 +508,11 @@ def subdomain_discovery(
 	# Run tools
 	for tool in tools:
 		cmd = None
-		# Secret (API key) for this tool's command, if any. Kept OUT of `cmd`
-		# (which is logged/stored): cmd carries SECRET_PLACEHOLDER, run_command
-		# substitutes this value only at execution time.
-		cmd_secret = ''
+		# Executed form of this tool's command when it carries a secret (API key):
+		# `cmd` keeps the SECRET_PLACEHOLDER sentinel and is what gets logged/stored;
+		# `exec_cmd` is a SEPARATELY-built string with the real key, used only for Popen
+		# (never derived from `cmd` via .replace, so the secret can't taint the log sink).
+		exec_cmd = None
 		logger.info(f'Scanning subdomains for {host} with {tool}')
 		# proxy comes from the unvalidated Proxy textarea; allowlist it to a URL.
 		proxy = _allow(get_random_proxy(), PROXY_RE, '')
@@ -600,16 +588,17 @@ def subdomain_discovery(
 
 			elif tool == 'netlas':
 				results_file = self.results_dir + '/subdomains_netlas.txt'
-				cmd = f'netlas search -d domain -i domain domain:"*.{host}" -f json'
+				base = f'netlas search -d domain -i domain domain:"*.{host}" -f json'
 				# API key comes from the vault unvalidated; allowlist before it hits the shell.
 				netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
-				# Keep the key out of the logged/stored command: put a sentinel in
-				# `cmd` and pass the real key via `secret` (substituted at exec time).
-				if netlas_key:
-					cmd += f' -a {SECRET_PLACEHOLDER}'
-					cmd_secret = netlas_key
 				cmd_extract = f"grep -oE '([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+{host}'"
-				cmd += f' | {cmd_extract} > {shlex.quote(results_file)}'
+				tail = f' | {cmd_extract} > {shlex.quote(results_file)}'
+				# Logged command carries the sentinel; the executed command is built
+				# SEPARATELY with the real key (no .replace), so the key never shares a
+				# string op with the logged `cmd` — keeps the secret out of the log sink.
+				cmd = base + (f' -a {SECRET_PLACEHOLDER}' if netlas_key else '') + tail
+				if netlas_key:
+					exec_cmd = base + f' -a {shlex.quote(netlas_key)}' + tail
 
 			elif tool == 'chaos':
 				# we need to find api key if not ignore
@@ -618,9 +607,10 @@ def subdomain_discovery(
 					logger.error('Chaos API key not found. Skipping.')
 					continue
 				results_file = self.results_dir + '/subdomains_chaos.txt'
-				# Sentinel in the stored/logged command; real key passed via `secret`.
+				# Logged command carries the sentinel; executed command is a SEPARATE
+				# string with the real key (no .replace) so the key can't taint the log sink.
 				cmd = f'chaos -d {shlex.quote(host)} -silent -key {SECRET_PLACEHOLDER} -o {shlex.quote(results_file)}'
-				cmd_secret = chaos_key
+				exec_cmd = f'chaos -d {shlex.quote(host)} -silent -key {shlex.quote(chaos_key)} -o {shlex.quote(results_file)}'
 
 		elif tool in custom_subdomain_tools:
 			tool_query = InstalledExternalTool.objects.filter(name__icontains=tool.lower())
@@ -656,7 +646,7 @@ def subdomain_discovery(
 				history_file=self.history_file,
 				scan_id=self.scan_id,
 				activity_id=self.activity_id,
-				exec_cmd=build_exec_cmd(cmd, cmd_secret))
+				exec_cmd=exec_cmd)
 		except Exception as e:
 			logger.error(
 				f'Subdomain discovery tool "{tool}" raised an exception')
@@ -4866,12 +4856,15 @@ def fetch_whois_data_using_netlas(target):
 	command = f'netlas host {_allow(target, SAFE_HOST_ARG_RE, "")} -f json'
 	# shell=False: allowlist the vault key so it can't smuggle an argv flag.
 	netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
-	# Sentinel in the stored/logged command; real key passed via `secret`.
+	# Logged command carries the sentinel; the executed command is built SEPARATELY
+	# with the real key (no .replace) so the key never taints the logged command.
+	exec_command = None
 	if netlas_key:
+		exec_command = command + f' -a {shlex.quote(netlas_key)}'
 		command += f' -a {SECRET_PLACEHOLDER}'
 
 	try:
-		_, result = run_command(command, remove_ansi_sequence=True, exec_cmd=build_exec_cmd(command, netlas_key))
+		_, result = run_command(command, remove_ansi_sequence=True, exec_cmd=exec_command)
 		
 		# catch errors
 		if 'Failed to parse response data' in result:
@@ -5029,16 +5022,17 @@ def run_command(
 	Args:
 		cmd (str): Command to run. This is what gets logged/stored (in the clear);
 			put SECRET_PLACEHOLDER where a secret goes and pass the executable form
-			via `exec_cmd` (see build_exec_cmd) to keep credentials out of the
-			Command DB record, logs and history file.
+			via `exec_cmd` (built separately by the caller) to keep credentials out of
+			the Command DB record, logs and history file.
 		cwd (str): Current working directory.
 		echo (bool): Log command.
 		shell (bool): Run within separate shell if True.
 		history_file (str): Write command + output to history file.
 		remove_ansi_sequence (bool): Used to remove ANSI escape sequences from output such as color coding
-		exec_cmd (str|None): The string actually executed (secret already substituted
-			by the caller via build_exec_cmd). Consumed ONLY by subprocess.Popen — never
-			logged or persisted. Defaults to `cmd` when no secret is involved.
+		exec_cmd (str|None): The string actually executed — built by the caller as a
+			SEPARATE string with the real secret (never via cmd.replace, so the secret
+			can't taint `cmd`). Consumed ONLY by subprocess.Popen — never logged or
+			persisted. Defaults to `cmd` when no secret is involved.
 	Returns:
 		tuple: Tuple with return_code, output.
 	"""
