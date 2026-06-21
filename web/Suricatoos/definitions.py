@@ -54,6 +54,8 @@ NUCLEI_CUSTOM_TEMPLATE = 'custom_templates'
 NUCLEI_TAGS = 'tags'
 NUCLEI_TEMPLATE = 'templates'
 NUCLEI_SEVERITY = 'severities'
+NUCLEI_EXCLUDE_TEMPLATE = 'exclude_templates'
+NUCLEI_EXCLUDE_TAGS = 'exclude_tags'
 NUCLEI_CONCURRENCY = 'concurrency'
 OSINT = 'osint'
 OSINT_DOCUMENTS_LIMIT = 'documents_limit'
@@ -198,6 +200,10 @@ NAABU_DEFAULT_PORTS = ['top-100']
 
 # nuclei
 NUCLEI_DEFAULT_TEMPLATES_PATH = '/root/nuclei-templates'
+# Experimental third-party template collections excluded by default: they fire
+# weak-matcher HIGH/CRITICAL false positives (substring / status==200 matchers).
+# Engines can override via the 'exclude_templates' key (empty list = exclude none).
+NUCLEI_DEFAULT_EXCLUDE_TEMPLATES = ['/root/nuclei-templates/geeknik_nuclei_templates']
 NUCLEI_SEVERITY_MAP = {
     'info': 0,
     'low': 1,

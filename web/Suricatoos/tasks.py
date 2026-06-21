@@ -3304,6 +3304,12 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	tags = ','.join(_filter_list(_as_list(nuclei_specific_config.get(NUCLEI_TAGS, [])), SAFE_TOKEN_RE))
 	nuclei_templates = _filter_list(_as_list(nuclei_specific_config.get(NUCLEI_TEMPLATE) or []), SAFE_PATH_RE)
 	custom_nuclei_templates = _filter_list(_as_list(nuclei_specific_config.get(NUCLEI_CUSTOM_TEMPLATE) or []), SAFE_PATH_RE)
+	# Curate noisy experimental templates (geeknik weak-matcher FPs). Default excludes
+	# them; an engine can override 'exclude_templates' (a list; [] = exclude none).
+	_ex_cfg = nuclei_specific_config.get(NUCLEI_EXCLUDE_TEMPLATE)
+	exclude_templates = (list(NUCLEI_DEFAULT_EXCLUDE_TEMPLATES) if _ex_cfg is None
+						 else _filter_list(_as_list(_ex_cfg), SAFE_PATH_RE))
+	exclude_tags = ','.join(_filter_list(_as_list(nuclei_specific_config.get(NUCLEI_EXCLUDE_TAGS, [])), SAFE_TOKEN_RE))
 	# severities_str = ','.join(severities)
 
 	# Get alive endpoints
@@ -3376,6 +3382,11 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	cmd += f' -silent'
 	for tpl in templates:
 		cmd += f' -t {tpl}'
+	# Exclude curated noisy template dirs/tags (FP reduction). Values are constants
+	# or SAFE_PATH_RE/SAFE_TOKEN_RE-filtered, so safe for the shell=False split.
+	for et in exclude_templates:
+		cmd += f' -et {et}'
+	cmd += f' -etags {exclude_tags}' if exclude_tags else ''
 
 
 	grouped_tasks = []
