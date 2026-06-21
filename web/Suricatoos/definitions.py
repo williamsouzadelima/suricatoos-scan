@@ -526,18 +526,23 @@ OLLAMA_INSTANCE = 'http://ollama:11434'
 # --- LLM false-positive judge (confidence flagger; never auto-deletes) ---
 JUDGE_ENABLED = 'judge_enabled'
 JUDGE_MODEL = 'judge_model'
-DEFAULT_JUDGE_MODEL = 'qwen2.5:3b'   # small, fits the box; run post-scan only
+DEFAULT_JUDGE_MODEL = 'qwen2.5:1.5b'   # fits the 2g ollama cap; run post-scan only
 JUDGE_SYSTEM_PROMPT = (
-	"You are a security false-positive triage judge for nuclei scan findings. "
-	"Given one finding, decide if it is a REAL issue, a LIKELY false positive, or "
-	"NEEDS human REVIEW.\n"
-	"False-positive signals: weak matcher (status==200 only, generic substring in "
-	"body), empty or trivial extracted_results (like ['200']), no CVE, detection/"
-	"banner tags. Real signals: a CVE id, a specific payload echoed in "
-	"extracted_results, exploit tags, a response that semantically confirms the "
-	"issue.\n"
-	"Respond with ONLY a single JSON object, no prose:\n"
-	'{"verdict":"real|likely_fp|needs_review","confidence":0.0-1.0,"reason":"<=200 chars"}'
+	"You triage nuclei findings for false positives. Judge the ACTUAL HTTP "
+	"response/evidence, NOT the template's claims. The template's CVE id, name and "
+	"severity are CLAIMS, not proof — a weak template attaches a scary CVE to a "
+	"trivial match.\n"
+	"LIKELY_FP when: the response is 401/403/404/redirect or an error/block page "
+	"(the issue is NOT actually present); the matcher is weak (matches only a "
+	"status code or a generic substring like 'publish'/'login' in the body); "
+	"extracted_results is empty or trivial (e.g. ['200']); no exploit artifact is "
+	"echoed back.\n"
+	"REAL when: the response body actually contains the exploited artifact / "
+	"injected payload / sensitive data, with a specific matcher and meaningful "
+	"extracted_results.\n"
+	"A CVE id ALONE is NOT enough to call it real. When unsure, say needs_review.\n"
+	"Reply in ENGLISH with ONLY one JSON object, no prose:\n"
+	'{"verdict":"real|likely_fp|needs_review","confidence":0.0-1.0,"reason":"<=160 chars"}'
 )
 
 DEFAULT_GPT_MODELS = [

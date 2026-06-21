@@ -160,12 +160,10 @@ services:
     # VM pequena (3.8GB): ollama ocioso e leve, mas carregar um modelo em CPU
     # pode consumir toda a RAM e travar o host. O limite contem o ollama (ele
     # sofre OOM-kill em vez de derrubar a maquina inteira).
-    # ATENCAO: 1g fica ABAIXO do footprint de qualquer modelo real (ate um 2-3B Q4
-    # precisa de ~2-3GB com runtime+KV cache), entao com este teto o LLM LOCAL fica
-    # efetivamente DESLIGADO (OOM no primeiro inference). Isso e seguro: o LLM e
-    # opt-in e o app usa OpenAI por padrao. Para rodar modelo local de verdade,
-    # suba este limite E use uma VM maior.
-    mem_limit: 1g
+    # 2g cabe o FP-judge local (qwen2.5:1.5b, ~1.5GB resident). 1B-1.5B Q4 rodam;
+    # um 3B+ ainda da OOM neste box (precisa de VM maior). Rode o judge POST-scan
+    # (sem scan concorrente disputando RAM). O LLM e opt-in; padrao usa OpenAI.
+    mem_limit: 2g
     volumes:
       - ollama_data:/root/.ollama
     ports:
