@@ -48,6 +48,12 @@ Celery tasks.
 
 logger = get_task_logger(__name__)
 
+# Sentinel a caller puts in a command in place of a secret (e.g. an API key).
+# run_command/stream_command store/log the sentinel-bearing command but execute
+# a copy with the real secret substituted in — keeping credentials out of the
+# Command DB record, the logs and the history file (clear-text-storage defense).
+SECRET_PLACEHOLDER = '__SURICATOOS_SECRET__'
+
 # The SpiderFoot package is NOT pip-installed — it lives at SPIDERFOOT_DIR
 # (/usr/src/github/spiderfoot, a shared volume) and is normally invoked as a
 # subprocess. Add it to sys.path and import SpiderFootDb under a guard so a host
@@ -498,6 +504,10 @@ def subdomain_discovery(
 	# Run tools
 	for tool in tools:
 		cmd = None
+		# Secret (API key) for this tool's command, if any. Kept OUT of `cmd`
+		# (which is logged/stored): cmd carries SECRET_PLACEHOLDER, run_command
+		# substitutes this value only at execution time.
+		cmd_secret = ''
 		logger.info(f'Scanning subdomains for {host} with {tool}')
 		# proxy comes from the unvalidated Proxy textarea; allowlist it to a URL.
 		proxy = _allow(get_random_proxy(), PROXY_RE, '')
@@ -560,7 +570,11 @@ def subdomain_discovery(
 				cmd = f'netlas search -d domain -i domain domain:"*.{host}" -f json'
 				# API key comes from the vault unvalidated; allowlist before it hits the shell.
 				netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
-				cmd += f' -a {shlex.quote(netlas_key)}' if netlas_key else ''
+				# Keep the key out of the logged/stored command: put a sentinel in
+				# `cmd` and pass the real key via `secret` (substituted at exec time).
+				if netlas_key:
+					cmd += f' -a {SECRET_PLACEHOLDER}'
+					cmd_secret = netlas_key
 				cmd_extract = f"grep -oE '([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+{host}'"
 				cmd += f' | {cmd_extract} > {shlex.quote(results_file)}'
 
@@ -571,7 +585,9 @@ def subdomain_discovery(
 					logger.error('Chaos API key not found. Skipping.')
 					continue
 				results_file = self.results_dir + '/subdomains_chaos.txt'
-				cmd = f'chaos -d {shlex.quote(host)} -silent -key {shlex.quote(chaos_key)} -o {shlex.quote(results_file)}'
+				# Sentinel in the stored/logged command; real key passed via `secret`.
+				cmd = f'chaos -d {shlex.quote(host)} -silent -key {SECRET_PLACEHOLDER} -o {shlex.quote(results_file)}'
+				cmd_secret = chaos_key
 
 		elif tool in custom_subdomain_tools:
 			tool_query = InstalledExternalTool.objects.filter(name__icontains=tool.lower())
@@ -606,7 +622,8 @@ def subdomain_discovery(
 				shell=True,
 				history_file=self.history_file,
 				scan_id=self.scan_id,
-				activity_id=self.activity_id)
+				activity_id=self.activity_id,
+				secret=cmd_secret)
 		except Exception as e:
 			logger.error(
 				f'Subdomain discovery tool "{tool}" raised an exception')
@@ -4770,11 +4787,12 @@ def fetch_whois_data_using_netlas(target):
 	command = f'netlas host {_allow(target, SAFE_HOST_ARG_RE, "")} -f json'
 	# shell=False: allowlist the vault key so it can't smuggle an argv flag.
 	netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
+	# Sentinel in the stored/logged command; real key passed via `secret`.
 	if netlas_key:
-		command += f' -a {netlas_key}'
+		command += f' -a {SECRET_PLACEHOLDER}'
 
 	try:
-		_, result = run_command(command, remove_ansi_sequence=True)
+		_, result = run_command(command, remove_ansi_sequence=True, secret=netlas_key)
 		
 		# catch errors
 		if 'Failed to parse response data' in result:
@@ -4890,39 +4908,51 @@ def remove_duplicate_endpoints(
 
 @app.task(name='run_command', bind=False, queue='run_command_queue')
 def run_command(
-		cmd, 
-		cwd=None, 
-		shell=False, 
-		history_file=None, 
-		scan_id=None, 
+		cmd,
+		cwd=None,
+		shell=False,
+		history_file=None,
+		scan_id=None,
 		activity_id=None,
-		remove_ansi_sequence=False
+		remove_ansi_sequence=False,
+		secret=''
 	):
 	"""Run a given command using subprocess module.
 
 	Args:
-		cmd (str): Command to run.
+		cmd (str): Command to run. Put any secret (e.g. an API key) as the
+			SECRET_PLACEHOLDER sentinel and pass the real value via `secret`;
+			the sentinel-bearing `cmd` is what gets logged/stored (in the clear),
+			while only the executed command carries the secret. This keeps
+			credentials out of the Command DB record, logs and history file.
 		cwd (str): Current working directory.
 		echo (bool): Log command.
 		shell (bool): Run within separate shell if True.
 		history_file (str): Write command + output to history file.
 		remove_ansi_sequence (bool): Used to remove ANSI escape sequences from output such as color coding
+		secret (str): Secret value substituted into SECRET_PLACEHOLDER only for
+			execution; never logged or persisted.
 	Returns:
 		tuple: Tuple with return_code, output.
 	"""
 	logger.info(cmd)
 	logger.warning(activity_id)
 
-	# Create a command record in the database
+	# Create a command record in the database. `cmd` carries only the
+	# SECRET_PLACEHOLDER sentinel, never the real secret.
 	command_obj = Command.objects.create(
 		command=cmd,
 		time=timezone.now(),
 		scan_history_id=scan_id,
 		activity_id=activity_id)
 
+	# Substitute the real secret in for execution ONLY (shell-quoted). The
+	# secret never touches the stored command, the logs or the history file.
+	exec_cmd = cmd.replace(SECRET_PLACEHOLDER, shlex.quote(secret)) if secret else cmd
+
 	# Run the command using subprocess
 	popen = subprocess.Popen(
-		cmd if shell else shlex.split(cmd),
+		exec_cmd if shell else shlex.split(exec_cmd),
 		shell=shell,
 		stdout=subprocess.PIPE,
 		stderr=subprocess.STDOUT,
@@ -4954,20 +4984,24 @@ def run_command(
 # Other utils #
 #-------------#
 
-def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-8', scan_id=None, activity_id=None, trunc_char=None):
-	# Log cmd
+def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-8', scan_id=None, activity_id=None, trunc_char=None, secret=''):
+	# Log cmd (carries only the SECRET_PLACEHOLDER sentinel, never the real secret)
 	logger.info(cmd)
 	# logger.warning(activity_id)
 
-	# Create a command record in the database
+	# Create a command record in the database (sentinel-bearing cmd, no secret)
 	command_obj = Command.objects.create(
 		command=cmd,
 		time=timezone.now(),
 		scan_history_id=scan_id,
 		activity_id=activity_id)
 
+	# Substitute the real secret in for execution ONLY (shell-quoted); it never
+	# touches the stored command, the logs or the history file.
+	exec_cmd = cmd.replace(SECRET_PLACEHOLDER, shlex.quote(secret)) if secret else cmd
+
 	# Sanitize the cmd
-	command = cmd if shell else shlex.split(cmd)
+	command = exec_cmd if shell else shlex.split(exec_cmd)
 
 	# Run the command using subprocess
 	process = subprocess.Popen(

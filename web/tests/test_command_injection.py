@@ -276,5 +276,40 @@ class TestAuditResidualFixes(unittest.TestCase):
         self.assertTrue(bool(validators.url('http://target.com/path')))
 
 
+class TestSecretRedaction(TestCase):
+    """A secret passed via `secret=` is substituted into the command only for
+    execution — it must never land in the stored Command record, the logs or
+    the history file (clear-text-storage defense; breaks the CodeQL data flow)."""
+
+    def test_run_command_keeps_secret_out_of_stored_command(self):
+        from Suricatoos.tasks import run_command, SECRET_PLACEHOLDER
+        from startScan.models import Command
+        secret = 'topsecretapikey1234567890'
+        # `true` ignores its args and produces no output: a safe stand-in for a
+        # recon tool invoked as `... -a <KEY>`.
+        rc, out = run_command(f'true {SECRET_PLACEHOLDER}', shell=True, secret=secret)
+        rec = Command.objects.order_by('-id').first()
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec.command, f'true {SECRET_PLACEHOLDER}')
+        self.assertNotIn(secret, rec.command)
+        self.assertNotIn(secret, rec.output or '')
+
+    def test_stream_command_keeps_secret_out_of_stored_command(self):
+        from Suricatoos.tasks import stream_command, SECRET_PLACEHOLDER
+        from startScan.models import Command
+        secret = 'streamsecretkey0987654321'
+        list(stream_command(f'true {SECRET_PLACEHOLDER}', shell=True, secret=secret))
+        rec = Command.objects.order_by('-id').first()
+        self.assertEqual(rec.command, f'true {SECRET_PLACEHOLDER}')
+        self.assertNotIn(secret, rec.command)
+
+    def test_no_secret_leaves_command_unchanged(self):
+        from Suricatoos.tasks import run_command
+        from startScan.models import Command
+        run_command('true plainarg', shell=True)
+        rec = Command.objects.order_by('-id').first()
+        self.assertEqual(rec.command, 'true plainarg')
+
+
 if __name__ == '__main__':
     unittest.main()
