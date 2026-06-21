@@ -47,6 +47,7 @@ services:
     environment:
       - DEBUG=0
       - CELERY_BROKER=redis://redis:6379/0
+      - RENGINE_VAULT_KEY=${RENGINE_VAULT_KEY:-}
       - CELERY_BACKEND=redis://redis:6379/0
       - DOMAIN_NAME=${DOMAIN_NAME}
       - POSTGRES_DB=${POSTGRES_DB}
@@ -70,6 +71,7 @@ services:
     command: celery -A Suricatoos beat -l INFO --scheduler django_celery_beat.schedulers:DatabaseScheduler
     environment:
       - CELERY_BROKER=redis://redis:6379/0
+      - RENGINE_VAULT_KEY=${RENGINE_VAULT_KEY:-}
       - CELERY_BACKEND=redis://redis:6379/0
       - POSTGRES_DB=${POSTGRES_DB}
       - POSTGRES_USER=${POSTGRES_USER}
@@ -100,6 +102,7 @@ services:
     environment:
       - DEBUG=0
       - CELERY_BROKER=redis://redis:6379/0
+      - RENGINE_VAULT_KEY=${RENGINE_VAULT_KEY:-}
       - CELERY_BACKEND=redis://redis:6379/0
       - DOMAIN_NAME=${DOMAIN_NAME}
       - POSTGRES_DB=${POSTGRES_DB}
