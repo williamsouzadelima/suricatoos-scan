@@ -45,6 +45,7 @@ RUN apt install -y --no-install-recommends \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libpcap-dev \
+    jq \
     netcat \
     nmap \
     x11-utils \

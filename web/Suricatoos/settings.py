@@ -282,6 +282,21 @@ CELERY_IGNORE_RESULTS = False
 CELERY_EAGER_PROPAGATES_EXCEPTIONS = True
 CELERY_TRACK_STARTED = True
 CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+# Reliability backstops (prefork pool): a hung/killed worker must not leave a task ACTIVE
+# forever (the scan-#19 wedge). soft limit lets a task clean up; hard limit SIGKILLs and
+# ACKs it (TimeLimitExceeded is not WorkerLostError, so it is NOT requeued). We deliberately
+# keep acks_late at its default (False/early-ack): the scan orchestrator tasks
+# (subdomain_discovery/osint/port_scan/fetch_url/vulnerability_scan) are NOT idempotent —
+# re-running one duplicates ScanActivity rows and re-spawns tools — so a dead worker must
+# DROP its task, not redeliver it. The hang itself is already prevented by the run_command/
+# stream_command watchdog (which also covers the gevent OSINT pool, where SIGALRM limits are
+# a no-op). prefetch=1 stops a worker hoarding long scan tasks; max_tasks/max_memory_per_child
+# recycle bloated prefork children between tasks.
+CELERY_TASK_SOFT_TIME_LIMIT = env.int("CELERY_TASK_SOFT_TIME_LIMIT", default=5400)   # 90 min
+CELERY_TASK_TIME_LIMIT = env.int("CELERY_TASK_TIME_LIMIT", default=7200)             # 120 min hard
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_WORKER_MAX_TASKS_PER_CHILD = env.int("CELERY_WORKER_MAX_TASKS_PER_CHILD", default=50)
+CELERY_WORKER_MAX_MEMORY_PER_CHILD = env.int("CELERY_WORKER_MAX_MEMORY_PER_CHILD", default=350000)  # KB (~350MB)
 '''
 ROLES and PERMISSIONS
 '''

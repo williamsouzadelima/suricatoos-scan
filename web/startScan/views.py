@@ -1061,26 +1061,21 @@ def create_report(request, id):
         report_name = 'Full Scan Report'
 
     scan = ScanHistory.objects.get(id=id)
-    vulns = (
+    # Validation gating: never put validator-flagged false positives in a report; with
+    # ?confirmed_only keep ONLY findings the validator re-confirmed (drops needs_review/error too).
+    confirmed_only = 'confirmed_only' in request.GET
+    base_vulns = (
         Vulnerability.objects
         .filter(scan_history=scan)
-        .order_by('-severity')
-    ) if not is_ignore_info_vuln else (
-        Vulnerability.objects
-        .filter(scan_history=scan)
-        .exclude(severity=0)
-        .order_by('-severity')
+        .exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
     )
+    if confirmed_only:
+        base_vulns = base_vulns.filter(validation_status=Vulnerability.VALIDATION_CONFIRMED)
+    if is_ignore_info_vuln:
+        base_vulns = base_vulns.exclude(severity=0)
+    vulns = base_vulns.order_by('-severity')
     unique_vulns = (
-        Vulnerability.objects
-        .filter(scan_history=scan)
-        .values("name", "severity")
-        .annotate(count=Count('name'))
-        .order_by('-severity', '-count')
-    ) if not is_ignore_info_vuln else (
-        Vulnerability.objects
-        .filter(scan_history=scan)
-        .exclude(severity=0)
+        base_vulns
         .values("name", "severity")
         .annotate(count=Count('name'))
         .order_by('-severity', '-count')
@@ -1134,6 +1129,15 @@ def create_report(request, id):
         'unique_vulnerabilities': unique_vulns,
         'all_vulnerabilities': vulns,
         'all_vulnerabilities_count': vulns.count(),
+        # Per-severity counts derived from the SAME filtered queryset as the detail list, so
+        # the summary badges match it (excludes false positives, honours ?confirmed_only /
+        # ignore_info_vuln). Don't use scan.get_*_vulnerability_count here — those are unfiltered.
+        'critical_count': vulns.filter(severity=4).count(),
+        'high_count': vulns.filter(severity=3).count(),
+        'medium_count': vulns.filter(severity=2).count(),
+        'low_count': vulns.filter(severity=1).count(),
+        'info_count': vulns.filter(severity=0).count(),
+        'unknown_count': vulns.filter(severity=-1).count(),
         'subdomain_alive_count': subdomain_alive_count,
         'interesting_subdomains': interesting_subdomains,
         'subdomains': subdomains,

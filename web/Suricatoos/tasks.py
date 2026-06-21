@@ -5,8 +5,10 @@ import os
 import pprint
 import re
 import shlex
+import signal
 import socket
 import subprocess
+import threading
 import time
 import validators
 import xmltodict
@@ -203,11 +205,12 @@ def initiate_scan(
 		# osint								             	  dalfox xss scan
 		#						 	   		         	  	  screenshot
 		#													  waf_detection
+		# Serialize subdomain_discovery -> osint (was a parallel group): on a small box
+		# running both at scan start let amass-active + spiderfoot/theHarvester contend for
+		# RAM simultaneously (the scan-#19 wedge). Sequencing halves peak memory at kickoff.
 		workflow = chain(
-			group(
-				subdomain_discovery.si(ctx=ctx, description='Subdomain discovery'),
-				osint.si(ctx=ctx, description='OS Intelligence')
-			),
+			subdomain_discovery.si(ctx=ctx, description='Subdomain discovery'),
+			osint.si(ctx=ctx, description='OS Intelligence'),
 			port_scan.si(ctx=ctx, description='Port scan'),
 			fetch_url.si(ctx=ctx, description='Fetch URL'),
 			group(
@@ -1140,7 +1143,8 @@ def theHarvester(config, host, scan_history_id, activity_id, results_dir, ctx={}
 		cwd=theHarvester_dir,
 		history_file=history_file,
 		scan_id=scan_history_id,
-		activity_id=activity_id)
+		activity_id=activity_id,
+		timeout=THEHARVESTER_EXEC_TIMEOUT)
 
 	# Get file location
 	if not os.path.isfile(output_path_json):
@@ -2731,7 +2735,8 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 		shell=True,
 		history_file=history_file,
 		scan_id=scan_history_id,
-		activity_id=activity_id)
+		activity_id=activity_id,
+		timeout=SPIDERFOOT_EXEC_TIMEOUT)
 	try:
 		with open(out) as f:
 			events = json.load(f) or []
@@ -4899,15 +4904,43 @@ def remove_duplicate_endpoints(
 					ep.delete()
 				logger.warning(msg)
 
+def _arm_command_watchdog(proc, timeout):
+	"""Kill the whole process group if `timeout` seconds elapse.
+
+	Returns (timer, state); state['timed_out'] flips True on fire. We spawn children
+	with start_new_session=True and SIGKILL the GROUP (amass spawns massdns helpers that
+	survive a bare proc.kill()). Uses threading.Timer, which under the gevent worker pool
+	becomes a cooperative greenlet timer that still fires while readline/wait yield — this
+	is the only guard that works there, since Celery's SIGALRM hard limit is a no-op on gevent.
+	"""
+	state = {'timed_out': False}
+	if not timeout or timeout <= 0:
+		return None, state
+	def _kill():
+		state['timed_out'] = True
+		try:
+			os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+		except (ProcessLookupError, PermissionError, OSError):
+			try:
+				proc.kill()
+			except Exception:
+				pass
+	timer = threading.Timer(timeout, _kill)
+	timer.daemon = True
+	timer.start()
+	return timer, state
+
+
 @app.task(name='run_command', bind=False, queue='run_command_queue')
 def run_command(
-		cmd, 
-		cwd=None, 
-		shell=False, 
-		history_file=None, 
-		scan_id=None, 
+		cmd,
+		cwd=None,
+		shell=False,
+		history_file=None,
+		scan_id=None,
 		activity_id=None,
-		remove_ansi_sequence=False
+		remove_ansi_sequence=False,
+		timeout=DEFAULT_COMMAND_EXEC_TIMEOUT
 	):
 	"""Run a given command using subprocess module.
 
@@ -4931,22 +4964,32 @@ def run_command(
 		scan_history_id=scan_id,
 		activity_id=activity_id)
 
-	# Run the command using subprocess
+	# Run the command using subprocess (own session so the watchdog can SIGKILL the group)
 	popen = subprocess.Popen(
 		cmd if shell else shlex.split(cmd),
 		shell=shell,
 		stdout=subprocess.PIPE,
 		stderr=subprocess.STDOUT,
 		cwd=cwd,
+		start_new_session=True,
 		universal_newlines=True)
+	_timer, _wd = _arm_command_watchdog(popen, timeout)
 	output = ''
-	for stdout_line in iter(popen.stdout.readline, ""):
-		item = stdout_line.strip()
-		output += '\n' + item
-		logger.debug(item)
-	popen.stdout.close()
-	popen.wait()
+	try:
+		for stdout_line in iter(popen.stdout.readline, ""):
+			item = stdout_line.strip()
+			output += '\n' + item
+			logger.debug(item)
+		popen.stdout.close()
+		popen.wait()
+	finally:
+		if _timer:
+			_timer.cancel()
 	return_code = popen.returncode
+	if _wd['timed_out']:
+		logger.error(f'run_command: timed out after {timeout}s, killed process group: {cmd}')
+		output += f'\n[suricatoos] command timed out after {timeout}s and was killed'
+		return_code = -9
 	command_obj.output = output
 	command_obj.return_code = return_code
 	command_obj.save()
@@ -4965,7 +5008,7 @@ def run_command(
 # Other utils #
 #-------------#
 
-def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-8', scan_id=None, activity_id=None, trunc_char=None):
+def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-8', scan_id=None, activity_id=None, trunc_char=None, timeout=DEFAULT_COMMAND_EXEC_TIMEOUT):
 	# Log cmd
 	logger.info(cmd)
 	# logger.warning(activity_id)
@@ -4980,58 +5023,78 @@ def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-
 	# Sanitize the cmd
 	command = cmd if shell else shlex.split(cmd)
 
-	# Run the command using subprocess
+	# Run the command using subprocess (own session so the watchdog can SIGKILL the group)
 	process = subprocess.Popen(
 		command,
 		stdout=subprocess.PIPE,
 		stderr=subprocess.STDOUT,
 		universal_newlines=True,
+		start_new_session=True,
 		shell=shell)
+	_timer, _wd = _arm_command_watchdog(process, timeout)
 
 	# Log the output in real-time to the database
 	output = ""
 
 	# Process the output
-	for line in iter(lambda: process.stdout.readline(), b''):
-		if not line:
-			break
-		line = line.strip()
-		ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
-		line = ansi_escape.sub('', line)
-		line = line.replace('\\x0d\\x0a', '\n')
-		if trunc_char and line.endswith(trunc_char):
-			line = line[:-1]
-		item = line
+	try:
+		for line in iter(lambda: process.stdout.readline(), b''):
+			if not line:
+				break
+			line = line.strip()
+			ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+			line = ansi_escape.sub('', line)
+			line = line.replace('\\x0d\\x0a', '\n')
+			if trunc_char and line.endswith(trunc_char):
+				line = line[:-1]
+			item = line
 
-		# Try to parse the line as JSON
-		try:
-			item = json.loads(line)
-		except json.JSONDecodeError:
-			pass
+			# Try to parse the line as JSON
+			try:
+				item = json.loads(line)
+			except json.JSONDecodeError:
+				pass
 
-		# Yield the line
-		#logger.debug(item)
-		yield item
+			# Yield the line
+			#logger.debug(item)
+			yield item
 
-		# Add the log line to the output
-		output += line + "\n"
+			# Add the log line to the output
+			output += line + "\n"
 
-		# Update the command record in the database
-		command_obj.output = output
+			# Update the command record in the database
+			command_obj.output = output
+			command_obj.save()
+
+		# Retrieve the return code and output
+		process.wait()
+		return_code = process.returncode
+		if _wd['timed_out']:
+			logger.error(f'stream_command: timed out after {timeout}s, killed process group: {cmd}')
+			output += f'\n[suricatoos] command timed out after {timeout}s and was killed'
+			return_code = -9
+
+		# Update the return code and final output in the database
+		command_obj.return_code = return_code
 		command_obj.save()
 
-	# Retrieve the return code and output
-	process.wait()
-	return_code = process.returncode
-
-	# Update the return code and final output in the database
-	command_obj.return_code = return_code
-	command_obj.save()
-
-	# Append the command, return code and output to the history file
-	if history_file is not None:
-		with open(history_file, "a") as f:
-			f.write(f"{cmd}\n{return_code}\n{output}\n")
+		# Append the command, return code and output to the history file
+		if history_file is not None:
+			with open(history_file, "a") as f:
+				f.write(f"{cmd}\n{return_code}\n{output}\n")
+	finally:
+		if _timer:
+			_timer.cancel()
+		# If the generator is abandoned early (GeneratorExit) before the process exits,
+		# kill the group so a running tool is never leaked.
+		if process.poll() is None:
+			try:
+				os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+			except Exception:
+				try:
+					process.kill()
+				except Exception:
+					pass
 
 
 def process_httpx_response(line):

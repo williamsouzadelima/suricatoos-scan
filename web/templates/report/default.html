@@ -535,7 +535,7 @@
             <p class="bg-critical">{% trans "Critical" %}
               <br>
               <span class="inside-box-counter">
-                {{scan_object.get_critical_vulnerability_count}}
+                {{ critical_count }}
               </span>
             </p>
           </section>
@@ -543,7 +543,7 @@
             <p class="bg-high">{% trans "High" %}
               <br>
               <span class="inside-box-counter">
-                {{scan_object.get_high_vulnerability_count}}
+                {{ high_count }}
               </span>
             </p>
           </section>
@@ -551,7 +551,7 @@
             <p class="bg-medium">{% trans "Medium" %}
               <br>
               <span class="inside-box-counter">
-                {{scan_object.get_medium_vulnerability_count}}
+                {{ medium_count }}
               </span>
             </p>
           </section>
@@ -559,7 +559,7 @@
             <p class="bg-low">{% trans "Low" %}
               <br>
               <span class="inside-box-counter">
-                {{scan_object.get_low_vulnerability_count}}
+                {{ low_count }}
               </span>
             </p>
           </section>
@@ -567,11 +567,7 @@
             <p class="bg-info">{% trans "Info" %}
               <br>
               <span class="inside-box-counter">
-                {% if is_ignore_info_vuln %}
-                  0
-                {% else %}
-                  {{scan_object.get_info_vulnerability_count}}
-                {% endif %}
+                {{ info_count }}
               </span>
             </p>
           </section>
@@ -579,7 +575,7 @@
             <p class="bg-grey">{% trans "Unknown" %}
               <br>
               <span class="inside-box-counter">
-                {{scan_object.get_unknown_vulnerability_count}}
+                {{ unknown_count }}
               </span>
             </p>
           </section>
@@ -894,12 +890,12 @@
         <p>
           {% trans "This section reports the security issues found during the audit." %}
           <br>
-          {% blocktrans with total=scan_object.get_vulnerability_count domain=scan_object.domain.name critical=scan_object.get_critical_vulnerability_count high=scan_object.get_high_vulnerability_count medium=scan_object.get_medium_vulnerability_count unknown=scan_object.get_unknown_vulnerability_count %}A Total of {{ total }} were discovered in {{ domain }},
+          {% blocktrans with total=all_vulnerabilities_count domain=scan_object.domain.name critical=critical_count high=high_count medium=medium_count unknown=unknown_count %}A Total of {{ total }} were discovered in {{ domain }},
           {{ critical }} of them were Critical,
           {{ high }} of them were High Severity,
           {{ medium }} of them were Medium severity,{% endblocktrans %}
-          {% if is_ignore_info_vuln %}0{% else %}{{scan_object.get_info_vulnerability_count}}{% endif %} {% trans "of them were Low severity, and" %}
-          {% blocktrans with info=scan_object.get_info_vulnerability_count unknown=scan_object.get_unknown_vulnerability_count %}{{ info }} of them were Informational.
+          {{ low_count }} {% trans "of them were Low severity, and" %}
+          {% blocktrans with info=info_count unknown=unknown_count %}{{ info }} of them were Informational.
           {{ unknown }} of them were Unknown Severity.{% endblocktrans %}
         </p>
         <h4 class="subheading">{% trans "Vulnerability Breakdown by Severity" %}</h4>
@@ -908,7 +904,7 @@
             <p class="bg-critical">{% trans "Critical" %}
               <br>
               <span class="inside-box-counter">
-                {{scan_object.get_critical_vulnerability_count}}
+                {{ critical_count }}
               </span>
             </p>
           </section>
@@ -916,7 +912,7 @@
             <p class="bg-high">{% trans "High" %}
               <br>
               <span class="inside-box-counter">
-                {{scan_object.get_high_vulnerability_count}}
+                {{ high_count }}
               </span>
             </p>
           </section>
@@ -924,7 +920,7 @@
             <p class="bg-medium">{% trans "Medium" %}
               <br>
               <span class="inside-box-counter">
-                {{scan_object.get_medium_vulnerability_count}}
+                {{ medium_count }}
               </span>
             </p>
           </section>
@@ -932,7 +928,7 @@
             <p class="bg-low">{% trans "Low" %}
               <br>
               <span class="inside-box-counter">
-                {{scan_object.get_low_vulnerability_count}}
+                {{ low_count }}
               </span>
             </p>
           </section>
@@ -940,11 +936,7 @@
             <p class="bg-info">{% trans "Info" %}
               <br>
               <span class="inside-box-counter">
-                {% if is_ignore_info_vuln %}
-                  0
-                {% else %}
-                  {{scan_object.get_info_vulnerability_count}}
-                {% endif %}
+                {{ info_count }}
               </span>
             </p>
           </section>
@@ -952,7 +944,7 @@
             <p class="bg-grey">{% trans "Unknown" %}
               <br>
               <span class="inside-box-counter">
-                {{scan_object.get_unknown_vulnerability_count}}
+                {{ unknown_count }}
               </span>
             </p>
           </section>

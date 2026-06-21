@@ -752,35 +752,29 @@
                     <div class="grid">
                         <div class="box critical">
                             <h3>{% trans "Critical" %}</h3>
-                            <div class="number">{{ scan_object.get_critical_vulnerability_count }}</div>
+                            <div class="number">{{ critical_count }}</div>
                         </div>
                         <div class="box high">
                             <h3>{% trans "High" %}</h3>
-                            <div class="number">{{ scan_object.get_high_vulnerability_count }}</div>
+                            <div class="number">{{ high_count }}</div>
                         </div>
                         <div class="box medium">
                             <h3>{% trans "Medium" %}</h3>
-                            <div class="number">{{ scan_object.get_medium_vulnerability_count }}</div>
+                            <div class="number">{{ medium_count }}</div>
                         </div>
                     </div>
                     <div class="grid">
                         <div class="box low">
                             <h3>{% trans "Low" %}</h3>
-                            <div class="number">{{ scan_object.get_low_vulnerability_count }}</div>
+                            <div class="number">{{ low_count }}</div>
                         </div>
                         <div class="box info">
                             <h3>{% trans "Info" %}</h3>
-                            <div class="number">
-                                {% if is_ignore_info_vuln %}
-                                    0
-                                {% else %}
-                                    {{ scan_object.get_info_vulnerability_count }}
-                                {% endif %}
-                            </div>
+                            <div class="number">{{ info_count }}</div>
                         </div>
                         <div class="box unknown">
                             <h3>{% trans "Unknown" %}</h3>
-                            <div class="number">{{ scan_object.get_unknown_vulnerability_count }}</div>
+                            <div class="number">{{ unknown_count }}</div>
                         </div>
                     </div>
                 </div>
