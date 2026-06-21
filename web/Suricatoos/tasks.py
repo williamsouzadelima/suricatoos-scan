@@ -56,6 +56,20 @@ logger = get_task_logger(__name__)
 # Command DB record, the logs and the history file (clear-text-storage defense).
 SECRET_PLACEHOLDER = '__SURICATOOS_SECRET__'
 
+
+def build_exec_cmd(cmd, secret=''):
+	"""Return the string actually executed: the placeholder-bearing ``cmd`` with
+	SECRET_PLACEHOLDER replaced by the shell-quoted secret.
+
+	The substitution happens HERE, at the call site, never inside run_command /
+	stream_command — those hold the log/DB/history-file sinks, so keeping the
+	secret out of their scope is what stops CodeQL's clear-text-storage flow
+	(a guard inside the sink function is not recognized; the flow must be broken).
+	Callers pass the result via ``exec_cmd=``; only subprocess.Popen consumes it.
+	"""
+	return cmd.replace(SECRET_PLACEHOLDER, shlex.quote(secret)) if secret else cmd
+
+
 # The SpiderFoot package is NOT pip-installed — it lives at SPIDERFOOT_DIR
 # (/usr/src/github/spiderfoot, a shared volume) and is normally invoked as a
 # subprocess. Add it to sys.path and import SpiderFootDb under a guard so a host
@@ -642,7 +656,7 @@ def subdomain_discovery(
 				history_file=self.history_file,
 				scan_id=self.scan_id,
 				activity_id=self.activity_id,
-				secret=cmd_secret)
+				exec_cmd=build_exec_cmd(cmd, cmd_secret))
 		except Exception as e:
 			logger.error(
 				f'Subdomain discovery tool "{tool}" raised an exception')
@@ -4857,7 +4871,7 @@ def fetch_whois_data_using_netlas(target):
 		command += f' -a {SECRET_PLACEHOLDER}'
 
 	try:
-		_, result = run_command(command, remove_ansi_sequence=True, secret=netlas_key)
+		_, result = run_command(command, remove_ansi_sequence=True, exec_cmd=build_exec_cmd(command, netlas_key))
 		
 		# catch errors
 		if 'Failed to parse response data' in result:
@@ -5007,24 +5021,24 @@ def run_command(
 		scan_id=None,
 		activity_id=None,
 		remove_ansi_sequence=False,
-		secret='',
+		exec_cmd=None,
 		timeout=DEFAULT_COMMAND_EXEC_TIMEOUT
 	):
 	"""Run a given command using subprocess module.
 
 	Args:
-		cmd (str): Command to run. Put any secret (e.g. an API key) as the
-			SECRET_PLACEHOLDER sentinel and pass the real value via `secret`;
-			the sentinel-bearing `cmd` is what gets logged/stored (in the clear),
-			while only the executed command carries the secret. This keeps
-			credentials out of the Command DB record, logs and history file.
+		cmd (str): Command to run. This is what gets logged/stored (in the clear);
+			put SECRET_PLACEHOLDER where a secret goes and pass the executable form
+			via `exec_cmd` (see build_exec_cmd) to keep credentials out of the
+			Command DB record, logs and history file.
 		cwd (str): Current working directory.
 		echo (bool): Log command.
 		shell (bool): Run within separate shell if True.
 		history_file (str): Write command + output to history file.
 		remove_ansi_sequence (bool): Used to remove ANSI escape sequences from output such as color coding
-		secret (str): Secret value substituted into SECRET_PLACEHOLDER only for
-			execution; never logged or persisted.
+		exec_cmd (str|None): The string actually executed (secret already substituted
+			by the caller via build_exec_cmd). Consumed ONLY by subprocess.Popen — never
+			logged or persisted. Defaults to `cmd` when no secret is involved.
 	Returns:
 		tuple: Tuple with return_code, output.
 	"""
@@ -5039,9 +5053,9 @@ def run_command(
 		scan_history_id=scan_id,
 		activity_id=activity_id)
 
-	# Substitute the real secret in for execution ONLY (shell-quoted). The
-	# secret never touches the stored command, the logs or the history file.
-	exec_cmd = cmd.replace(SECRET_PLACEHOLDER, shlex.quote(secret)) if secret else cmd
+	# `cmd` (placeholder-bearing) is the ONLY string logged/stored/written here; the
+	# caller pre-substitutes the real secret into `exec_cmd` (used solely for Popen).
+	exec_cmd = exec_cmd if exec_cmd is not None else cmd
 
 	# Run the command using subprocess (own session so the watchdog can SIGKILL the group)
 	popen = subprocess.Popen(
@@ -5087,7 +5101,7 @@ def run_command(
 # Other utils #
 #-------------#
 
-def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-8', scan_id=None, activity_id=None, trunc_char=None, secret='', timeout=DEFAULT_COMMAND_EXEC_TIMEOUT):
+def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-8', scan_id=None, activity_id=None, trunc_char=None, exec_cmd=None, timeout=DEFAULT_COMMAND_EXEC_TIMEOUT):
 	# Log cmd (carries only the SECRET_PLACEHOLDER sentinel, never the real secret)
 	logger.info(cmd)
 	# logger.warning(activity_id)
@@ -5099,9 +5113,9 @@ def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-
 		scan_history_id=scan_id,
 		activity_id=activity_id)
 
-	# Substitute the real secret in for execution ONLY (shell-quoted); it never
-	# touches the stored command, the logs or the history file.
-	exec_cmd = cmd.replace(SECRET_PLACEHOLDER, shlex.quote(secret)) if secret else cmd
+	# `cmd` (placeholder-bearing) is the ONLY string logged/stored/written here; the
+	# caller pre-substitutes the real secret into `exec_cmd` (used solely for Popen).
+	exec_cmd = exec_cmd if exec_cmd is not None else cmd
 
 	# Sanitize the cmd
 	command = exec_cmd if shell else shlex.split(exec_cmd)
