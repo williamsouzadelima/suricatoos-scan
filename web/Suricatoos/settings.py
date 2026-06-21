@@ -68,11 +68,26 @@ SILENCED_SYSTEM_CHECKS = ['security.W008']
 # domain(s). Enabling this safely needs the deployment's real domain configured
 # in CSRF_TRUSTED_ORIGINS + a verified login flow — staged for review, not on by
 # default. nginx still owns the http->https redirect; it can also emit HSTS.
-if env.bool('SURICATOOS_BEHIND_TLS_PROXY', default=False):
+SURICATOOS_BEHIND_TLS_PROXY = env.bool('SURICATOOS_BEHIND_TLS_PROXY', default=False)
+if SURICATOOS_BEHIND_TLS_PROXY:
     SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
     SECURE_HSTS_SECONDS = env.int('SECURE_HSTS_SECONDS', default=31536000)
     SECURE_HSTS_INCLUDE_SUBDOMAINS = True
     SECURE_HSTS_PRELOAD = True
+# A04-3/A07-3: login brute-force throttle (custom cache-based; see Suricatoos/login_throttle.py).
+# Env-flagged so dev/HTTP and the CI test runner are untouched when off. Behind the nginx
+# proxy, resolve_client_ip trusts X-Real-IP (gated on SURICATOOS_BEHIND_TLS_PROXY above).
+SURICATOOS_LOGIN_THROTTLE_ENABLED = env.bool('SURICATOOS_LOGIN_THROTTLE_ENABLED', default=not DEBUG)
+# Trust nginx's X-Real-IP for the throttle's client-IP bucketing. DECOUPLED from
+# SURICATOOS_BEHIND_TLS_PROXY on purpose: that flag also enables SECURE_PROXY_SSL_HEADER
+# (CSRF-coupled, off by default), whereas trusting X-Real-IP for IP bucketing is safe
+# behind nginx. Default not DEBUG so prod (behind nginx, :8000 internal-only) keys on the
+# real client IP and never collapses all clients onto nginx's IP. Set 0 if the app is
+# exposed directly without a trusted proxy.
+SURICATOOS_LOGIN_TRUST_PROXY_IP = env.bool('SURICATOOS_LOGIN_TRUST_PROXY_IP', default=not DEBUG)
+SURICATOOS_LOGIN_FAIL_LIMIT = env.int('SURICATOOS_LOGIN_FAIL_LIMIT', default=5)
+SURICATOOS_LOGIN_IP_FAIL_LIMIT = env.int('SURICATOOS_LOGIN_IP_FAIL_LIMIT', default=20)
+SURICATOOS_LOGIN_COOLDOWN = env.int('SURICATOOS_LOGIN_COOLDOWN', default=900)  # seconds (sliding lock TTL)
 # A07-4: bound the session lifetime (default 14 days is too long for an admin tool
 # that stores 3rd-party API keys). Default 8h; env-overridable.
 SESSION_COOKIE_AGE = env.int('SESSION_COOKIE_AGE', default=28800)
@@ -143,6 +158,7 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'Suricatoos.login_throttle.LoginThrottleMiddleware',
     'login_required.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
@@ -432,5 +448,14 @@ CACHES = {
     'default': {
         'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
         'TIMEOUT': 60 * 30,  # 30 minutes caching will be used
-    }
+    },
+    # A04-3: dedicated alias for the login throttle so its counters don't share an LRU
+    # with scan-result caching. LocMemCache is correct for the current single web process;
+    # multi-worker/replica deployments should point this at a shared store (Redis via
+    # django-redis) — login_throttle._throttle_cache() logs a warning while it's LocMem.
+    'login_throttle': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'suricatoos-login-throttle',
+        'TIMEOUT': SURICATOOS_LOGIN_COOLDOWN,
+    },
 }
