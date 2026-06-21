@@ -31,6 +31,7 @@ from dashboard.models import *
 from startScan.models import *
 from targetApp.models import *
 from Suricatoos.utilities import is_valid_url
+from dashboard.providers import PROVIDERS, sf_destination
 
 
 logger = get_task_logger(__name__)
@@ -1049,27 +1050,62 @@ def get_domain_historical_ip_address(domain):
 
 
 def get_open_ai_key():
-	openai_key = OpenAiAPIKey.objects.all()
-	return openai_key[0] if openai_key else None
+	return get_api_key('openai')
 
 
 def get_netlas_key():
-	netlas_key = NetlasAPIKey.objects.all()
-	return netlas_key[0] if netlas_key else None
+	return get_api_key('netlas')
 
 
 def get_chaos_key():
-	chaos_key = ChaosAPIKey.objects.all()
-	return chaos_key[0] if chaos_key else None
+	return get_api_key('chaos')
 
 
 def get_hackerone_key_username():
 	"""
-		Get the HackerOne API key username from the database.
-		Returns: a tuple of the username and api key
+		Get the HackerOne API key username from the vault.
+		Returns: a tuple of (username, api_key), or None if not configured.
 	"""
-	hackerone_key = HackerOneAPIKey.objects.all()
-	return (hackerone_key[0].username, hackerone_key[0].key) if hackerone_key else None
+	key, extra = get_credential('hackerone')
+	if not key:
+		return None
+	return (extra.get('username'), key)
+
+
+def get_credential(provider):
+	"""Return (key, extra_dict) for an enabled credential, else (None, {})."""
+	cred = ApiCredential.objects.filter(provider=provider, enabled=True).first()
+	if not cred:
+		return None, {}
+	return cred.decrypted()
+
+
+def get_api_key(provider):
+	"""Return the decrypted primary key for an enabled credential, else None."""
+	return get_credential(provider)[0]
+
+
+def build_spiderfoot_config():
+	"""Flat {module:option -> value} for enabled SF-backed + custom credentials."""
+	cfg = {}
+	for cred in ApiCredential.objects.filter(enabled=True):
+		key, extra = cred.decrypted()
+		if cred.provider.startswith('custom:'):
+			option = cred.provider[len('custom:'):]
+			if key:
+				cfg[option] = key
+			continue
+		spec = PROVIDERS.get(cred.provider)
+		if not spec:
+			continue
+		# map each registry field -> its value (primary 'key' or a name in extra)
+		values = {'key': key, **(extra or {})}
+		for field_name, dest in spec['fields']:
+			option = sf_destination(dest)
+			val = values.get(field_name)
+			if option and val:
+				cfg[option] = val
+	return cfg
 
 
 def parse_llm_vulnerability_report(report):

@@ -27,6 +27,8 @@ from startScan.models import *
 from targetApp.models import Domain
 from dashboard.models import *
 from Suricatoos.definitions import *
+from Suricatoos.common_func import get_api_key, get_credential
+from dashboard.models import ApiCredential
 
 
 logger = logging.getLogger(__name__)
@@ -401,49 +403,26 @@ def onboarding(request):
             error = ' Could not create User, Error: ' + str(e)
 
         if key_openai:
-            openai_api_key = OpenAiAPIKey.objects.first()
-            if openai_api_key:
-                openai_api_key.key = key_openai
-                openai_api_key.save()
-            else:
-                OpenAiAPIKey.objects.create(key=key_openai)
+            ApiCredential.upsert('openai', key_openai)
 
         if key_netlas:
-            netlas_api_key = NetlasAPIKey.objects.first()
-            if netlas_api_key:
-                netlas_api_key.key = key_netlas
-                netlas_api_key.save()
-            else:
-                NetlasAPIKey.objects.create(key=key_netlas)
+            ApiCredential.upsert('netlas', key_netlas)
 
         if key_chaos:
-            chaos_api_key = ChaosAPIKey.objects.first()
-            if chaos_api_key:
-                chaos_api_key.key = key_chaos
-                chaos_api_key.save()
-            else:
-                ChaosAPIKey.objects.create(key=key_chaos)
+            ApiCredential.upsert('chaos', key_chaos)
 
         if key_hackerone and username_hackerone:
-            hackerone_api_key = HackerOneAPIKey.objects.first()
-            if hackerone_api_key:
-                hackerone_api_key.username = username_hackerone
-                hackerone_api_key.key = key_hackerone
-                hackerone_api_key.save()
-            else:
-                HackerOneAPIKey.objects.create(
-                    username=username_hackerone, 
-                    key=key_hackerone
-                )
+            ApiCredential.upsert('hackerone', key_hackerone, extra={'username': username_hackerone})
 
     context['error'] = error
     
 
-    context['openai_key'] = OpenAiAPIKey.objects.first()
-    context['netlas_key'] = NetlasAPIKey.objects.first()
-    context['chaos_key'] = ChaosAPIKey.objects.first()
-    context['hackerone_key'] = HackerOneAPIKey.objects.first().key if HackerOneAPIKey.objects.first() else ''
-    context['hackerone_username'] = HackerOneAPIKey.objects.first().username if HackerOneAPIKey.objects.first() else ''
+    _h1_key, _h1_extra = get_credential('hackerone')
+    context['openai_key_set'] = bool(get_api_key('openai'))
+    context['netlas_key_set'] = bool(get_api_key('netlas'))
+    context['chaos_key_set'] = bool(get_api_key('chaos'))
+    context['hackerone_key_set'] = bool(_h1_key)
+    context['hackerone_username'] = _h1_extra.get('username', '')
 
     context['user_preferences'], _ = UserPreferences.objects.get_or_create(
         user=request.user

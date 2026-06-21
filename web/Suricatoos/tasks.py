@@ -8,8 +8,10 @@ import shlex
 import signal
 import socket
 import subprocess
+import sys
 import threading
 import time
+from collections import Counter
 import validators
 import xmltodict
 import yaml
@@ -17,7 +19,7 @@ import tldextract
 import concurrent.futures
 import base64
 
-from datetime import datetime
+from datetime import datetime, timezone as datetime_timezone
 from urllib.parse import urlparse
 from api.serializers import SubdomainSerializer
 from celery import chain, chord, group
@@ -47,6 +49,41 @@ Celery tasks.
 """
 
 logger = get_task_logger(__name__)
+
+# Sentinel a caller puts in a command in place of a secret (e.g. an API key).
+# run_command/stream_command store/log the sentinel-bearing command but execute
+# a copy with the real secret substituted in — keeping credentials out of the
+# Command DB record, the logs and the history file (clear-text-storage defense).
+SECRET_PLACEHOLDER = '__SURICATOOS_SECRET__'
+
+
+# The SpiderFoot package is NOT pip-installed — it lives at SPIDERFOOT_DIR
+# (/usr/src/github/spiderfoot, a shared volume) and is normally invoked as a
+# subprocess. Add it to sys.path and import SpiderFootDb under a guard so a host
+# WITHOUT that volume (e.g. the test container) keeps tasks.py importable —
+# SpiderFootDb is then None and seeding is a graceful no-op. The celery worker
+# (where spiderfoot_scan actually runs) HAS the volume, so it gets the real class.
+# Keeping SpiderFootDb at module scope makes it patchable in tests
+# (mock.patch.object(tasks, 'SpiderFootDb')).
+if SPIDERFOOT_DIR not in sys.path:
+    sys.path.insert(0, SPIDERFOOT_DIR)
+try:
+    from spiderfoot import SpiderFootDb
+except Exception:   # noqa: BLE001 - package or its deps absent in this environment
+    SpiderFootDb = None
+
+
+def seed_spiderfoot_config(cfg):
+    """Persist vault-sourced API keys into spiderfoot.db so the CLI scan loads them.
+    Returns True on write, False on empty/missing-package/failure (never raises into a scan)."""
+    if not cfg or SpiderFootDb is None:
+        return False
+    try:
+        SpiderFootDb({'__database': SPIDERFOOT_DB_PATH}, init=True).configSet(cfg)
+        return True
+    except Exception as e:   # noqa: BLE001 - seeding must never break a scan
+        logger.warning(f'spiderfoot: could not seed API keys into config: {e}')
+        return False
 
 
 def is_valid_domain(name):
@@ -471,6 +508,11 @@ def subdomain_discovery(
 	# Run tools
 	for tool in tools:
 		cmd = None
+		# Executed form of this tool's command when it carries a secret (API key):
+		# `cmd` keeps the SECRET_PLACEHOLDER sentinel and is what gets logged/stored;
+		# `exec_cmd` is a SEPARATELY-built string with the real key, used only for Popen
+		# (never derived from `cmd` via .replace, so the secret can't taint the log sink).
+		exec_cmd = None
 		logger.info(f'Scanning subdomains for {host} with {tool}')
 		# proxy comes from the unvalidated Proxy textarea; allowlist it to a URL.
 		proxy = _allow(get_random_proxy(), PROXY_RE, '')
@@ -546,12 +588,17 @@ def subdomain_discovery(
 
 			elif tool == 'netlas':
 				results_file = self.results_dir + '/subdomains_netlas.txt'
-				cmd = f'netlas search -d domain -i domain domain:"*.{host}" -f json'
+				base = f'netlas search -d domain -i domain domain:"*.{host}" -f json'
 				# API key comes from the vault unvalidated; allowlist before it hits the shell.
 				netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
-				cmd += f' -a {shlex.quote(netlas_key)}' if netlas_key else ''
 				cmd_extract = f"grep -oE '([a-zA-Z0-9]([-a-zA-Z0-9]*[a-zA-Z0-9])?\.)+{host}'"
-				cmd += f' | {cmd_extract} > {shlex.quote(results_file)}'
+				tail = f' | {cmd_extract} > {shlex.quote(results_file)}'
+				# Logged command carries the sentinel; the executed command is built
+				# SEPARATELY with the real key (no .replace), so the key never shares a
+				# string op with the logged `cmd` — keeps the secret out of the log sink.
+				cmd = base + (f' -a {SECRET_PLACEHOLDER}' if netlas_key else '') + tail
+				if netlas_key:
+					exec_cmd = base + f' -a {shlex.quote(netlas_key)}' + tail
 
 			elif tool == 'chaos':
 				# we need to find api key if not ignore
@@ -560,7 +607,10 @@ def subdomain_discovery(
 					logger.error('Chaos API key not found. Skipping.')
 					continue
 				results_file = self.results_dir + '/subdomains_chaos.txt'
-				cmd = f'chaos -d {shlex.quote(host)} -silent -key {shlex.quote(chaos_key)} -o {shlex.quote(results_file)}'
+				# Logged command carries the sentinel; executed command is a SEPARATE
+				# string with the real key (no .replace) so the key can't taint the log sink.
+				cmd = f'chaos -d {shlex.quote(host)} -silent -key {SECRET_PLACEHOLDER} -o {shlex.quote(results_file)}'
+				exec_cmd = f'chaos -d {shlex.quote(host)} -silent -key {shlex.quote(chaos_key)} -o {shlex.quote(results_file)}'
 
 		elif tool in custom_subdomain_tools:
 			tool_query = InstalledExternalTool.objects.filter(name__icontains=tool.lower())
@@ -595,7 +645,8 @@ def subdomain_discovery(
 				shell=True,
 				history_file=self.history_file,
 				scan_id=self.scan_id,
-				activity_id=self.activity_id)
+				activity_id=self.activity_id,
+				exec_cmd=exec_cmd)
 		except Exception as e:
 			logger.error(
 				f'Subdomain discovery tool "{tool}" raised an exception')
@@ -2407,13 +2458,11 @@ def nuclei_individual_severity_module(self, cmd, severity, enable_http_crawl, sh
 			3. severity is not info or low
 		"""
 		hackerone_query = Hackerone.objects.filter(send_report=True)
-		api_key_check_query = HackerOneAPIKey.objects.filter(
-			Q(username__isnull=False) & Q(key__isnull=False)
-		)
+		_h1_key, _h1_extra = get_credential('hackerone')
 
 		send_report = (
 			hackerone_query.exists() and
-			api_key_check_query.exists() and
+			bool(_h1_key and _h1_extra.get('username')) and
 			severity not in ('info', 'low') and
 			vuln.target_domain.h1_team_handle
 		)
@@ -2455,7 +2504,7 @@ def nuclei_individual_severity_module(self, cmd, severity, enable_http_crawl, sh
 	# after vulnerability scan is done, we need to run gpt if
 	# should_fetch_gpt_report and openapi key exists
 
-	if should_fetch_gpt_report and OpenAiAPIKey.objects.all().first():
+	if should_fetch_gpt_report and get_api_key('openai'):
 		logger.info('Getting Vulnerability GPT Report')
 		vulns = Vulnerability.objects.filter(
 			scan_history__id=self.scan_id
@@ -2655,7 +2704,7 @@ def _shell_false_headers(headers):
 # raw/noise dumps. Emails/hosts/IPs are handled by the typed models before this.
 SF_DROP = {
 	'Raw Data from RIRs/APIs', 'Raw DNS Records', 'Affiliate Description - Category',
-	'Internet Name - Unresolved', 'Hash', 'Linked URL - Internal',
+	'Hash',
 }
 
 
@@ -2683,11 +2732,14 @@ def _sf_bucket(event_type):
 		return (OsintResult.BUCKET_GEO, False, 0)
 	if 'web analytics' in tl or 'web framework' in tl or 'software used' in tl:
 		return (OsintResult.BUCKET_WEB_TECH, False, 0)
+	if t in ('Company Name', 'Domain Name - Organisation'):
+		return (OsintResult.BUCKET_ORG, False, 0)
 	return None
 
 
 def save_osint_result(scan_history, bucket, event_type, data, source='spiderfoot',
-		extra=None, is_malicious=False, severity=0):
+		extra=None, is_malicious=False, severity=0,
+		module=None, parent=None, confidence=None, generated=None):
 	"""Idempotently persist a generic OSINT finding (de-dup per scan/bucket/type/data)."""
 	if not data:
 		return None, False
@@ -2697,6 +2749,12 @@ def save_osint_result(scan_history, bucket, event_type, data, source='spiderfoot
 	data = ' '.join(data.split()).strip()
 	if not data:
 		return None, False
+	discovered = timezone.now()
+	if generated:
+		try:
+			discovered = datetime.fromtimestamp(int(generated), tz=datetime_timezone.utc)
+		except (ValueError, OSError, OverflowError):
+			pass
 	target = scan_history.domain if scan_history else None
 	obj, created = OsintResult.objects.get_or_create(
 		scan_history=scan_history, bucket=bucket, event_type=event_type,
@@ -2705,7 +2763,8 @@ def save_osint_result(scan_history, bucket, event_type, data, source='spiderfoot
 			'target_domain': target, 'source': source,
 			'extra': (str(extra)[:2000] if extra else None),
 			'is_malicious': is_malicious, 'severity': severity,
-			'discovered_date': timezone.now(),
+			'module': module, 'parent': (str(parent)[:500] if parent else None),
+			'confidence': confidence, 'discovered_date': discovered,
 		})
 	return obj, created
 
@@ -2717,6 +2776,9 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 	osint.enable_spiderfoot config flag.
 	"""
 	scan_history = ScanHistory.objects.get(pk=scan_history_id)
+	seeded = seed_spiderfoot_config(build_spiderfoot_config())
+	if seeded:
+		logger.info('spiderfoot: seeded API keys from the credential vault')
 	# str() so a list/dict YAML value fails the allowlist safely instead of raising.
 	preset = str(config.get(SPIDERFOOT_PRESET, 'passive'))
 	if preset not in SPIDERFOOT_PRESETS:
@@ -2749,11 +2811,14 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 	# Affiliate emails are the bulk of real email intel (plain 'Email Address' is
 	# usually empty), so capture both. Hosts/IPs feed the typed models in-scope.
 	SF_EMAILS = {'Email Address', 'Affiliate - Email Address', 'EMAILADDR', 'AFFILIATE_EMAILADDR'}
-	SF_HOSTS = {'Domain Name', 'Internet Name', 'DOMAIN_NAME', 'INTERNET_NAME'}
+	SF_HOSTS = {'Domain Name', 'Internet Name', 'DOMAIN_NAME', 'INTERNET_NAME',
+	            'Internet Name - Unresolved'}
 	SF_IPS = {'IP Address', 'IPv6 Address', 'IP_ADDRESS', 'IPV6_ADDRESS'}
 	SF_NAMES = {'Human Name', 'HUMAN_NAME'}
+	SF_URLS = {'Linked URL - Internal'}
 	saved = 0
 	intel = 0
+	dropped = Counter()
 	for ev in events:
 		etype = ev.get('type')
 		data = ev.get('data')
@@ -2772,21 +2837,29 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 			elif etype in SF_NAMES:
 				save_employee(data, designation='spiderfoot', scan_history=scan_history)
 				saved += 1
+			elif etype in SF_URLS:
+				save_endpoint(data, ctx=ctx)
+				saved += 1
 			else:
 				# Rich intel (malicious/blacklist, repos, infra/DNS, affiliates,
 				# co-hosted, netblock/ASN, geo, web tech) -> OsintResult bucket.
 				route = _sf_bucket(etype)
 				if not route:
+					dropped[etype] += 1
 					continue
 				bucket, is_mal, sev = route
 				save_osint_result(
 					scan_history, bucket, etype, data,
-					extra=ev.get('module'), is_malicious=is_mal, severity=sev)
+					is_malicious=is_mal, severity=sev,
+					module=ev.get('module'), parent=ev.get('source'),
+					generated=ev.get('generated'))
 				intel += 1
 		except Exception as e:
 			logger.warning(f'spiderfoot: could not save {etype}={data}: {e}')
+	n_dropped = sum(dropped.values())
 	logger.info(
-		f'spiderfoot: processed {len(events)} event(s), saved {saved} typed + {intel} intel for {host}')
+		f'spiderfoot: processed {len(events)} event(s), saved {saved} typed + {intel} intel for {host}; '
+		f'{n_dropped} dropped (top: {dropped.most_common(3)})')
 	return events
 
 
@@ -3095,11 +3168,7 @@ def run_ggshield_scan(self, scan_path):
 	"""Run ggshield (GitGuardian) secret scan over a path. The GitGuardian API key
 	is read from the API vault (Settings -> API), falling back to the
 	GITGUARDIAN_API_KEY environment variable."""
-	gg_key = None
-	db_key = GitGuardianAPIKey.objects.first()
-	if db_key and db_key.key:
-		gg_key = db_key.key
-	gg_key = gg_key or os.environ.get('GITGUARDIAN_API_KEY')
+	gg_key = get_api_key('gitguardian') or os.environ.get('GITGUARDIAN_API_KEY')
 	if not gg_key:
 		logger.warning('ggshield: no GitGuardian API key (set it in Settings -> API or the GITGUARDIAN_API_KEY env var), skipping ggshield scan')
 		return 0
@@ -3446,7 +3515,7 @@ def dalfox_xss_scan(self, urls=[], ctx={}, description=None):
 	# after vulnerability scan is done, we need to run gpt if
 	# should_fetch_gpt_report and openapi key exists
 
-	if should_fetch_gpt_report and OpenAiAPIKey.objects.all().first():
+	if should_fetch_gpt_report and get_api_key('openai'):
 		logger.info('Getting Dalfox Vulnerability GPT Report')
 		vulns = Vulnerability.objects.filter(
 			scan_history__id=self.scan_id
@@ -3577,7 +3646,7 @@ def crlfuzz_scan(self, urls=[], ctx={}, description=None):
 	# after vulnerability scan is done, we need to run gpt if
 	# should_fetch_gpt_report and openapi key exists
 
-	if should_fetch_gpt_report and OpenAiAPIKey.objects.all().first():
+	if should_fetch_gpt_report and get_api_key('openai'):
 		logger.info('Getting CRLFuzz Vulnerability GPT Report')
 		vulns = Vulnerability.objects.filter(
 			scan_history__id=self.scan_id
@@ -4146,9 +4215,10 @@ def send_hackerone_report(vulnerability_id):
 
 	# can only send vulnerability report if team_handle exists and send_report is True and api_key exists
 	hackerone = Hackerone.objects.filter(send_report=True).first()
-	api_key = HackerOneAPIKey.objects.filter(username__isnull=False, key__isnull=False).first()
+	h1_key, h1_extra = get_credential('hackerone')
+	h1_username = h1_extra.get('username') if h1_extra else None
 
-	if not (vulnerability.target_domain.h1_team_handle and hackerone and api_key):
+	if not (vulnerability.target_domain.h1_team_handle and hackerone and h1_key and h1_username):
 		logger.error('Missing required data: team handle, Hackerone config, or API key.')
 		return {"status_code": 400, "message": "Missing required data"}
 
@@ -4188,7 +4258,7 @@ def send_hackerone_report(vulnerability_id):
 
 	r = requests.post(
 		'https://api.hackerone.com/v1/hackers/reports',
-		auth=(api_key.username, api_key.key),
+		auth=(h1_username, h1_key),
 		json=data,
 		headers=headers
 	)
@@ -4786,11 +4856,15 @@ def fetch_whois_data_using_netlas(target):
 	command = f'netlas host {_allow(target, SAFE_HOST_ARG_RE, "")} -f json'
 	# shell=False: allowlist the vault key so it can't smuggle an argv flag.
 	netlas_key = _allow(get_netlas_key(), SAFE_TOKEN_RE, '')
+	# Logged command carries the sentinel; the executed command is built SEPARATELY
+	# with the real key (no .replace) so the key never taints the logged command.
+	exec_command = None
 	if netlas_key:
-		command += f' -a {netlas_key}'
+		exec_command = command + f' -a {shlex.quote(netlas_key)}'
+		command += f' -a {SECRET_PLACEHOLDER}'
 
 	try:
-		_, result = run_command(command, remove_ansi_sequence=True)
+		_, result = run_command(command, remove_ansi_sequence=True, exec_cmd=exec_command)
 		
 		# catch errors
 		if 'Failed to parse response data' in result:
@@ -4940,33 +5014,46 @@ def run_command(
 		scan_id=None,
 		activity_id=None,
 		remove_ansi_sequence=False,
+		exec_cmd=None,
 		timeout=DEFAULT_COMMAND_EXEC_TIMEOUT
 	):
 	"""Run a given command using subprocess module.
 
 	Args:
-		cmd (str): Command to run.
+		cmd (str): Command to run. This is what gets logged/stored (in the clear);
+			put SECRET_PLACEHOLDER where a secret goes and pass the executable form
+			via `exec_cmd` (built separately by the caller) to keep credentials out of
+			the Command DB record, logs and history file.
 		cwd (str): Current working directory.
 		echo (bool): Log command.
 		shell (bool): Run within separate shell if True.
 		history_file (str): Write command + output to history file.
 		remove_ansi_sequence (bool): Used to remove ANSI escape sequences from output such as color coding
+		exec_cmd (str|None): The string actually executed — built by the caller as a
+			SEPARATE string with the real secret (never via cmd.replace, so the secret
+			can't taint `cmd`). Consumed ONLY by subprocess.Popen — never logged or
+			persisted. Defaults to `cmd` when no secret is involved.
 	Returns:
 		tuple: Tuple with return_code, output.
 	"""
 	logger.info(cmd)
 	logger.warning(activity_id)
 
-	# Create a command record in the database
+	# Create a command record in the database. `cmd` carries only the
+	# SECRET_PLACEHOLDER sentinel, never the real secret.
 	command_obj = Command.objects.create(
 		command=cmd,
 		time=timezone.now(),
 		scan_history_id=scan_id,
 		activity_id=activity_id)
 
+	# `cmd` (placeholder-bearing) is the ONLY string logged/stored/written here; the
+	# caller pre-substitutes the real secret into `exec_cmd` (used solely for Popen).
+	exec_cmd = exec_cmd if exec_cmd is not None else cmd
+
 	# Run the command using subprocess (own session so the watchdog can SIGKILL the group)
 	popen = subprocess.Popen(
-		cmd if shell else shlex.split(cmd),
+		exec_cmd if shell else shlex.split(exec_cmd),
 		shell=shell,
 		stdout=subprocess.PIPE,
 		stderr=subprocess.STDOUT,
@@ -5008,20 +5095,24 @@ def run_command(
 # Other utils #
 #-------------#
 
-def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-8', scan_id=None, activity_id=None, trunc_char=None, timeout=DEFAULT_COMMAND_EXEC_TIMEOUT):
-	# Log cmd
+def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-8', scan_id=None, activity_id=None, trunc_char=None, exec_cmd=None, timeout=DEFAULT_COMMAND_EXEC_TIMEOUT):
+	# Log cmd (carries only the SECRET_PLACEHOLDER sentinel, never the real secret)
 	logger.info(cmd)
 	# logger.warning(activity_id)
 
-	# Create a command record in the database
+	# Create a command record in the database (sentinel-bearing cmd, no secret)
 	command_obj = Command.objects.create(
 		command=cmd,
 		time=timezone.now(),
 		scan_history_id=scan_id,
 		activity_id=activity_id)
 
+	# `cmd` (placeholder-bearing) is the ONLY string logged/stored/written here; the
+	# caller pre-substitutes the real secret into `exec_cmd` (used solely for Popen).
+	exec_cmd = exec_cmd if exec_cmd is not None else cmd
+
 	# Sanitize the cmd
-	command = cmd if shell else shlex.split(cmd)
+	command = exec_cmd if shell else shlex.split(exec_cmd)
 
 	# Run the command using subprocess (own session so the watchdog can SIGKILL the group)
 	process = subprocess.Popen(

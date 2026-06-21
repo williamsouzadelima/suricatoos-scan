@@ -797,7 +797,7 @@ class OsintResultSerializer(serializers.ModelSerializer):
 		fields = [
 			'id', 'scan_history', 'target_domain', 'source', 'bucket',
 			'event_type', 'data', 'extra', 'is_malicious', 'severity',
-			'discovered_date',
+			'discovered_date', 'module', 'parent', 'confidence',
 		]
 
 
