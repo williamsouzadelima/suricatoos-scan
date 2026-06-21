@@ -38,6 +38,7 @@ from api.shared_api_tasks import import_hackerone_programs_task, sync_bookmarked
 from api.permissions import *
 from api.serializers import *
 from urllib.parse import quote as _url_quote
+from celery.exceptions import TimeoutError as CeleryTimeoutError
 
 
 logger = logging.getLogger(__name__)
@@ -48,6 +49,28 @@ WEB_FETCH_TIMEOUT = (10, 30)  # (connect, read) seconds
 # Strict CVE-id shape, used to validate+encode the cve_id before it is concatenated
 # into the circl.lu URL (avoid path traversal / unexpected endpoints).
 CVE_ID_RE = re.compile(r'\ACVE-\d{4}-\d{4,19}\Z', re.IGNORECASE)
+# A04-1: how long a synchronous tool endpoint (whois/reverse-whois/ip-history) will block
+# the web worker waiting on its Celery task before giving up with a 504.
+WHOIS_TASK_TIMEOUT = 25  # seconds
+# LLM report generation is legitimately slower (ollama/OpenAI), so it gets a more generous
+# bound — still finite, so it can never pin the worker forever.
+LLM_TASK_TIMEOUT = 120  # seconds
+
+
+def _await_tool_task(task, timeout=WHOIS_TASK_TIMEOUT):
+    """Bound the synchronous wait on a Celery tool task so a slow worker queue or a
+    slow third party can't pin the web worker indefinitely (OWASP A04-1). Returns
+    (data, None) on success or (None, Response) carrying a 504/error to return."""
+    try:
+        return task.wait(timeout=timeout), None
+    except CeleryTimeoutError:
+        return None, Response(
+            {'status': False, 'message': _('Lookup timed out, please try again later.')},
+            status=status.HTTP_504_GATEWAY_TIMEOUT)
+    except Exception as e:
+        logger.error(f'tool task failed: {e}')
+        return None, Response(
+            {'status': False, 'message': _('Lookup failed.')}, status=HTTP_400_BAD_REQUEST)
 
 
 class ToggleBugBountyModeView(APIView):
@@ -484,8 +507,8 @@ class LLMVulnerabilityReportGenerator(APIView):
 				'error': _('Missing GET param Vulnerability `id`')
 			})
 		task = llm_vulnerability_description.apply_async(args=(vulnerability_id,))
-		response = task.wait()
-		return Response(response)
+		response, err = _await_tool_task(task, timeout=LLM_TASK_TIMEOUT)  # A04-1: bounded wait
+		return err if err else Response(response)
 
 
 class CreateProjectApi(APIView):
@@ -1563,26 +1586,32 @@ class Whois(APIView):
 		is_force_update = req.query_params.get('is_reload')
 		is_force_update = True if is_force_update and 'true' == is_force_update.lower() else False
 		task = query_whois.apply_async(args=(target,is_force_update))
-		response = task.wait()
-		return Response(response)
+		response, err = _await_tool_task(task)  # A04-1: bounded wait
+		return err if err else Response(response)
 
 
 class ReverseWhois(APIView):
 	def get(self, request):
 		req = self.request
-		lookup_keyword = req.query_params.get('lookup_keyword')
+		# A04-1: validate before dispatch (reject empty / over-long / control chars).
+		lookup_keyword = (req.query_params.get('lookup_keyword') or '').strip()
+		if not lookup_keyword or len(lookup_keyword) > 100 or any(ord(c) < 0x20 for c in lookup_keyword):
+			return Response({'status': False, 'message': _('Invalid lookup keyword')})
 		task = query_reverse_whois.apply_async(args=(lookup_keyword,))
-		response = task.wait()
-		return Response(response)
+		response, err = _await_tool_task(task)  # A04-1: bounded wait
+		return err if err else Response(response)
 
 
 class DomainIPHistory(APIView):
 	def get(self, request):
 		req = self.request
-		domain = req.query_params.get('domain')
+		# A04-1: validate before dispatch (was passed straight through, possibly None).
+		domain = (req.query_params.get('domain') or '').strip()
+		if not (validators.domain(domain) or validators.ipv4(domain) or validators.ipv6(domain)):
+			return Response({'status': False, 'message': _('Invalid domain or IP')})
 		task = query_ip_history.apply_async(args=(domain,))
-		response = task.wait()
-		return Response(response)
+		response, err = _await_tool_task(task)  # A04-1: bounded wait
+		return err if err else Response(response)
 
 
 class CMSDetector(APIView):

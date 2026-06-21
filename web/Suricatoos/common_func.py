@@ -17,7 +17,7 @@ import xmltodict
 
 from time import sleep
 from bs4 import BeautifulSoup
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 from celery.utils.log import get_task_logger
 from discord_webhook import DiscordEmbed, DiscordWebhook
 from django.db.models import Q
@@ -971,7 +971,8 @@ def reverse_whois(lookup_keyword):
 		Returns a list of domains as string.
 	'''
 	logger.info(f'Querying reverse whois for {lookup_keyword}')
-	url = f"https://viewdns.info:443/reversewhois/?q={lookup_keyword}"
+	# A04-2: URL-encode the operator-supplied keyword so it can't inject extra query params.
+	url = f"https://viewdns.info:443/reversewhois/?q={quote(str(lookup_keyword or ''), safe='')}"
 	headers = {
 		"Sec-Ch-Ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"104\"",
 		"Sec-Ch-Ua-Mobile": "?0",
@@ -987,7 +988,7 @@ def reverse_whois(lookup_keyword):
 		"Accept-Encoding": "gzip, deflate",
 		"Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8"
 	}
-	response = requests.get(url, headers=headers)
+	response = requests.get(url, headers=headers, timeout=(10, 30))  # A04-1: bound the upstream fetch
 	soup = BeautifulSoup(response.content, 'lxml')
 	table = soup.find("table", {"border" : "1"})
 	try:
@@ -1009,7 +1010,8 @@ def get_domain_historical_ip_address(domain):
 		for a domain
 	'''
 	logger.info(f'Fetching historical IP address for domain {domain}')
-	url = f"https://viewdns.info/iphistory/?domain={domain}"
+	# A04-2: URL-encode the operator-supplied domain before building the query URL.
+	url = f"https://viewdns.info/iphistory/?domain={quote(str(domain or ''), safe='')}"
 	headers = {
 		"Sec-Ch-Ua": "\" Not A;Brand\";v=\"99\", \"Chromium\";v=\"104\"",
 		"Sec-Ch-Ua-Mobile": "?0",
@@ -1025,9 +1027,9 @@ def get_domain_historical_ip_address(domain):
 		"Accept-Encoding": "gzip, deflate",
 		"Accept-Language": "en-GB,en-US;q=0.9,en;q=0.8"
 	}
-	response = requests.get(url, headers=headers)
+	response = requests.get(url, headers=headers, timeout=(10, 30))  # A04-1: bound the upstream fetch
 	soup = BeautifulSoup(response.content, 'lxml')
-	table = soup.find("table", {"border" : "1"})					   
+	table = soup.find("table", {"border" : "1"})
 	for row in table or []:
 		ip = row.findAll('td')[0].getText()
 		location = row.findAll('td')[1].getText()
