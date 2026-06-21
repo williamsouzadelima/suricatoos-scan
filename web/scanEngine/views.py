@@ -21,7 +21,8 @@ from dashboard.models import ApiCredential
 from dashboard.providers import PROVIDERS, is_valid_custom_option, custom_provider_slug
 from scanEngine.provider_keys import (
     SUBFINDER_UI_PROVIDERS, set_subfinder_key, subfinder_providers_status,
-    THEHARVESTER_UI_PROVIDERS, set_theharvester_key, theharvester_providers_status)
+    THEHARVESTER_UI_PROVIDERS, set_theharvester_key, theharvester_providers_status,
+    propagate_vault_key)
 
 
 def index(request, slug):
@@ -556,6 +557,9 @@ def api_vault(request, slug):
                     extra=extra or None,
                     label=spec['label'],
                 )
+                # Mirror into subfinder/theHarvester for providers those tools
+                # also use, so one vault field feeds every consumer (no dup field).
+                propagate_vault_key(prov_slug, key, extra)
             # else: blank leaves the stored value untouched
 
         # Custom SpiderFoot module:option entry
