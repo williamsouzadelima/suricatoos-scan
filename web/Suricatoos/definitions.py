@@ -523,6 +523,23 @@ FOUR_OH_FOUR_URL = '/404/'
 ###############################################################################
 OLLAMA_INSTANCE = 'http://ollama:11434'
 
+# --- LLM false-positive judge (confidence flagger; never auto-deletes) ---
+JUDGE_ENABLED = 'judge_enabled'
+JUDGE_MODEL = 'judge_model'
+DEFAULT_JUDGE_MODEL = 'qwen2.5:3b'   # small, fits the box; run post-scan only
+JUDGE_SYSTEM_PROMPT = (
+	"You are a security false-positive triage judge for nuclei scan findings. "
+	"Given one finding, decide if it is a REAL issue, a LIKELY false positive, or "
+	"NEEDS human REVIEW.\n"
+	"False-positive signals: weak matcher (status==200 only, generic substring in "
+	"body), empty or trivial extracted_results (like ['200']), no CVE, detection/"
+	"banner tags. Real signals: a CVE id, a specific payload echoed in "
+	"extracted_results, exploit tags, a response that semantically confirms the "
+	"issue.\n"
+	"Respond with ONLY a single JSON object, no prose:\n"
+	'{"verdict":"real|likely_fp|needs_review","confidence":0.0-1.0,"reason":"<=200 chars"}'
+)
+
 DEFAULT_GPT_MODELS = [
     {
         'name': 'gpt-3',

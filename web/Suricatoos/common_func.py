@@ -1108,6 +1108,33 @@ def build_spiderfoot_config():
 	return cfg
 
 
+def parse_llm_judge_verdict(text):
+	"""Parse an LLM FP-judge response into {verdict, confidence, reason}.
+
+	Robust by design: extracts the first {...} JSON block and never raises. On any
+	failure it returns needs_review (never silently 'real' or 'false_positive').
+	"""
+	import json
+	fallback = {'verdict': 'needs_review', 'confidence': 0.0, 'reason': 'parse_error'}
+	if not text:
+		return fallback
+	m = re.search(r'\{.*\}', text, re.DOTALL)
+	if not m:
+		return fallback
+	try:
+		d = json.loads(m.group(0))
+	except Exception:
+		return fallback
+	verdict = str(d.get('verdict', '')).lower().strip()
+	if verdict not in ('real', 'likely_fp', 'needs_review'):
+		verdict = 'needs_review'
+	try:
+		conf = max(0.0, min(1.0, float(d.get('confidence', 0.0))))
+	except Exception:
+		conf = 0.0
+	return {'verdict': verdict, 'confidence': conf, 'reason': str(d.get('reason', ''))[:200]}
+
+
 def parse_llm_vulnerability_report(report):
 	report = report.replace('**', '')
 	data = {}
