@@ -281,6 +281,10 @@ def admin_interface_update(request, slug):
 
 @receiver(user_logged_out)
 def on_user_logged_out(sender, request, **kwargs):
+    # Best-effort flash: a synthetic/non-middleware request (test/API logout) has no
+    # message storage, and logout must never fail over a UI nicety (mirrors on_user_logged_in).
+    if request is None or not hasattr(request, '_messages'):
+        return
     messages.add_message(
         request,
         messages.INFO,

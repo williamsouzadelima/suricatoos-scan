@@ -50,7 +50,7 @@ jobs:
             -v "${{ github.workspace }}/web:/usr/src/app" \
             -w /usr/src/app \
             --entrypoint python3 suricatoos/web:ci \
-            manage.py test tests.test_command_injection tests.test_secret_scan tests.test_nmap tests.test_security_headers tests.test_access_control tests.test_osint_logging tests.test_ssrf_fetch_guard tests.test_password_policy tests.test_admin_csrf tests.test_tool_endpoints -v 2
+            manage.py test tests.test_command_injection tests.test_secret_scan tests.test_nmap tests.test_security_headers tests.test_access_control tests.test_osint_logging tests.test_ssrf_fetch_guard tests.test_password_policy tests.test_admin_csrf tests.test_tool_endpoints tests.test_login_lockout -v 2
 
       - name: 🔧 Django deploy-config check (OWASP A05)
         run: |

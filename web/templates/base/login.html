@@ -109,7 +109,11 @@
                     </div>
                   </div>
                 </div>
-                {% if form.errors %}
+                {% if throttle_message %}
+                <div class="col-12 text-danger">
+                    <p class="text-danger"><strong>{{ throttle_message }}</strong></p>
+                </div>
+                {% elif form.errors %}
                 <div class="col-12 text-danger">
                     <p class="text-danger">
                         <strong>{% trans "Oops! Invalid username or password." %}</strong>

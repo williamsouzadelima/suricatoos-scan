@@ -29,7 +29,7 @@
 
 ## 4. Real client-IP resolution (the #1 footgun)
 - nginx (`config/nginx/suricatoos.conf:25-26`) sets `X-Real-IP $remote_addr` (single, non-appendable hop, overwritten every request) and `X-Forwarded-For`.
-- **Behind the proxy** (gate on the **existing** `SURICATOOS_BEHIND_TLS_PROXY` flag — reuse it to avoid drift): trust `HTTP_X_REAL_IP`. It is the simplest spoof-resistant primitive given nginx is the sole ingress (nginx overwrites it every request; the client cannot forge it through nginx).
+- **Behind the proxy** (gate on a **dedicated** `SURICATOOS_LOGIN_TRUST_PROXY_IP` flag, default `not DEBUG`): trust `HTTP_X_REAL_IP`. It is the simplest spoof-resistant primitive given nginx is the sole ingress (nginx overwrites it every request; the client cannot forge it through nginx). **Decoupled from `SURICATOOS_BEHIND_TLS_PROXY` on purpose** — that flag also flips on `SECURE_PROXY_SSL_HEADER` (CSRF-strict-referer coupled, intentionally off until `CSRF_TRUSTED_ORIGINS` is set), whereas trusting X-Real-IP only for IP bucketing is safe behind nginx. Coupling them would have meant either (a) the throttle collapses all clients onto nginx's IP whenever `BEHIND_TLS_PROXY` is off (→ single-admin DoS), or (b) flipping it on breaks login CSRF. The default `not DEBUG` makes prod (behind nginx, `:8000` internal-only) key on the real client IP automatically.
 - **Otherwise** (dev/CI/internal `:8000`): use `REMOTE_ADDR` only.
 - Every candidate IP is validated with `ipaddress.ip_address()`; an unparseable/missing IP falls back to a constant bucket. **Never trust `X-Forwarded-For[0]`** (client-controllable).
 - Documented deployment invariant: if the app is ever reached directly (bypassing nginx) while behind-proxy trust is on, `X-Real-IP` is forgeable — keep `:8000` internal-only.
@@ -43,7 +43,7 @@
 ## 6. Enablement (env flags, mirroring `settings.py:49-84`)
 - `SURICATOOS_LOGIN_THROTTLE_ENABLED` — `env.bool`, default **`not DEBUG`**. Off → the LoginView subclass behaves exactly like stock `LoginView` (dev/HTTP + the CI runner untouched; no login tests exist today).
 - `SURICATOOS_LOGIN_FAIL_LIMIT` (5), `SURICATOOS_LOGIN_IP_FAIL_LIMIT` (20), `SURICATOOS_LOGIN_COOLDOWN` (900) — all `env.int`-overridable.
-- Proxy-IP trust gated on the existing `SURICATOOS_BEHIND_TLS_PROXY`.
+- `SURICATOOS_LOGIN_TRUST_PROXY_IP` — `env.bool`, default `not DEBUG` (dedicated; see §4). Set `0` if the app is exposed directly without a trusted proxy.
 
 ## 7. Recovery (single-admin safe — total lockout is impossible)
 1. **Auto-heal:** the 15-min TTL expires the lock with no action.
@@ -75,6 +75,14 @@ Django `TestCase` with `override_settings(SURICATOOS_LOGIN_THROTTLE_ENABLED=True
 - Blank-username attempts only feed the IP backstop.
 - Flag **off** → unlimited attempts behave like stock LoginView (no regression).
 - `_resolve_client_ip` uses `X-Real-IP` behind proxy and `REMOTE_ADDR` otherwise; rejects garbage.
+
+## 11b. Implementation notes (post adversarial-review)
+The implementation evolved from the design after a 2-lens adversarial review:
+- **Mechanism: middleware, not a `LoginView` subclass.** `LoginThrottleMiddleware` (after `AuthenticationMiddleware`) wraps login POSTs and detects success/failure by response status (302 = success → clear; 200 re-render = failure → record). One mechanism, no view/URL change, and the LocMem startup warning fires in `__init__` (i.e. at startup).
+- **Admin login (`/admin/login/`) is NOT throttled and does not need to be.** `LoginRequiredMiddleware` redirects unauthenticated `/admin/...` (incl. `/admin/login/`) to the throttled `/login/` (verified live: `302 → /login/?next=/admin/login/`, POST body discarded). The review's "admin login is an unthrottled surface" was a **false positive**. Moreover, including `/admin/login/` in the throttle would be a **counter-reset bypass** (that 302 would read as a login success and clear the attacker's counter), so the throttle is scoped to `/login/` only.
+- **Username normalized** (`NFKC` + strip + casefold) to match what Django's `AuthenticationForm` does before `authenticate()`, so whitespace/unicode/case variants can't each get a fresh per-account budget.
+- **Sliding window:** each failure `touch()`es the key TTL, so the lock window extends while an attack continues (matches §3/§7).
+- **`clear_login_lockouts` is a no-op for the live LocMem process** (separate-process): the command warns loudly and the working recovery paths are the cooldown TTL, the `SURICATOOS_LOGIN_THROTTLE_ENABLED=0` kill-switch + reload, and a container restart. The command is effective only with a shared cache (Redis).
 
 ## 12. Blast radius & accepted risks
 - **Auth path:** only the login VIEW is subclassed — `AUTHENTICATION_BACKENDS`, DRF `SessionAuthentication`, and django-role-permissions are untouched. Internal `:8000` health checks don't POST `/login/`, so create no attempts.
