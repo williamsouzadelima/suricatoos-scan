@@ -1,6 +1,9 @@
+import json
+
 from django.db import models
 from Suricatoos.definitions import *
 from django.contrib.auth.models import User
+from dashboard import crypto
 
 
 class SearchHistory(models.Model):
@@ -102,6 +105,46 @@ class InAppNotification(models.Model):
 class UserPreferences(models.Model):
 	user = models.OneToOneField(User, on_delete=models.CASCADE)
 	bug_bounty_mode = models.BooleanField(default=True)
-	
+
 	def __str__(self):
 		return f"{self.user.username}'s preferences"
+
+
+class ApiCredential(models.Model):
+	"""Generic, encrypted store for every integration API key (the unified vault).
+	`provider` is a registry slug (dashboard.providers) or 'custom:sfp_x:api_key'."""
+	id = models.AutoField(primary_key=True)
+	provider = models.CharField(max_length=120, unique=True)
+	label = models.CharField(max_length=200, blank=True, default='')
+	key_enc = models.TextField()
+	extra_enc = models.TextField(null=True, blank=True)
+	enabled = models.BooleanField(default=True)
+	updated_at = models.DateTimeField(auto_now=True)
+
+	def __str__(self):
+		return f'ApiCredential<{self.provider}>'   # never the secret
+
+	@classmethod
+	def upsert(cls, provider, key, extra=None, label='', enabled=True):
+		extra_enc = crypto.encrypt(json.dumps(extra)) if extra else None
+		obj, _ = cls.objects.update_or_create(
+			provider=provider,
+			defaults={
+				'key_enc': crypto.encrypt(key or ''),
+				'extra_enc': extra_enc,
+				'label': label,
+				'enabled': enabled,
+			})
+		return obj
+
+	def decrypted(self):
+		key = crypto.decrypt(self.key_enc) if self.key_enc else None
+		extra = {}
+		if self.extra_enc:
+			raw = crypto.decrypt(self.extra_enc)
+			if raw:
+				try:
+					extra = json.loads(raw)
+				except ValueError:
+					extra = {}
+		return key, extra

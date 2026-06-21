@@ -25,7 +25,7 @@ from Suricatoos.tasks import (redact_secret, save_leaked_secret,
                               spiderfoot_scan, secret_scan)
 from api.serializers import LeakedSecretSerializer
 from api.views import LeakedSecretViewSet
-from dashboard.models import GitGuardianAPIKey
+from dashboard.models import ApiCredential, GitGuardianAPIKey
 from startScan.models import (LeakedSecret, ScanHistory, Email, Employee,
                               IpAddress)
 from targetApp.models import Domain
@@ -238,7 +238,7 @@ class TestGgshieldParsing(TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.addCleanup(os.environ.pop, 'GITGUARDIAN_API_KEY', None)
         # ggshield needs a GitGuardian key; provide one via the API vault.
-        GitGuardianAPIKey.objects.create(key='test-key')
+        ApiCredential.upsert('gitguardian', 'test-key')
         self.fake_self = SimpleNamespace(
             results_dir=self.tmp,
             history_file=f'{self.tmp}/commands.txt',
@@ -280,7 +280,7 @@ class TestGgshieldParsing(TestCase):
 
     @patch('Suricatoos.tasks.run_command')
     def test_skips_when_no_key_configured(self, mock_run):
-        GitGuardianAPIKey.objects.all().delete()
+        ApiCredential.objects.filter(provider='gitguardian').delete()
         os.environ.pop('GITGUARDIAN_API_KEY', None)
         count = run_ggshield_scan(self.fake_self, self.tmp)
         self.assertEqual(count, 0)

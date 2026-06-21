@@ -124,13 +124,10 @@ class HackerOneProgramViewSet(viewsets.ViewSet):
 			return self.handle_exception(e)
 	
 	def get_api_credentials(self):
-		try:
-			api_key = HackerOneAPIKey.objects.first()
-			if not api_key:
-				raise ObjectDoesNotExist("HackerOne API credentials not found")
-			return api_key.username, api_key.key
-		except ObjectDoesNotExist:
+		key, extra = get_credential('hackerone')
+		if not key or not extra.get('username'):
 			raise Exception("HackerOne API credentials not configured")
+		return extra.get('username'), key
 
 	@action(detail=False, methods=['get'])
 	def bookmarked_programs(self, request):

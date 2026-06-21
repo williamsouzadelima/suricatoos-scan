@@ -276,5 +276,48 @@ class TestAuditResidualFixes(unittest.TestCase):
         self.assertTrue(bool(validators.url('http://target.com/path')))
 
 
+class TestSecretRedaction(TestCase):
+    """The caller builds the executed command (`exec_cmd`) SEPARATELY with the real
+    secret and passes the placeholder-bearing `cmd` for logging — the secret must never
+    land in the stored Command record, the logs or the history file (clear-text-storage
+    defense; the executed/logged strings share no `.replace`, breaking the CodeQL flow)."""
+
+    def test_run_command_keeps_secret_out_of_stored_command(self):
+        import shlex
+        from Suricatoos.tasks import run_command, SECRET_PLACEHOLDER
+        from startScan.models import Command
+        secret = 'topsecretapikey1234567890'
+        # `true` ignores its args and produces no output: a safe stand-in for a recon
+        # tool invoked as `... -a <KEY>`. exec_cmd is built independently (no .replace);
+        # the placeholder-bearing cmd is what must be stored/logged.
+        cmd = f'true {SECRET_PLACEHOLDER}'
+        exec_cmd = f'true {shlex.quote(secret)}'
+        rc, out = run_command(cmd, shell=True, exec_cmd=exec_cmd)
+        rec = Command.objects.order_by('-id').first()
+        self.assertIsNotNone(rec)
+        self.assertEqual(rec.command, f'true {SECRET_PLACEHOLDER}')
+        self.assertNotIn(secret, rec.command)
+        self.assertNotIn(secret, rec.output or '')
+
+    def test_stream_command_keeps_secret_out_of_stored_command(self):
+        import shlex
+        from Suricatoos.tasks import stream_command, SECRET_PLACEHOLDER
+        from startScan.models import Command
+        secret = 'streamsecretkey0987654321'
+        cmd = f'true {SECRET_PLACEHOLDER}'
+        exec_cmd = f'true {shlex.quote(secret)}'
+        list(stream_command(cmd, shell=True, exec_cmd=exec_cmd))
+        rec = Command.objects.order_by('-id').first()
+        self.assertEqual(rec.command, f'true {SECRET_PLACEHOLDER}')
+        self.assertNotIn(secret, rec.command)
+
+    def test_no_secret_leaves_command_unchanged(self):
+        from Suricatoos.tasks import run_command
+        from startScan.models import Command
+        run_command('true plainarg', shell=True)
+        rec = Command.objects.order_by('-id').first()
+        self.assertEqual(rec.command, 'true plainarg')
+
+
 if __name__ == '__main__':
     unittest.main()

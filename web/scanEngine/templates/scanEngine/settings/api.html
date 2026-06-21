@@ -27,67 +27,47 @@
           {% csrf_token %}
           <div class="col-12">
             <div class="p-sm-3">
+
+              {% for row in vault_rows %}
               <div class="mb-3">
-                <label for="key_openai" class="form-label">OpenAI</label>
-                <p class="text-muted">{% trans "OpenAI keys will be used to generate vulnerability description, remediation, impact and vulnerability report writing using GPT." %}</p>
-                <div class="flex-grow-1 position-relative">
-                {% if openai_key %}
-                  <input class="form-control" type="password" id="key_openai" name="key_openai" placeholder="{% trans 'Enter OpenAI Key' %}" value="{{openai_key}}">
-                {% else %}
-                  <input class="form-control" type="text" id="key_openai" name="key_openai" placeholder="{% trans 'Enter OpenAI Key' %}">
-                {% endif %}
+                <label class="form-label">
+                  {{ row.label }}
+                  {% if row.url %}
+                  <a href="{{ row.url }}" target="_blank" rel="noopener" class="text-muted ms-1">{% trans "get a key" %}</a>
+                  {% endif %}
+                </label>
+                {% for fname, dest in row.fields %}
+                <div class="flex-grow-1 position-relative mb-2">
+                  <input type="password" class="form-control"
+                         name="cred_{{ row.slug }}_{{ fname }}"
+                         placeholder="{% if row.masked and forloop.first %}{{ row.masked }}{% else %}{{ fname }}{% endif %}">
                   <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
                     <span class="password-eye"></span>
                   </div>
                 </div>
-                <span class="text-muted float-end optional-text mt-2">{% blocktrans %}This is optional but recommended. Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">https://platform.openai.com/api-keys</a>{% endblocktrans %}</span>
+                {% endfor %}
               </div>
+              {% endfor %}
+
+              <hr>
               <div class="mb-3">
-                <label for="key_netlas" class="form-label">Netlas</label>
-                <p class="text-muted">{% trans "Netlas keys will be used to get whois information and other OSINT related data." %}</p>
-                <div class="flex-grow-1 position-relative">
-                {% if netlas_key %}
-                  <input class="form-control" type="password" id="key_netlas" name="key_netlas" placeholder="{% trans 'Enter Netlas Key' %}" value="{{netlas_key}}">
-                {% else %}
-                  <input class="form-control" type="text" id="key_netlas" name="key_netlas" placeholder="{% trans 'Enter Netlas Key' %}">
-                {% endif %}
-                  <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
-                    <span class="password-eye"></span>
+                <label class="form-label">{% trans "Add custom SpiderFoot key (module:option)" %}</label>
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <input type="text" class="form-control" name="custom_option" placeholder="sfp_module:api_key">
+                  </div>
+                  <div class="col-md-6 position-relative">
+                    <input type="password" class="form-control" name="custom_key" placeholder="{% trans 'key' %}">
+                    <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
+                      <span class="password-eye"></span>
+                    </div>
                   </div>
                 </div>
-                <span class="text-muted float-end optional-text mt-2">{% blocktrans %}This is optional. Get your API key from <a href="https://netlas.io" target="_blank">https://netlas.io</a>{% endblocktrans %}</span>
+                {% for c in custom_rows %}
+                <div class="mt-2 text-muted small">{{ c.option }} — {{ c.masked }}</div>
+                {% endfor %}
               </div>
-              <div class="mb-3">
-                <label for="key_gitguardian" class="form-label">GitGuardian</label>
-                <p class="text-muted">{% trans "GitGuardian keys are used by the ggshield secret scanner (secret_scan engine) to detect leaked secrets in scan artifacts." %}</p>
-                <div class="flex-grow-1 position-relative">
-                {% if gitguardian_key %}
-                  {# A key is configured: never render it into the DOM. Leaving the field blank preserves the stored key (the POST handler only updates on a non-empty value). #}
-                  <input class="form-control" type="password" id="key_gitguardian" name="key_gitguardian" placeholder="{% trans '•••••••••••• (a key is configured — type to replace)' %}">
-                {% else %}
-                  <input class="form-control" type="text" id="key_gitguardian" name="key_gitguardian" placeholder="{% trans 'Enter GitGuardian Key' %}">
-                {% endif %}
-                  <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
-                    <span class="password-eye"></span>
-                  </div>
-                </div>
-                <span class="text-muted float-end optional-text mt-2">{% blocktrans %}This is optional, needed only for ggshield. Get your token from <a href="https://dashboard.gitguardian.com/api/personal-access-tokens" target="_blank">GitGuardian</a>{% endblocktrans %}</span>
-              </div>
-              <div class="mb-3">
-                <label for="key_chaos" class="form-label">Chaos by Project Discovery</label>
-                <p class="text-muted">{% trans "Chaos keys will be used for subdomain enumeration and recon data for Public Bug Bounty Programs." %}</p>
-                <div class="flex-grow-1 position-relative">
-                {% if chaos_key %}
-                  <input class="form-control" type="password" id="key_chaos" name="key_chaos" placeholder="{% trans 'Enter Chaos Key' %}" value="{{chaos_key}}">
-                {% else %}
-                  <input class="form-control" type="text" id="key_chaos" name="key_chaos" placeholder="{% trans 'Enter Chaos Key' %}">
-                {% endif %}
-                  <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
-                    <span class="password-eye"></span>
-                  </div>
-                </div>
-                <span class="text-muted float-end optional-text mt-2">{% blocktrans %}This is optional but recommended. Get your API key from <a href="https://cloud.projectdiscovery.io" target="_blank">https://cloud.projectdiscovery.io</a>{% endblocktrans %}</span>
-              </div>
+
               <hr>
               <h5 class="mt-2">{% trans "Subdomain enumeration sources (subfinder)" %}</h5>
               <p class="text-muted">{% trans "Optional API keys for subfinder's passive sources. Adding them makes subdomain discovery more complete and consistent run-to-run; several also feed the OSINT tools." %}</p>
@@ -111,7 +91,7 @@
 
               <hr>
               <h5 class="mt-2">{% trans "OSINT sources (theHarvester)" %}</h5>
-              <p class="text-muted">{% trans "Optional API keys for theHarvester's OSINT collection (emails, people, threat-intel). HaveIBeenPwned / Dehashed are not theHarvester sources — those come with the SpiderFoot credential vault." %}</p>
+              <p class="text-muted">{% trans "Optional API keys for theHarvester's OSINT collection (emails, people, threat-intel). HaveIBeenPwned / Dehashed are not theHarvester sources — those come with the SpiderFoot credential vault above." %}</p>
               {% for p in theharvester_providers %}
               <div class="mb-3">
                 <label for="thkey_{{ p.key }}" class="form-label">{{ p.label }}</label>
@@ -129,37 +109,11 @@
                 <span class="text-muted float-end optional-text mt-2">{% trans "Optional — enriches OSINT." %} <a href="{{ p.url }}" target="_blank">{% trans "Get key" %}</a></span>
               </div>
               {% endfor %}
-              {% if user_preferences.bug_bounty_mode %}
-                <div class="mb-3">
-                  <label for="key_hackerone" class="form-label">Hackerone</label>
-                  <div class="row">
-                  <p class="text-muted">{% trans "Hackerone Keys will be used to import targets, bookmarked programs, and submit automated vulnerability report to Hackerone. This is a bug bounty specific feature." %}</p>
-                  <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
-                    <label for="hackerone_username"  class="form-label">{% trans "Hackerone Username (Not email)" %}</label>
-                    {% if hackerone_username %} <input class="form-control" type="text" id="username_hackerone" name="username_hackerone" placeholder="{% trans 'Enter Hackerone Username' %}" value="{{hackerone_username}}"> {% else %} <input class="form-control" type="text" id="username_hackerone" name="username_hackerone" placeholder="{% trans 'Enter Hackerone Username' %}"> {% endif %}
-                  </div>
-                  <div class="col-xl-6 col-lg-6 col-md-6 col-sm-12 col-12">
-                    <label for="hackerone_key" class="form-label">{% blocktrans %}Generate your <a href="https://hackerone.com/settings/api_token/edit" target="_blank">API Token from here <i class="fe-external-link"></i></a>{% endblocktrans %}</label>
-                    <div class="flex-grow-1 position-relative">
-                    {% if hackerone_key %} <input class="form-control" type="password" id="key_hackerone" name="key_hackerone" placeholder="{% trans 'Enter Hackerone Key' %}" value="{{hackerone_key}}"> {% else %} <input class="form-control" type="text" id="key_hackerone" name="key_hackerone" placeholder="{% trans 'Enter Hackerone Token' %}"> {% endif %}
-                    <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
-                      <span class="password-eye"></span>
-                    </div>
-                    </div>
-                  </div>
-                  <div class="col-12">
-                    <p class="text-muted float-end mt-2 mb-2">{% blocktrans %}This is optional but recommended for bug hunters. Get your API key from <a href="https://api.hackerone.com/getting-started-hacker-api/#getting-started-hacker-api" class="text-primary" target="_blank">Hackerone Documentation</a>{% endblocktrans %}</p>
-                  </div>
-                  <div class="col-12">
-                    <a href="#" onclick="test_hackerone()" class="text-info float-end">{% trans "Test my hackerone keys" %} <i class="fe-check-circle"></i></a>
-                  </div>
-                </div>
-              </div>
-              {% endif %}
-              </div>
-              <div class="mb-0">
-                <button class="btn btn-primary float-sm-end my-4" type="submit"> {% trans "Update API Keys" %}</button>
-              </div>
+
+            </div>
+            <div class="mb-0">
+              <button class="btn btn-primary float-sm-end my-4" type="submit">{% trans "Update API Keys" %}</button>
+            </div>
           </div>
         </form>
       </div>

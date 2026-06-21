@@ -745,6 +745,7 @@ class OsintResult(models.Model):
 	BUCKET_COHOSTED = 'cohosted'
 	BUCKET_GEO = 'geo'
 	BUCKET_WEB_TECH = 'web_tech'
+	BUCKET_ORG = 'organization'
 	BUCKET_OTHER = 'other'
 	BUCKET_CHOICES = (
 		(BUCKET_MALICIOUS, 'Malicious / Blacklisted'),
@@ -755,6 +756,7 @@ class OsintResult(models.Model):
 		(BUCKET_COHOSTED, 'Co-Hosted Sites'),
 		(BUCKET_GEO, 'Geolocation'),
 		(BUCKET_WEB_TECH, 'Web Technology'),
+		(BUCKET_ORG, 'Organization / Identity'),
 		(BUCKET_OTHER, 'Other'),
 	)
 
@@ -768,6 +770,10 @@ class OsintResult(models.Model):
 	data = models.CharField(max_length=2000, null=True, blank=True)
 	# optional context (e.g. SpiderFoot module / parent event)
 	extra = models.CharField(max_length=2000, null=True, blank=True)
+	# provenance / capture fields (populated from SpiderFoot event metadata)
+	module = models.CharField(max_length=120, null=True, blank=True)
+	parent = models.CharField(max_length=500, null=True, blank=True)
+	confidence = models.IntegerField(null=True, blank=True)
 	is_malicious = models.BooleanField(default=False)
 	severity = models.IntegerField(default=0)
 	discovered_date = models.DateTimeField(null=True, blank=True)
