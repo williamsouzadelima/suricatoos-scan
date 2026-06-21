@@ -25,6 +25,7 @@ from scanEngine.provider_keys import (
     get_theharvester_key,
     is_theharvester_key_set,
     theharvester_providers_status,
+    propagate_vault_key,
 )
 
 
@@ -141,7 +142,7 @@ class SubfinderProviderKeysTests(TestCase):
         set_subfinder_key('github', 'ghp_abc')
         status = {p['key']: p['is_set'] for p in subfinder_providers_status()}
         self.assertTrue(status['github'])
-        self.assertFalse(status['virustotal'])
+        self.assertFalse(status['quake'])
         # status covers exactly the registry
         self.assertEqual(set(status), {p['key'] for p in SUBFINDER_UI_PROVIDERS})
 
@@ -201,9 +202,9 @@ class TheHarvesterProviderKeysTests(TestCase):
         self.assertFalse(is_theharvester_key_set('hunter'))
 
     def test_status_reflects_configured_flag(self):
-        set_theharvester_key('hunter', 'hkey')
+        set_theharvester_key('rocketreach', 'rk')
         status = {p['key']: p['is_set'] for p in theharvester_providers_status()}
-        self.assertTrue(status['hunter'])
+        self.assertTrue(status['rocketreach'])
         self.assertFalse(status['onyphe'])
         self.assertEqual(set(status), {p['key'] for p in THEHARVESTER_UI_PROVIDERS})
 
@@ -211,3 +212,47 @@ class TheHarvesterProviderKeysTests(TestCase):
         for p in THEHARVESTER_UI_PROVIDERS:
             self.assertRegex(p['key'], r'^[a-z0-9_]+$')
             self.assertTrue(p['label'] and p['url'])
+
+
+class VaultPropagationTests(TestCase):
+    """propagate_vault_key mirrors a vault credential into subfinder/theHarvester."""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp()
+        self.sf = os.path.join(self.tmp, 'provider-config.yaml')
+        self.th = os.path.join(self.tmp, 'api-keys.yaml')
+        with open(self.sf, 'w') as fh:
+            fh.write('shodan: []\nvirustotal: []\ncensys: []\nsecuritytrails: []\n')
+        with open(self.th, 'w') as fh:
+            yaml.safe_dump({'apikeys': {'shodan': {'key': None},
+                                        'hunter': {'key': None},
+                                        'securityTrails': {'key': None}}}, fh)
+        ov = override_settings(SUBFINDER_PROVIDER_CONFIG_PATH=self.sf,
+                               THEHARVESTER_API_KEYS_PATH=self.th)
+        ov.enable()
+        self.addCleanup(ov.disable)
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+
+    def test_propagates_to_both_tools(self):
+        propagate_vault_key('shodan', 'SK')
+        self.assertEqual(get_subfinder_key('shodan'), 'SK')
+        self.assertEqual(get_theharvester_key('shodan'), 'SK')
+
+    def test_securitytrails_camelcase_in_theharvester(self):
+        propagate_vault_key('securitytrails', 'ST')
+        self.assertEqual(get_subfinder_key('securitytrails'), 'ST')
+        self.assertEqual(get_theharvester_key('securityTrails'), 'ST')  # camelCase
+
+    def test_hunter_only_theharvester(self):
+        propagate_vault_key('hunter', 'HK')
+        self.assertEqual(get_theharvester_key('hunter'), 'HK')
+        self.assertIsNone(get_subfinder_key('hunter'))  # subfinder has no hunter
+
+    def test_censys_combines_id_and_secret_for_subfinder(self):
+        propagate_vault_key('censys', 'UID', extra={'secret': 'SECRET'})
+        self.assertEqual(get_subfinder_key('censys'), 'UID:SECRET')
+
+    def test_unknown_or_empty_is_noop(self):
+        propagate_vault_key('openai', 'X')      # not a tool source
+        propagate_vault_key('shodan', '   ')    # empty
+        self.assertIsNone(get_subfinder_key('shodan'))

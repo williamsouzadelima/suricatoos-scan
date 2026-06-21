@@ -22,23 +22,13 @@ from django.utils.translation import gettext_lazy as _
 
 DEFAULT_PROVIDER_CONFIG_PATH = '/root/.config/subfinder/provider-config.yaml'
 
+# subfinder passive sources NOT already in the credential vault above. The vault
+# propagates the overlapping ones (shodan/virustotal/securitytrails/censys/
+# binaryedge/fullhunt/intelx) to subfinder automatically via propagate_vault_key,
+# so they are not duplicated here — these are the subfinder-only extras.
 SUBFINDER_UI_PROVIDERS = [
-    {'key': 'shodan', 'label': 'Shodan', 'url': 'https://account.shodan.io',
-     'description': _("Pulls hostnames from Shodan's internet-wide scan data during subdomain enumeration.")},
     {'key': 'github', 'label': 'GitHub', 'url': 'https://github.com/settings/tokens',
      'description': _("Personal access token — lets subfinder mine public code and commits for subdomains. High coverage, free.")},
-    {'key': 'virustotal', 'label': 'VirusTotal', 'url': 'https://www.virustotal.com/gui/my-apikey',
-     'description': _("Passive subdomain data from VirusTotal. Free tier available.")},
-    {'key': 'securitytrails', 'label': 'SecurityTrails', 'url': 'https://securitytrails.com/app/account/credentials',
-     'description': _("Strong passive-DNS source for subdomains. Free tier available.")},
-    {'key': 'censys', 'label': 'Censys', 'url': 'https://search.censys.io/account/api',
-     'description': _("Certificate / host data. Enter as API_ID:API_SECRET. Free tier available.")},
-    {'key': 'binaryedge', 'label': 'BinaryEdge', 'url': 'https://app.binaryedge.io/account/api',
-     'description': _("Passive subdomain data from BinaryEdge. Free tier available.")},
-    {'key': 'fullhunt', 'label': 'FullHunt', 'url': 'https://fullhunt.io/profile/',
-     'description': _("Attack-surface / subdomain data from FullHunt. Free tier available.")},
-    {'key': 'intelx', 'label': 'IntelX', 'url': 'https://intelx.io/account?tab=developer',
-     'description': _("Intelligence X subdomain / data lookups.")},
     {'key': 'quake', 'label': 'Quake (360)', 'url': 'https://quake.360.net/quake/#/personal',
      'description': _("Quake (360) host / subdomain data.")},
     {'key': 'zoomeyeapi', 'label': 'ZoomEye', 'url': 'https://www.zoomeye.org/profile',
@@ -50,8 +40,6 @@ SUBFINDER_UI_PROVIDERS = [
 # HIBP / Dehashed are NOT theHarvester sources (they belong to SpiderFoot / the
 # credential vault), so they are intentionally absent here.
 THEHARVESTER_UI_PROVIDERS = [
-    {'key': 'hunter', 'label': 'Hunter.io', 'url': 'https://hunter.io/api-keys',
-     'description': _("Email discovery for the target domain. Free tier available.")},
     {'key': 'rocketreach', 'label': 'RocketReach', 'url': 'https://rocketreach.co/api',
      'description': _("People / professional-email lookups.")},
     {'key': 'criminalip', 'label': 'Criminal IP', 'url': 'https://www.criminalip.io/mypage/information',
@@ -60,7 +48,9 @@ THEHARVESTER_UI_PROVIDERS = [
      'description': _("Cyber-intel / internet-exposure data.")},
 ]
 
-_PROVIDER_NAME_RE = re.compile(r'^[a-z0-9_]+$')
+# Allow camelCase (theHarvester uses e.g. securityTrails); still blocks YAML-unsafe
+# chars (':', spaces, newlines) so a provider name can't inject structure.
+_PROVIDER_NAME_RE = re.compile(r'^[A-Za-z0-9_]+$')
 
 
 def _provider_config_path():
@@ -211,6 +201,40 @@ def theharvester_providers_status():
         item['is_set'] = is_theharvester_key_set(provider['key'])
         out.append(item)
     return out
+
+
+# --- vault → tool propagation (dedup: one vault field feeds subfinder/theHarvester) ---
+# Maps a credential-vault provider slug to the (subfinder, theHarvester) provider
+# names that also consume the same key (None = that tool has no such source).
+# securityTrails is camelCase in theHarvester; censys needs id:secret for subfinder.
+VAULT_TOOL_PROPAGATION = {
+    'shodan':         ('shodan', 'shodan'),
+    'virustotal':     ('virustotal', 'virustotal'),
+    'securitytrails': ('securitytrails', 'securityTrails'),
+    'binaryedge':     ('binaryedge', 'binaryedge'),
+    'fullhunt':       ('fullhunt', 'fullhunt'),
+    'intelx':         ('intelx', 'intelx'),
+    'hunter':         (None, 'hunter'),
+    'censys':         ('censys', None),  # subfinder wants id:secret (handled below)
+}
+
+
+def propagate_vault_key(slug, value, extra=None):
+    """Mirror a saved vault credential into subfinder/theHarvester configs so a
+    single vault field feeds every tool that consumes the same provider key."""
+    value = (value or '').strip()
+    if not value:
+        return
+    if slug == 'censys':
+        secret = ((extra or {}).get('secret') or '').strip()
+        if secret:
+            set_subfinder_key('censys', f'{value}:{secret}')
+        return
+    sf, th = VAULT_TOOL_PROPAGATION.get(slug, (None, None))
+    if sf:
+        set_subfinder_key(sf, value)
+    if th:
+        set_theharvester_key(th, value)
 
 
 # --- backward-compatible Shodan wrappers (kept for existing callers/tests) ---

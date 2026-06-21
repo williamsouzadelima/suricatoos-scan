@@ -69,8 +69,8 @@
               </div>
 
               <hr>
-              <h5 class="mt-2">{% trans "Subdomain enumeration sources (subfinder)" %}</h5>
-              <p class="text-muted">{% trans "Optional API keys for subfinder's passive sources. Adding them makes subdomain discovery more complete and consistent run-to-run; several also feed the OSINT tools." %}</p>
+              <h5 class="mt-2">{% trans "Extra subdomain sources (subfinder-only)" %}</h5>
+              <p class="text-muted">{% trans "subfinder passive sources that aren't in the vault above. Keys you set in the vault (Shodan, VirusTotal, SecurityTrails, Censys, BinaryEdge, FullHunt, IntelX) already feed subfinder automatically — these are the remaining subfinder-only sources." %}</p>
               {% for p in subfinder_providers %}
               <div class="mb-3">
                 <label for="key_{{ p.key }}" class="form-label">{{ p.label }}</label>
@@ -90,8 +90,8 @@
               {% endfor %}
 
               <hr>
-              <h5 class="mt-2">{% trans "OSINT sources (theHarvester)" %}</h5>
-              <p class="text-muted">{% trans "Optional API keys for theHarvester's OSINT collection (emails, people, threat-intel). HaveIBeenPwned / Dehashed are not theHarvester sources — those come with the SpiderFoot credential vault above." %}</p>
+              <h5 class="mt-2">{% trans "Extra OSINT sources (theHarvester-only)" %}</h5>
+              <p class="text-muted">{% trans "theHarvester OSINT sources not in the vault above. The Hunter.io key from the vault already feeds theHarvester automatically — these are the remaining theHarvester-only sources." %}</p>
               {% for p in theharvester_providers %}
               <div class="mb-3">
                 <label for="thkey_{{ p.key }}" class="form-label">{{ p.label }}</label>
