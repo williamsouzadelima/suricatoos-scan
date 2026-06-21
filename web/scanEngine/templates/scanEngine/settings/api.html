@@ -88,6 +88,21 @@
                 </div>
                 <span class="text-muted float-end optional-text mt-2">{% blocktrans %}This is optional but recommended. Get your API key from <a href="https://cloud.projectdiscovery.io" target="_blank">https://cloud.projectdiscovery.io</a>{% endblocktrans %}</span>
               </div>
+              <div class="mb-3">
+                <label for="key_shodan" class="form-label">Shodan</label>
+                <p class="text-muted">{% trans "Shodan keys are used by subfinder during subdomain enumeration to pull hostnames from Shodan's internet-wide scan data, making subdomain discovery more complete and consistent run-to-run." %}</p>
+                <div class="flex-grow-1 position-relative">
+                {% if shodan_key_set %}
+                  <input class="form-control" type="password" id="key_shodan" name="key_shodan" placeholder="{% trans '•••••••••••• (a key is configured — type to replace)' %}">
+                {% else %}
+                  <input class="form-control" type="text" id="key_shodan" name="key_shodan" placeholder="{% trans 'Enter Shodan Key' %}">
+                {% endif %}
+                  <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
+                    <span class="password-eye"></span>
+                  </div>
+                </div>
+                <span class="text-muted float-end optional-text mt-2">{% blocktrans %}This is optional but recommended for subdomain coverage. Get your API key from <a href="https://account.shodan.io" target="_blank">https://account.shodan.io</a>{% endblocktrans %}</span>
+              </div>
               {% if user_preferences.bug_bounty_mode %}
                 <div class="mb-3">
                   <label for="key_hackerone" class="form-label">Hackerone</label>

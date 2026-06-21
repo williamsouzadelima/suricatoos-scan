@@ -17,6 +17,7 @@ from Suricatoos.tasks import (run_command, send_discord_message, send_slack_mess
 from scanEngine.forms import *
 from scanEngine.forms import ConfigurationForm
 from scanEngine.models import *
+from scanEngine.provider_keys import set_shodan_key, is_shodan_configured
 
 
 def index(request, slug):
@@ -537,6 +538,10 @@ def api_vault(request, slug):
         key_gitguardian = (request.POST.get('key_gitguardian') or '').strip()
         key_hackerone = (request.POST.get('key_hackerone') or '').strip()
         username_hackerone = (request.POST.get('username_hackerone') or '').strip()
+        # Shodan key is stored in subfinder's provider-config.yaml (not the DB) so
+        # subfinder picks it up during subdomain enumeration; strip() so trailing
+        # whitespace never reaches the YAML / the tool.
+        key_shodan = (request.POST.get('key_shodan') or '').strip()
 
 
         if key_openai:
@@ -579,9 +584,12 @@ def api_vault(request, slug):
                 hackerone_api_key.save()
             else:
                 HackerOneAPIKey.objects.create(
-                    username=username_hackerone, 
+                    username=username_hackerone,
                     key=key_hackerone
                 )
+
+        if key_shodan:
+            set_shodan_key(key_shodan)
 
     openai_key = OpenAiAPIKey.objects.first()
     netlas_key = NetlasAPIKey.objects.first()
@@ -601,7 +609,9 @@ def api_vault(request, slug):
     context['gitguardian_key'] = gitguardian_key
     context['hackerone_key'] = hackerone_key
     context['hackerone_username'] = hackerone_username
-    
+    # Boolean only — never expose the raw Shodan key in the rendered page.
+    context['shodan_key_set'] = is_shodan_configured()
+
     return render(request, 'scanEngine/settings/api.html', context)
 
 
