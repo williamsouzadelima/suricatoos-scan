@@ -219,3 +219,43 @@ class SecondWritePathTests(TestCase):
         c = AC.upsert('shodan', 'sk-secret-xyz')
         self.assertNotIn('sk-secret-xyz', str(c))
 
+
+class OnboardingMaskTests(TestCase):
+    """Ensure the onboarding page never renders raw decrypted API keys into HTML.
+
+    The onboarding view redirects to dashboardIndex when a Project already
+    exists, so we do NOT create a Project in setUp.  The site-wide
+    LoginRequiredMiddleware protects every view including onboarding, so we
+    must log in (force_login) before GETting the page.  No project is created,
+    so the view renders its form (200) rather than redirecting.
+    """
+
+    RAW_KEY = 'sk-openai-raw-test-key-99'
+
+    def setUp(self):
+        # Disconnect the on_user_logged_in signal (same pattern as ApiVaultViewTests)
+        # to avoid AttributeError from the signal handler during force_login.
+        from django.contrib.auth.signals import user_logged_in
+        from dashboard.views import on_user_logged_in
+        user_logged_in.disconnect(on_user_logged_in)
+        self.addCleanup(user_logged_in.connect, on_user_logged_in)
+
+        self.user = User.objects.create_superuser('admin_onboard', 'ao@a.io', 'pw')
+        self.client.force_login(self.user)
+        # Store a real key — NOT creating any Project, so the view renders its form.
+        ApiCredential.upsert('openai', self.RAW_KEY)
+
+    def test_raw_key_absent_from_onboarding_html(self):
+        url = reverse('onboarding')
+        response = self.client.get(url)
+        # The view must render the form (200), not redirect away (302).
+        self.assertEqual(response.status_code, 200)
+        self.assertNotIn(self.RAW_KEY, response.content.decode())
+
+    def test_configured_flag_present_in_onboarding_html(self):
+        """The placeholder must signal 'configured' when a key is stored."""
+        url = reverse('onboarding')
+        html = self.client.get(url).content.decode()
+        # The placeholder text from the template should appear somewhere.
+        self.assertIn('configured', html)
+

@@ -125,17 +125,17 @@
                   <p class="card-text text-muted">{% blocktrans %}These enhance Suricatoos but are not required to start. You can skip this now and add them anytime under <strong>Settings &rarr; API Vault</strong>.{% endblocktrans %}</p>
                   <div class="mb-3">
                     <label for="key_openai" class="form-label">{% trans "OpenAI Key" %}</label>
-                    <input class="form-control" type="text" id="key_openai" name="key_openai" placeholder="{% trans 'Enter OpenAI Key' %}" value="{{openai_key}}">
+                    <input class="form-control" type="text" id="key_openai" name="key_openai" placeholder="{% if openai_key_set %}{% trans '•••••• configured — leave blank to keep' %}{% else %}{% trans 'Enter OpenAI Key' %}{% endif %}">
                     <small class="text-muted">{% trans "Used for generating vulnerability descriptions, remediation, impact, and report writing using ChatGPT." %}</small>
                   </div>
                   <div class="mb-3">
                     <label for="key_netlas" class="form-label">{% trans "Netlas Key" %}</label>
-                    <input class="form-control" type="text" id="key_netlas" name="key_netlas" placeholder="{% trans 'Enter Netlas Key' %}" value="{{netlas_key}}">
+                    <input class="form-control" type="text" id="key_netlas" name="key_netlas" placeholder="{% if netlas_key_set %}{% trans '•••••• configured — leave blank to keep' %}{% else %}{% trans 'Enter Netlas Key' %}{% endif %}">
                     <small class="text-muted">{% trans "Used to get whois information and other OSINT data." %}</small>
                   </div>
                   <div class="mb-3">
                     <label for="key_chaos" class="form-label">{% trans "Chaos Key" %}</label>
-                    <input class="form-control" type="text" id="key_chaos" name="key_chaos" placeholder="{% trans 'Enter Chaos Key' %}" value="{{chaos_key}}">
+                    <input class="form-control" type="text" id="key_chaos" name="key_chaos" placeholder="{% if chaos_key_set %}{% trans '•••••• configured — leave blank to keep' %}{% else %}{% trans 'Enter Chaos Key' %}{% endif %}">
                     <small class="text-muted">{% trans "Enhances reconnaissance capabilities for Public Bug Bounty Programs." %} <a href="https://cloud.projectdiscovery.io" target="_blank">{% trans "Get your API key" %}</a></small>
                   </div>
                   <div class="mb-3">
@@ -144,7 +144,7 @@
                   </div>
                   <div class="mb-3">
                     <label for="key_hackerone" class="form-label">{% trans "HackerOne API Token" %}</label>
-                    <input class="form-control" type="text" id="key_hackerone" name="key_hackerone" placeholder="{% trans 'Enter HackerOne Token' %}" value="{{hackerone_key}}">
+                    <input class="form-control" type="text" id="key_hackerone" name="key_hackerone" placeholder="{% if hackerone_key_set %}{% trans '•••••• configured — leave blank to keep' %}{% else %}{% trans 'Enter HackerOne Token' %}{% endif %}">
                     <small class="text-muted">{% trans "Used for importing targets, bookmarked programs, and submitting automated vulnerability reports." %} <a href="https://hackerone.com/settings/api_token/edit" target="_blank">{% trans "Generate your API Token" %}</a></small>
                   </div>
                 </div>

@@ -2802,7 +2802,7 @@ def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx
 				bucket, is_mal, sev = route
 				save_osint_result(
 					scan_history, bucket, etype, data,
-					extra=ev.get('module'), is_malicious=is_mal, severity=sev,
+					is_malicious=is_mal, severity=sev,
 					module=ev.get('module'), parent=ev.get('source'),
 					generated=ev.get('generated'))
 				intel += 1

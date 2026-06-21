@@ -393,10 +393,10 @@ def onboarding(request):
     
 
     _h1_key, _h1_extra = get_credential('hackerone')
-    context['openai_key'] = get_api_key('openai')
-    context['netlas_key'] = get_api_key('netlas')
-    context['chaos_key'] = get_api_key('chaos')
-    context['hackerone_key'] = _h1_key or ''
+    context['openai_key_set'] = bool(get_api_key('openai'))
+    context['netlas_key_set'] = bool(get_api_key('netlas'))
+    context['chaos_key_set'] = bool(get_api_key('chaos'))
+    context['hackerone_key_set'] = bool(_h1_key)
     context['hackerone_username'] = _h1_extra.get('username', '')
 
     context['user_preferences'], _ = UserPreferences.objects.get_or_create(

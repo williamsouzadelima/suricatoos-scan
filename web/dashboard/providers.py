@@ -55,7 +55,7 @@ PROVIDERS = {
 CUSTOM_OPTION_RE = re.compile(r'^sfp_[a-z0-9_]+:[a-z0-9_]+$')
 
 
-def sf_destination(dest: str):
+def sf_destination(dest: str) -> str | None:
     """Return the SpiderFoot option for a destination, or None for consumer fields."""
     return dest if dest.startswith('sfp_') else None
 
