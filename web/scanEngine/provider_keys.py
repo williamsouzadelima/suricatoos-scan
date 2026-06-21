@@ -45,6 +45,21 @@ SUBFINDER_UI_PROVIDERS = [
      'description': _("ZoomEye host / subdomain data.")},
 ]
 
+# OSINT keys consumed by theHarvester (emails / people / threat-intel). These go
+# into theHarvester's nested api-keys.yaml — a different file/shape from subfinder.
+# HIBP / Dehashed are NOT theHarvester sources (they belong to SpiderFoot / the
+# credential vault), so they are intentionally absent here.
+THEHARVESTER_UI_PROVIDERS = [
+    {'key': 'hunter', 'label': 'Hunter.io', 'url': 'https://hunter.io/api-keys',
+     'description': _("Email discovery for the target domain. Free tier available.")},
+    {'key': 'rocketreach', 'label': 'RocketReach', 'url': 'https://rocketreach.co/api',
+     'description': _("People / professional-email lookups.")},
+    {'key': 'criminalip', 'label': 'Criminal IP', 'url': 'https://www.criminalip.io/mypage/information',
+     'description': _("Host / threat-intel data. Free tier available.")},
+    {'key': 'onyphe', 'label': 'ONYPHE', 'url': 'https://www.onyphe.io/login',
+     'description': _("Cyber-intel / internet-exposure data.")},
+]
+
 _PROVIDER_NAME_RE = re.compile(r'^[a-z0-9_]+$')
 
 
@@ -125,6 +140,75 @@ def subfinder_providers_status():
     for provider in SUBFINDER_UI_PROVIDERS:
         item = dict(provider)
         item['is_set'] = is_subfinder_key_set(provider['key'])
+        out.append(item)
+    return out
+
+
+# --- theHarvester OSINT keys (nested apikeys.<provider>.key in api-keys.yaml) ---
+DEFAULT_THEHARVESTER_API_KEYS_PATH = '/usr/src/github/theHarvester/api-keys.yaml'
+
+
+def _theharvester_path():
+    return getattr(settings, 'THEHARVESTER_API_KEYS_PATH',
+                   DEFAULT_THEHARVESTER_API_KEYS_PATH)
+
+
+def _read_theharvester():
+    try:
+        with open(_theharvester_path()) as fh:
+            data = yaml.safe_load(fh) or {}
+    except (FileNotFoundError, yaml.YAMLError):
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def set_theharvester_key(provider, value):
+    """Set ``apikeys.<provider>.key`` in theHarvester's api-keys.yaml.
+
+    Preserves every other provider entry. Returns ``True`` when written.
+    """
+    if not _PROVIDER_NAME_RE.match(provider or ''):
+        return False
+    value = (value or '').strip()
+    if not value:
+        return False
+    path = _theharvester_path()
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
+    data = _read_theharvester()
+    apikeys = data.get('apikeys')
+    if not isinstance(apikeys, dict):
+        apikeys = {}
+        data['apikeys'] = apikeys
+    entry = apikeys.get(provider)
+    if not isinstance(entry, dict):
+        entry = {}
+        apikeys[provider] = entry
+    entry['key'] = value
+    with open(path, 'w') as fh:
+        yaml.safe_dump(data, fh, default_flow_style=False, sort_keys=False)
+    return True
+
+
+def get_theharvester_key(provider):
+    entry = (_read_theharvester().get('apikeys') or {}).get(provider)
+    if isinstance(entry, dict):
+        val = entry.get('key')
+        if val is not None and str(val).strip():
+            return str(val).strip()
+    return None
+
+
+def is_theharvester_key_set(provider):
+    return get_theharvester_key(provider) is not None
+
+
+def theharvester_providers_status():
+    out = []
+    for provider in THEHARVESTER_UI_PROVIDERS:
+        item = dict(provider)
+        item['is_set'] = is_theharvester_key_set(provider['key'])
         out.append(item)
     return out
 

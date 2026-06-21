@@ -18,7 +18,8 @@ from scanEngine.forms import *
 from scanEngine.forms import ConfigurationForm
 from scanEngine.models import *
 from scanEngine.provider_keys import (
-    SUBFINDER_UI_PROVIDERS, set_subfinder_key, subfinder_providers_status)
+    SUBFINDER_UI_PROVIDERS, set_subfinder_key, subfinder_providers_status,
+    THEHARVESTER_UI_PROVIDERS, set_theharvester_key, theharvester_providers_status)
 
 
 def index(request, slug):
@@ -547,6 +548,11 @@ def api_vault(request, slug):
             _val = (request.POST.get('key_' + _provider['key']) or '').strip()
             if _val:
                 set_subfinder_key(_provider['key'], _val)
+        # OSINT keys → theHarvester's api-keys.yaml (shared github_repos volume).
+        for _provider in THEHARVESTER_UI_PROVIDERS:
+            _val = (request.POST.get('thkey_' + _provider['key']) or '').strip()
+            if _val:
+                set_theharvester_key(_provider['key'], _val)
 
 
         if key_openai:
@@ -611,8 +617,9 @@ def api_vault(request, slug):
     context['gitguardian_key'] = gitguardian_key
     context['hackerone_key'] = hackerone_key
     context['hackerone_username'] = hackerone_username
-    # Per-provider booleans only — the raw subfinder keys are never rendered.
+    # Per-provider booleans only — the raw keys are never rendered.
     context['subfinder_providers'] = subfinder_providers_status()
+    context['theharvester_providers'] = theharvester_providers_status()
 
     return render(request, 'scanEngine/settings/api.html', context)
 

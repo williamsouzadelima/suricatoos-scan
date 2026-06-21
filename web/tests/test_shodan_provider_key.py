@@ -20,6 +20,11 @@ from scanEngine.provider_keys import (
     get_subfinder_key,
     is_subfinder_key_set,
     subfinder_providers_status,
+    THEHARVESTER_UI_PROVIDERS,
+    set_theharvester_key,
+    get_theharvester_key,
+    is_theharvester_key_set,
+    theharvester_providers_status,
 )
 
 
@@ -144,3 +149,65 @@ class SubfinderProviderKeysTests(TestCase):
         set_shodan_key('SHKEY')
         self.assertEqual(get_subfinder_key('shodan'), 'SHKEY')
         self.assertTrue(is_shodan_configured())
+
+
+class TheHarvesterProviderKeysTests(TestCase):
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.path = os.path.join(self.tmpdir, 'theHarvester', 'api-keys.yaml')
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        # theHarvester's nested template shape
+        with open(self.path, 'w') as fh:
+            yaml.safe_dump({'apikeys': {
+                'hunter': {'key': None},
+                'onyphe': {'key': None},
+                'shodan': {'key': None},
+            }}, fh)
+        self.override = override_settings(THEHARVESTER_API_KEYS_PATH=self.path)
+        self.override.enable()
+        self.addCleanup(self.override.disable)
+        self.addCleanup(shutil.rmtree, self.tmpdir, ignore_errors=True)
+
+    def test_unset_by_default(self):
+        self.assertIsNone(get_theharvester_key('hunter'))
+        self.assertFalse(is_theharvester_key_set('hunter'))
+
+    def test_set_and_read_nested(self):
+        self.assertTrue(set_theharvester_key('hunter', '  hkey  '))
+        self.assertEqual(get_theharvester_key('hunter'), 'hkey')
+        self.assertTrue(is_theharvester_key_set('hunter'))
+        # verify the on-disk shape is apikeys.<provider>.key
+        with open(self.path) as fh:
+            data = yaml.safe_load(fh)
+        self.assertEqual(data['apikeys']['hunter']['key'], 'hkey')
+
+    def test_set_preserves_other_providers(self):
+        set_theharvester_key('hunter', 'hkey')
+        with open(self.path) as fh:
+            data = yaml.safe_load(fh)
+        self.assertIn('onyphe', data['apikeys'])
+        self.assertIn('shodan', data['apikeys'])
+        self.assertIsNone(data['apikeys']['onyphe']['key'])
+
+    def test_creates_apikeys_and_provider_when_absent(self):
+        with open(self.path, 'w') as fh:
+            yaml.safe_dump({'apikeys': {}}, fh)
+        self.assertTrue(set_theharvester_key('rocketreach', 'rk'))
+        self.assertEqual(get_theharvester_key('rocketreach'), 'rk')
+
+    def test_empty_and_invalid_are_noop(self):
+        self.assertFalse(set_theharvester_key('hunter', '   '))
+        self.assertFalse(set_theharvester_key('bad name', 'x'))
+        self.assertFalse(is_theharvester_key_set('hunter'))
+
+    def test_status_reflects_configured_flag(self):
+        set_theharvester_key('hunter', 'hkey')
+        status = {p['key']: p['is_set'] for p in theharvester_providers_status()}
+        self.assertTrue(status['hunter'])
+        self.assertFalse(status['onyphe'])
+        self.assertEqual(set(status), {p['key'] for p in THEHARVESTER_UI_PROVIDERS})
+
+    def test_registry_keys_valid(self):
+        for p in THEHARVESTER_UI_PROVIDERS:
+            self.assertRegex(p['key'], r'^[a-z0-9_]+$')
+            self.assertTrue(p['label'] and p['url'])
