@@ -39,6 +39,18 @@ DEFAULT_RETRIES = env.int('DEFAULT_RETRIES', default=1)
 DEFAULT_THREADS = env.int('DEFAULT_THREADS', default=30)
 DEFAULT_GET_GPT_REPORT = env.bool('DEFAULT_GET_GPT_REPORT', default=True)
 
+# subfinder's provider-config.yaml — where its passive-source API keys (e.g. the
+# Shodan key set from the API Vault page) live; auto-loaded by subfinder at scan
+# time. Overridable so tests can point it at a temp file.
+SUBFINDER_PROVIDER_CONFIG_PATH = os.environ.get(
+    'SUBFINDER_PROVIDER_CONFIG_PATH', '/root/.config/subfinder/provider-config.yaml')
+
+# theHarvester's api-keys.yaml (OSINT keys: Hunter, RocketReach, …). Lives in the
+# shared github_repos volume so the web container can write what celery reads at
+# scan time. Overridable so tests can point it at a temp file.
+THEHARVESTER_API_KEYS_PATH = os.environ.get(
+    'THEHARVESTER_API_KEYS_PATH', '/usr/src/github/theHarvester/api-keys.yaml')
+
 # Globals
 # OWASP A05-2: env-driven so a deployment can restrict the accepted Host headers
 # (e.g. ALLOWED_HOSTS=recon.example.com,127.0.0.1). Defaults to the wildcard to

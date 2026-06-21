@@ -19,6 +19,9 @@ from scanEngine.forms import ConfigurationForm
 from scanEngine.models import *
 from dashboard.models import ApiCredential
 from dashboard.providers import PROVIDERS, is_valid_custom_option, custom_provider_slug
+from scanEngine.provider_keys import (
+    SUBFINDER_UI_PROVIDERS, set_subfinder_key, subfinder_providers_status,
+    THEHARVESTER_UI_PROVIDERS, set_theharvester_key, theharvester_providers_status)
 
 
 def index(request, slug):
@@ -561,6 +564,18 @@ def api_vault(request, slug):
         if opt and cval and is_valid_custom_option(opt):
             ApiCredential.upsert(custom_provider_slug(opt), cval, label=opt)
 
+        # subfinder passive-source keys → provider-config.yaml (not the vault DB);
+        # subfinder auto-loads them during subdomain enumeration.
+        for _provider in SUBFINDER_UI_PROVIDERS:
+            _val = (request.POST.get('key_' + _provider['key']) or '').strip()
+            if _val:
+                set_subfinder_key(_provider['key'], _val)
+        # OSINT keys → theHarvester's api-keys.yaml (shared github_repos volume).
+        for _provider in THEHARVESTER_UI_PROVIDERS:
+            _val = (request.POST.get('thkey_' + _provider['key']) or '').strip()
+            if _val:
+                set_theharvester_key(_provider['key'], _val)
+
     # Build vault_rows for template rendering (masked values, never raw keys)
     rows = []
     for prov_slug, spec in PROVIDERS.items():
@@ -584,6 +599,11 @@ def api_vault(request, slug):
         }
         for c in ApiCredential.objects.filter(provider__startswith='custom:')
     ]
+
+    # Subdomain/OSINT tool keys stored in tool config files (not the vault DB).
+    # Per-provider booleans only — the raw keys are never rendered.
+    context['subfinder_providers'] = subfinder_providers_status()
+    context['theharvester_providers'] = theharvester_providers_status()
 
     return render(request, 'scanEngine/settings/api.html', context)
 

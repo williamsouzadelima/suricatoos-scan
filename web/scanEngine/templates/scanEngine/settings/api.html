@@ -68,6 +68,48 @@
                 {% endfor %}
               </div>
 
+              <hr>
+              <h5 class="mt-2">{% trans "Subdomain enumeration sources (subfinder)" %}</h5>
+              <p class="text-muted">{% trans "Optional API keys for subfinder's passive sources. Adding them makes subdomain discovery more complete and consistent run-to-run; several also feed the OSINT tools." %}</p>
+              {% for p in subfinder_providers %}
+              <div class="mb-3">
+                <label for="key_{{ p.key }}" class="form-label">{{ p.label }}</label>
+                <p class="text-muted">{{ p.description }}</p>
+                <div class="flex-grow-1 position-relative">
+                {% if p.is_set %}
+                  <input class="form-control" type="password" id="key_{{ p.key }}" name="key_{{ p.key }}" placeholder="{% trans '•••••••••••• (a key is configured — type to replace)' %}">
+                {% else %}
+                  <input class="form-control" type="text" id="key_{{ p.key }}" name="key_{{ p.key }}" placeholder="{% trans 'Enter key' %}">
+                {% endif %}
+                  <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
+                    <span class="password-eye"></span>
+                  </div>
+                </div>
+                <span class="text-muted float-end optional-text mt-2">{% trans "Optional — improves subdomain coverage." %} <a href="{{ p.url }}" target="_blank">{% trans "Get key" %}</a></span>
+              </div>
+              {% endfor %}
+
+              <hr>
+              <h5 class="mt-2">{% trans "OSINT sources (theHarvester)" %}</h5>
+              <p class="text-muted">{% trans "Optional API keys for theHarvester's OSINT collection (emails, people, threat-intel). HaveIBeenPwned / Dehashed are not theHarvester sources — those come with the SpiderFoot credential vault above." %}</p>
+              {% for p in theharvester_providers %}
+              <div class="mb-3">
+                <label for="thkey_{{ p.key }}" class="form-label">{{ p.label }}</label>
+                <p class="text-muted">{{ p.description }}</p>
+                <div class="flex-grow-1 position-relative">
+                {% if p.is_set %}
+                  <input class="form-control" type="password" id="thkey_{{ p.key }}" name="thkey_{{ p.key }}" placeholder="{% trans '•••••••••••• (a key is configured — type to replace)' %}">
+                {% else %}
+                  <input class="form-control" type="text" id="thkey_{{ p.key }}" name="thkey_{{ p.key }}" placeholder="{% trans 'Enter key' %}">
+                {% endif %}
+                  <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
+                    <span class="password-eye"></span>
+                  </div>
+                </div>
+                <span class="text-muted float-end optional-text mt-2">{% trans "Optional — enriches OSINT." %} <a href="{{ p.url }}" target="_blank">{% trans "Get key" %}</a></span>
+              </div>
+              {% endfor %}
+
             </div>
             <div class="mb-0">
               <button class="btn btn-primary float-sm-end my-4" type="submit">{% trans "Update API Keys" %}</button>
