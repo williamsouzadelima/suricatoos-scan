@@ -88,21 +88,26 @@
                 </div>
                 <span class="text-muted float-end optional-text mt-2">{% blocktrans %}This is optional but recommended. Get your API key from <a href="https://cloud.projectdiscovery.io" target="_blank">https://cloud.projectdiscovery.io</a>{% endblocktrans %}</span>
               </div>
+              <hr>
+              <h5 class="mt-2">{% trans "Subdomain enumeration sources (subfinder)" %}</h5>
+              <p class="text-muted">{% trans "Optional API keys for subfinder's passive sources. Adding them makes subdomain discovery more complete and consistent run-to-run; several also feed the OSINT tools." %}</p>
+              {% for p in subfinder_providers %}
               <div class="mb-3">
-                <label for="key_shodan" class="form-label">Shodan</label>
-                <p class="text-muted">{% trans "Shodan keys are used by subfinder during subdomain enumeration to pull hostnames from Shodan's internet-wide scan data, making subdomain discovery more complete and consistent run-to-run." %}</p>
+                <label for="key_{{ p.key }}" class="form-label">{{ p.label }}</label>
+                <p class="text-muted">{{ p.description }}</p>
                 <div class="flex-grow-1 position-relative">
-                {% if shodan_key_set %}
-                  <input class="form-control" type="password" id="key_shodan" name="key_shodan" placeholder="{% trans '•••••••••••• (a key is configured — type to replace)' %}">
+                {% if p.is_set %}
+                  <input class="form-control" type="password" id="key_{{ p.key }}" name="key_{{ p.key }}" placeholder="{% trans '•••••••••••• (a key is configured — type to replace)' %}">
                 {% else %}
-                  <input class="form-control" type="text" id="key_shodan" name="key_shodan" placeholder="{% trans 'Enter Shodan Key' %}">
+                  <input class="form-control" type="text" id="key_{{ p.key }}" name="key_{{ p.key }}" placeholder="{% trans 'Enter key' %}">
                 {% endif %}
                   <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
                     <span class="password-eye"></span>
                   </div>
                 </div>
-                <span class="text-muted float-end optional-text mt-2">{% blocktrans %}This is optional but recommended for subdomain coverage. Get your API key from <a href="https://account.shodan.io" target="_blank">https://account.shodan.io</a>{% endblocktrans %}</span>
+                <span class="text-muted float-end optional-text mt-2">{% trans "Optional — improves subdomain coverage." %} <a href="{{ p.url }}" target="_blank">{% trans "Get key" %}</a></span>
               </div>
+              {% endfor %}
               {% if user_preferences.bug_bounty_mode %}
                 <div class="mb-3">
                   <label for="key_hackerone" class="form-label">Hackerone</label>

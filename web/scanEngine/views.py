@@ -17,7 +17,8 @@ from Suricatoos.tasks import (run_command, send_discord_message, send_slack_mess
 from scanEngine.forms import *
 from scanEngine.forms import ConfigurationForm
 from scanEngine.models import *
-from scanEngine.provider_keys import set_shodan_key, is_shodan_configured
+from scanEngine.provider_keys import (
+    SUBFINDER_UI_PROVIDERS, set_subfinder_key, subfinder_providers_status)
 
 
 def index(request, slug):
@@ -538,10 +539,14 @@ def api_vault(request, slug):
         key_gitguardian = (request.POST.get('key_gitguardian') or '').strip()
         key_hackerone = (request.POST.get('key_hackerone') or '').strip()
         username_hackerone = (request.POST.get('username_hackerone') or '').strip()
-        # Shodan key is stored in subfinder's provider-config.yaml (not the DB) so
-        # subfinder picks it up during subdomain enumeration; strip() so trailing
-        # whitespace never reaches the YAML / the tool.
-        key_shodan = (request.POST.get('key_shodan') or '').strip()
+        # subfinder passive-source keys are stored in provider-config.yaml (not the
+        # DB) so subfinder picks them up during subdomain enumeration. The provider
+        # list is server-controlled (SUBFINDER_UI_PROVIDERS); set_subfinder_key
+        # strips the value so trailing whitespace never reaches the YAML / the tool.
+        for _provider in SUBFINDER_UI_PROVIDERS:
+            _val = (request.POST.get('key_' + _provider['key']) or '').strip()
+            if _val:
+                set_subfinder_key(_provider['key'], _val)
 
 
         if key_openai:
@@ -588,9 +593,6 @@ def api_vault(request, slug):
                     key=key_hackerone
                 )
 
-        if key_shodan:
-            set_shodan_key(key_shodan)
-
     openai_key = OpenAiAPIKey.objects.first()
     netlas_key = NetlasAPIKey.objects.first()
     chaos_key = ChaosAPIKey.objects.first()
@@ -609,8 +611,8 @@ def api_vault(request, slug):
     context['gitguardian_key'] = gitguardian_key
     context['hackerone_key'] = hackerone_key
     context['hackerone_username'] = hackerone_username
-    # Boolean only — never expose the raw Shodan key in the rendered page.
-    context['shodan_key_set'] = is_shodan_configured()
+    # Per-provider booleans only — the raw subfinder keys are never rendered.
+    context['subfinder_providers'] = subfinder_providers_status()
 
     return render(request, 'scanEngine/settings/api.html', context)
 
