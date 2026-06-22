@@ -42,6 +42,12 @@ IGNORE_FILE_EXTENSION = 'ignore_file_extensions'
 INTENSITY = 'intensity'
 MATCH_HTTP_STATUS = 'match_http_status'
 MAX_TIME = 'max_time'
+# dir-fuzz runs ffuf once per alive host sequentially, so a fixed per-host max_time
+# blows the 90min Celery soft limit when there are many hosts (the recurring
+# dir_file_fuzz timeout). Budget the TOTAL: per-host time = budget // host_count,
+# floored so few-host scans still go deep. Stays well under CELERY_TASK_SOFT_TIME_LIMIT.
+DIR_FUZZ_TIME_BUDGET = 4200   # seconds total for the whole dir-fuzz step (~70min)
+DIR_FUZZ_MIN_PER_HOST = 30    # never fuzz a host for less than this
 NAABU_EXCLUDE_PORTS = 'exclude_ports'
 NAABU_EXCLUDE_SUBDOMAINS = 'exclude_subdomains'
 ENABLE_NMAP = 'enable_nmap'
