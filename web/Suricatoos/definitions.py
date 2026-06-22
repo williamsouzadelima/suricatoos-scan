@@ -56,6 +56,11 @@ NUCLEI_TEMPLATE = 'templates'
 NUCLEI_SEVERITY = 'severities'
 NUCLEI_EXCLUDE_TEMPLATE = 'exclude_templates'
 NUCLEI_EXCLUDE_TAGS = 'exclude_tags'
+NUCLEI_MAX_HOST_ERROR = 'max_host_error'
+# nuclei's default -mhe is 30: it gives up on a host after 30 errors, so a slow /
+# rate-limited / WAF'd target that times out transiently gets marked "unresponsive
+# permanently" and is SKIPPED — missing real findings. Raise it to stay patient.
+DEFAULT_NUCLEI_MAX_HOST_ERROR = 100
 NUCLEI_CONCURRENCY = 'concurrency'
 OSINT = 'osint'
 OSINT_DOCUMENTS_LIMIT = 'documents_limit'

@@ -3376,6 +3376,10 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	cmd += f' -proxy {proxy} ' if proxy else ''
 	cmd += f' -retries {retries}' if retries > 0 else ''
 	cmd += f' -rl {rate_limit}' if rate_limit > 0 else ''
+	# Stay patient on slow/WAF'd targets: raise nuclei's max-host-error from the
+	# default 30 so transient timeouts don't make it skip a host (missing findings).
+	mhe = _safe_int(nuclei_specific_config.get(NUCLEI_MAX_HOST_ERROR, DEFAULT_NUCLEI_MAX_HOST_ERROR), DEFAULT_NUCLEI_MAX_HOST_ERROR)
+	cmd += f' -mhe {mhe}' if mhe > 0 else ' -no-mhe'
 	# cmd += f' -severity {severities_str}'
 	cmd += f' -timeout {str(timeout)}' if timeout and timeout > 0 else ''
 	cmd += f' -tags {tags}' if tags else ''
