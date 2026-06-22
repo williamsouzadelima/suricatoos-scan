@@ -1856,7 +1856,9 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	# Build command
 	cmd += f' -w {shlex.quote(wordlist_path)}'
 	cmd += f' -e {shlex.quote(extensions_str)}' if extensions else ''
-	cmd += f' -maxtime {max_time}' if max_time > 0 else ''
+	# -maxtime is appended adaptively after the alive-host count is known (below),
+	# so the total dir-fuzz time stays under the Celery soft limit regardless of how
+	# many hosts there are.
 	cmd += f' -p {delay}' if delay > 0 else ''
 	cmd += f' -recursion -recursion-depth {recursive_level} ' if recursive_level > 0 else ''
 	cmd += f' -t {threads}' if threads and threads > 0 else ''
@@ -1881,6 +1883,16 @@ def dir_file_fuzz(self, ctx={}, description=None):
 		ctx=ctx
 	)
 	logger.warning(urls)
+
+	# Adaptive per-host -maxtime: ffuf runs once per host sequentially, so size the
+	# per-host cap to the TOTAL budget / host count (floored). This is what stops the
+	# recurring dir_file_fuzz soft-limit timeout on many-host targets while keeping
+	# depth on few-host ones. The engine's max_time, if set, is the upper bound.
+	num_hosts = len(urls) or 1
+	adaptive_max_time = max(DIR_FUZZ_MIN_PER_HOST, DIR_FUZZ_TIME_BUDGET // num_hosts)
+	eff_max_time = min(max_time, adaptive_max_time) if max_time > 0 else adaptive_max_time
+	cmd += f' -maxtime {eff_max_time}'
+	logger.info(f'dir-fuzz: {num_hosts} host(s) -> {eff_max_time}s/host (budget {DIR_FUZZ_TIME_BUDGET}s total)')
 
 	# Loop through URLs and run command
 	results = []
