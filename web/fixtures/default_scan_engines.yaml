@@ -109,80 +109,68 @@
   pk: 7
   fields:
     engine_name: Full-Validated
-    # Recommended default for a small (~4GB) box: complete coverage, low false-positive
-    # noise (nuclei info/unknown dropped -> ~94% less), validation on, amass-active and
-    # heavy OSINT presets OFF, concurrency tuned down. Tools that hang are bounded by the
-    # run_command/stream_command watchdog + Celery limits.
-    yaml_configuration: |-
-      subdomain_discovery:
-        uses_tools: [subfinder, amass-passive, ctfr, tlsx, oneforall, sublist3r]
-        enable_http_crawl: true
-        threads: 20
-        timeout: 5
-        amass_timeout: 8
-      http_crawl: {}
-      port_scan:
-        enable_http_crawl: true
-        timeout: 5
-        ports: [top-100]
-        rate_limit: 150
-        threads: 20
-        passive: false
-        enable_nmap: true
-      osint:
-        discover: [emails, metainfo]
-        dorks: [login_pages, admin_panels, config_files, exposed_documents, git_exposed, db_files]
-        intensity: normal
-        documents_limit: 50
-        enable_spiderfoot: true
-        spiderfoot_preset: passive
-      dir_file_fuzz:
-        auto_calibration: true
-        enable_http_crawl: true
-        rate_limit: 150
-        extensions: [php, asp, aspx, json, yml, yaml, config, conf, env, bak, sql, git, log, txt]
-        follow_redirect: false
-        max_time: 600
-        match_http_status: [200, 204]
-        recursive_level: 1
-        stop_on_error: false
-        timeout: 5
-        threads: 20
-        wordlist_name: dicc
-      fetch_url:
-        uses_tools: [katana, gau, waybackurls, gospider]
-        remove_duplicate_endpoints: true
-        duplicate_fields: [content_length, page_title]
-        enable_http_crawl: true
-        gf_patterns: [debug_logic, idor, interestingEXT, interestingparams, interestingsubs, lfi, rce, redirect, sqli, ssrf, ssti, xss]
-        ignore_file_extensions: [png, jpg, jpeg, gif, mp4, mpeg, mp3]
-        threads: 20
-      vulnerability_scan:
-        run_nuclei: true
-        run_dalfox: true
-        run_crlfuzz: true
-        enable_http_crawl: true
-        concurrency: 25
-        intensity: normal
-        rate_limit: 150
-        retries: 1
-        timeout: 5
-        fetch_gpt_report: false
-        validate_vulnerabilities: true
-        validation_timeout: 15
-        validation_allow_private: true
-        nuclei:
-          use_nuclei_config: false
-          severities: [low, medium, high, critical]
-      waf_detection:
-        enable_http_crawl: true
-      screenshot:
-        enable_http_crawl: true
-        intensity: normal
-        timeout: 10
-        threads: 20
-      secret_scan:
-        run_gitleaks: true
-        run_ggshield: false
-        gitleaks_mode: dir
+    yaml_configuration: "subdomain_discovery:\n  uses_tools:\n  - subfinder\n  - amass-passive\n
+      \ - ctfr\n  - tlsx\n  - oneforall\n  - sublist3r\n  enable_http_crawl: true\n
+      \ threads: 20\n  timeout: 20\n  amass_timeout: 20\nhttp_crawl: {}\nport_scan:\n
+      \ enable_http_crawl: true\n  timeout: 5\n  ports:\n  - top-100\n  rate_limit:
+      150\n  threads: 20\n  passive: false\n  enable_nmap: true\nosint:\n  discover:\n
+      \ - emails\n  - metainfo\n  - employees\n  dorks:\n  - login_pages\n  - admin_panels\n
+      \ - config_files\n  - exposed_documents\n  - git_exposed\n  - db_files\n  -
+      cloud_buckets\n  - jenkins\n  - wordpress_files\n  - php_error\n  - struts_rce\n
+      \ - code_sharing\n  intensity: normal\n  documents_limit: 100\n  enable_spiderfoot:
+      true\n  spiderfoot_preset: passive\ndir_file_fuzz:\n  auto_calibration: true\n
+      \ enable_http_crawl: true\n  rate_limit: 150\n  extensions:\n  - php\n  - asp\n
+      \ - aspx\n  - json\n  - yml\n  - yaml\n  - config\n  - conf\n  - env\n  - bak\n
+      \ - sql\n  - git\n  - log\n  - txt\n  follow_redirect: false\n  max_time: 600\n
+      \ match_http_status:\n  - 200\n  - 204\n  recursive_level: 1\n  stop_on_error:
+      false\n  timeout: 5\n  threads: 20\n  wordlist_name: dicc\nfetch_url:\n  uses_tools:\n
+      \ - katana\n  - gau\n  - waybackurls\n  - gospider\n  - hakrawler\n  remove_duplicate_endpoints:
+      true\n  duplicate_fields:\n  - content_length\n  - page_title\n  enable_http_crawl:
+      true\n  gf_patterns:\n  - debug_logic\n  - idor\n  - interestingEXT\n  - interestingparams\n
+      \ - interestingsubs\n  - lfi\n  - rce\n  - redirect\n  - sqli\n  - ssrf\n  -
+      ssti\n  - xss\n  ignore_file_extensions:\n  - png\n  - jpg\n  - jpeg\n  - gif\n
+      \ - mp4\n  - mpeg\n  - mp3\n  threads: 20\nvulnerability_scan:\n  run_nuclei:
+      true\n  run_dalfox: true\n  run_crlfuzz: true\n  enable_http_crawl: true\n  concurrency:
+      25\n  intensity: normal\n  rate_limit: 150\n  retries: 1\n  timeout: 5\n  fetch_gpt_report:
+      false\n  validate_vulnerabilities: true\n  validation_timeout: 15\n  validation_allow_private:
+      true\n  nuclei:\n    use_nuclei_config: false\n    severities:\n    - low\n
+      \   - medium\n    - high\n    - critical\nwaf_detection:\n  enable_http_crawl:
+      true\nscreenshot:\n  enable_http_crawl: true\n  intensity: normal\n  timeout:
+      10\n  threads: 20\nsecret_scan:\n  run_gitleaks: true\n  run_ggshield: false\n
+      \ gitleaks_mode: dir\ncustom_header: 'User-Agent: Mozilla/5.0 (Windows NT 10.0;
+      Win64; x64) AppleWebKit/537.36\n  (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'\n"
+    default_engine: true
+- model: scanEngine.enginetype
+  pk: 8
+  fields:
+    engine_name: Stealth-Validated
+    yaml_configuration: "subdomain_discovery:\n  uses_tools:\n  - subfinder\n  - amass-passive\n
+      \ - ctfr\n  - tlsx\n  - oneforall\n  - sublist3r\n  enable_http_crawl: true\n
+      \ threads: 8\n  timeout: 5\n  amass_timeout: 8\nhttp_crawl: {}\nport_scan:\n
+      \ enable_http_crawl: true\n  timeout: 8\n  ports:\n  - top-100\n  rate_limit:
+      30\n  threads: 8\n  passive: false\n  enable_nmap: true\nosint:\n  discover:\n
+      \ - emails\n  - metainfo\n  dorks:\n  - login_pages\n  - admin_panels\n  - config_files\n
+      \ - exposed_documents\n  - git_exposed\n  - db_files\n  intensity: normal\n
+      \ documents_limit: 50\n  enable_spiderfoot: true\n  spiderfoot_preset: passive\ndir_file_fuzz:\n
+      \ auto_calibration: true\n  enable_http_crawl: true\n  rate_limit: 30\n  extensions:\n
+      \ - php\n  - asp\n  - aspx\n  - json\n  - yml\n  - yaml\n  - config\n  - conf\n
+      \ - env\n  - bak\n  - sql\n  - git\n  - log\n  - txt\n  follow_redirect: false\n
+      \ max_time: 1200\n  match_http_status:\n  - 200\n  - 204\n  recursive_level:
+      1\n  stop_on_error: false\n  timeout: 8\n  threads: 8\n  wordlist_name: dicc\nfetch_url:\n
+      \ uses_tools:\n  - katana\n  - gau\n  - waybackurls\n  - gospider\n  remove_duplicate_endpoints:
+      true\n  duplicate_fields:\n  - content_length\n  - page_title\n  enable_http_crawl:
+      true\n  gf_patterns:\n  - debug_logic\n  - idor\n  - interestingEXT\n  - interestingparams\n
+      \ - interestingsubs\n  - lfi\n  - rce\n  - redirect\n  - sqli\n  - ssrf\n  -
+      ssti\n  - xss\n  ignore_file_extensions:\n  - png\n  - jpg\n  - jpeg\n  - gif\n
+      \ - mp4\n  - mpeg\n  - mp3\n  threads: 8\n  rate_limit: 30\nvulnerability_scan:\n
+      \ run_nuclei: true\n  run_dalfox: true\n  run_crlfuzz: true\n  enable_http_crawl:
+      true\n  concurrency: 8\n  intensity: normal\n  rate_limit: 30\n  retries: 2\n
+      \ timeout: 8\n  fetch_gpt_report: false\n  validate_vulnerabilities: true\n
+      \ validation_timeout: 15\n  validation_allow_private: true\n  nuclei:\n    use_nuclei_config:
+      false\n    severities:\n    - low\n    - medium\n    - high\n    - critical\nwaf_detection:\n
+      \ enable_http_crawl: true\nscreenshot:\n  enable_http_crawl: true\n  intensity:
+      normal\n  timeout: 10\n  threads: 20\nsecret_scan:\n  run_gitleaks: true\n  run_ggshield:
+      false\n  gitleaks_mode: dir\ncustom_header: 'User-Agent: Mozilla/5.0 (Windows
+      NT 10.0; Win64; x64) AppleWebKit/537.36\n  (KHTML, like Gecko) Chrome/120.0.0.0
+      Safari/537.36'\n"
     default_engine: true
