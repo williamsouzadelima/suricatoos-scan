@@ -1,6 +1,7 @@
 import json
 
 from celery import Task
+from celery.exceptions import SoftTimeLimitExceeded
 from celery.utils.log import get_task_logger
 from celery.worker.request import Request
 from django.utils import timezone
@@ -129,6 +130,18 @@ class SuricatoosTask(Task):
 		try:
 			self.result = self.run(*args, **kwargs)
 			self.status = SUCCESS_TASK
+
+		except SoftTimeLimitExceeded as exc:
+			# Soft time limit = "stop now, keep what you found". stream_command
+			# already streamed partial results to the DB, so a slow tool (dir-fuzz /
+			# nuclei on a big target) must NOT fail the whole scan — mark SUCCESS so
+			# report() keeps the scan. The #23 watchdog + the hard limit still guard
+			# against genuine hangs.
+			self.status = SUCCESS_TASK
+			self.error = None
+			logger.warning(
+				f'Task {self.task_name} hit the soft time limit — keeping partial '
+				f'results and NOT failing the scan')
 
 		except Exception as exc:
 			self.status = FAILED_TASK
