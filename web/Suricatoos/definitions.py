@@ -54,6 +54,8 @@ NUCLEI_CUSTOM_TEMPLATE = 'custom_templates'
 NUCLEI_TAGS = 'tags'
 NUCLEI_TEMPLATE = 'templates'
 NUCLEI_SEVERITY = 'severities'
+NUCLEI_EXCLUDE_TEMPLATE = 'exclude_templates'
+NUCLEI_EXCLUDE_TAGS = 'exclude_tags'
 NUCLEI_CONCURRENCY = 'concurrency'
 OSINT = 'osint'
 OSINT_DOCUMENTS_LIMIT = 'documents_limit'
@@ -198,6 +200,10 @@ NAABU_DEFAULT_PORTS = ['top-100']
 
 # nuclei
 NUCLEI_DEFAULT_TEMPLATES_PATH = '/root/nuclei-templates'
+# Experimental third-party template collections excluded by default: they fire
+# weak-matcher HIGH/CRITICAL false positives (substring / status==200 matchers).
+# Engines can override via the 'exclude_templates' key (empty list = exclude none).
+NUCLEI_DEFAULT_EXCLUDE_TEMPLATES = ['/root/nuclei-templates/geeknik_nuclei_templates']
 NUCLEI_SEVERITY_MAP = {
     'info': 0,
     'low': 1,
@@ -516,6 +522,28 @@ FOUR_OH_FOUR_URL = '/404/'
 # OLLAMA DEFINITIONS
 ###############################################################################
 OLLAMA_INSTANCE = 'http://ollama:11434'
+
+# --- LLM false-positive judge (confidence flagger; never auto-deletes) ---
+JUDGE_ENABLED = 'judge_enabled'
+JUDGE_MODEL = 'judge_model'
+DEFAULT_JUDGE_MODEL = 'qwen2.5:1.5b'   # fits the 2g ollama cap; run post-scan only
+JUDGE_SYSTEM_PROMPT = (
+	"You triage nuclei findings for false positives. Judge the ACTUAL HTTP "
+	"response/evidence, NOT the template's claims. The template's CVE id, name and "
+	"severity are CLAIMS, not proof — a weak template attaches a scary CVE to a "
+	"trivial match.\n"
+	"LIKELY_FP when: the response is 401/403/404/redirect or an error/block page "
+	"(the issue is NOT actually present); the matcher is weak (matches only a "
+	"status code or a generic substring like 'publish'/'login' in the body); "
+	"extracted_results is empty or trivial (e.g. ['200']); no exploit artifact is "
+	"echoed back.\n"
+	"REAL when: the response body actually contains the exploited artifact / "
+	"injected payload / sensitive data, with a specific matcher and meaningful "
+	"extracted_results.\n"
+	"A CVE id ALONE is NOT enough to call it real. When unsure, say needs_review.\n"
+	"Reply in ENGLISH with ONLY one JSON object, no prose:\n"
+	'{"verdict":"real|likely_fp|needs_review","confidence":0.0-1.0,"reason":"<=160 chars"}'
+)
 
 DEFAULT_GPT_MODELS = [
     {
