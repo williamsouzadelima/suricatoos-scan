@@ -241,6 +241,7 @@ queues=(
     "send_file_to_discord_queue"
     "send_hackerone_report_queue"
     "parse_nmap_results_queue"
+    "nmap_queue"
     "geo_localize_queue"
     "query_whois_queue"
     "remove_duplicate_endpoints_queue"
@@ -254,6 +255,7 @@ queues=(
     "theHarvester_queue"
     "spiderfoot_queue"
     "send_scan_notif_queue"
+    "hang_monitor_queue"
 )
 all_queues=$(IFS=,; echo "${queues[*]}")
 # Concorrencia do worker gevent compartilhado. Greenlets sao baratos (o custo de
@@ -269,6 +271,24 @@ if [ "$DEBUG" == "1" ]; then
     commands+="watchmedo auto-restart --recursive --pattern=\"*.py\" --directory=\"/usr/src/app/Suricatoos/\" -- celery -A Suricatoos.tasks worker --pool=gevent --optimization=fair --concurrency=$shared_concurrency --loglevel=$loglevel -Q $all_queues -n shared_worker &"$'\n'
 else
     commands+="celery -A Suricatoos.tasks worker --pool=gevent --optimization=fair --concurrency=$shared_concurrency --loglevel=$loglevel -Q $all_queues -n shared_worker &"$'\n'
+fi
+
+# Coordinator worker (gevent): serves coordinator_queue, where the fan-out
+# orchestrators (vulnerability_scan, nuclei_scan) block on their group/chord
+# barrier. On a PREFORK worker a blocked orchestrator holds a scarce process slot
+# and can deadlock its own children (the multi-tenant scan-#28 hang). On gevent a
+# blocked task is just a parked greenlet, so a high concurrency is essentially free
+# and the orchestrators can never starve the heavy children running on the
+# memory-bounded main_scan_queue. Keep this a SEPARATE worker from the shared IO
+# worker so parked orchestrators never consume the IO worker's concurrency slots.
+case "${COORDINATOR_CONCURRENCY:-}" in
+    ''|*[!0-9]*) coordinator_concurrency=30 ;;
+    *)           coordinator_concurrency=$COORDINATOR_CONCURRENCY ;;
+esac
+if [ "$DEBUG" == "1" ]; then
+    commands+="watchmedo auto-restart --recursive --pattern=\"*.py\" --directory=\"/usr/src/app/Suricatoos/\" -- celery -A Suricatoos.tasks worker --pool=gevent --optimization=fair --concurrency=$coordinator_concurrency --loglevel=$loglevel -Q coordinator_queue -n coordinator_worker &"$'\n'
+else
+    commands+="celery -A Suricatoos.tasks worker --pool=gevent --optimization=fair --concurrency=$coordinator_concurrency --loglevel=$loglevel -Q coordinator_queue -n coordinator_worker &"$'\n'
 fi
 commands="${commands%&}"
 
