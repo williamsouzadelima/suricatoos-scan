@@ -325,6 +325,17 @@ CELERY_TASK_TIME_LIMIT = env.int("CELERY_TASK_TIME_LIMIT", default=7200)        
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_WORKER_MAX_TASKS_PER_CHILD = env.int("CELERY_WORKER_MAX_TASKS_PER_CHILD", default=50)
 CELERY_WORKER_MAX_MEMORY_PER_CHILD = env.int("CELERY_WORKER_MAX_MEMORY_PER_CHILD", default=350000)  # KB (~350MB)
+
+# Periodic backstop: sweep for silently-wedged scans (RUNNING with no recent
+# activity) and auto-abort them. django_celery_beat's DatabaseScheduler syncs this
+# dict into its DB tables on beat startup, so no migration/manual entry is needed.
+CELERY_BEAT_SCHEDULE = {
+    'hang-monitor': {
+        'task': 'hang_monitor',
+        'schedule': env.float("HANG_MONITOR_INTERVAL", default=600.0),  # every 10 min
+        'options': {'queue': 'hang_monitor_queue', 'expires': 540},
+    },
+}
 '''
 ROLES and PERMISSIONS
 '''

@@ -4,6 +4,7 @@ import json
 import os
 import pprint
 import re
+import select
 import shlex
 import signal
 import socket
@@ -19,7 +20,7 @@ import tldextract
 import concurrent.futures
 import base64
 
-from datetime import datetime, timezone as datetime_timezone
+from datetime import datetime, timedelta, timezone as datetime_timezone
 from urllib.parse import urlparse
 from api.serializers import SubdomainSerializer
 from celery import chain, chord, group
@@ -55,6 +56,39 @@ logger = get_task_logger(__name__)
 # a copy with the real secret substituted in — keeping credentials out of the
 # Command DB record, the logs and the history file (clear-text-storage defense).
 SECRET_PLACEHOLDER = '__SURICATOOS_SECRET__'
+
+
+def join_group_with_timeout(job, label, timeout=None, poll=5):
+	"""Block on a Celery group/chord result, but never forever.
+
+	Several scan tasks fan out a group/chord of children and then wait for them
+	(`while not job.ready()` / `result.get()`). An UNBOUNDED wait lets a single
+	stuck child wedge the parent indefinitely while it holds its worker slot;
+	under the prefork ``main_scan_queue`` (MAX_CONCURRENCY) that starves the
+	children and deadlocks the whole queue for every user (the scan-#28 hang).
+
+	This waits at most ``timeout`` seconds. On expiry it revokes (SIGKILL) the
+	outstanding children and returns ``False`` so the caller can degrade
+	gracefully — partial results are already persisted incrementally. Returns
+	``True`` when the group finished within the budget. ``timeout=0`` (or the
+	``DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT`` default of 0) restores the legacy
+	unbounded wait.
+	"""
+	if timeout is None:
+		timeout = DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT
+	deadline = (time.monotonic() + timeout) if timeout and timeout > 0 else None
+	while not job.ready():
+		if deadline is not None and time.monotonic() >= deadline:
+			logger.warning(
+				f'{label}: orchestration barrier exceeded {timeout}s; revoking '
+				f'outstanding child task(s) and continuing with partial results')
+			try:
+				job.revoke(terminate=True, signal='SIGKILL')
+			except Exception as e:   # noqa: BLE001 - best-effort cleanup
+				logger.warning(f'{label}: failed to revoke timed-out group: {e}')
+			return False
+		time.sleep(poll)
+	return True
 
 
 # The SpiderFoot package is NOT pip-installed — it lives at SPIDERFOOT_DIR
@@ -777,9 +811,7 @@ def osint(self, host=None, ctx={}, description=None):
 
 	celery_group = group(grouped_tasks)
 	job = celery_group.apply_async()
-	while not job.ready():
-		# wait for all jobs to complete
-		time.sleep(5)
+	join_group_with_timeout(job, label='osint')
 
 	logger.info('OSINT Tasks finished...')
 
@@ -875,9 +907,7 @@ def osint_discovery(config, host, scan_history_id, activity_id, results_dir, ctx
 
 	celery_group = group(grouped_tasks)
 	job = celery_group.apply_async()
-	while not job.ready():
-		# wait for all jobs to complete
-		time.sleep(5)
+	join_group_with_timeout(job, label='osint_discovery')
 
 	# results['emails'] = results.get('emails', []) + emails
 	# results['creds'] = creds
@@ -1648,13 +1678,18 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 				ctx=ctx_nmap)
 			sigs.append(sig)
 		task = group(sigs).apply_async()
-		with allow_join_result():
-			results = task.get()
+		# Bounded wait: a stuck nmap child must not wedge port_scan forever (it
+		# holds a main_scan_queue slot). nmap runs on a separate pool now, but the
+		# deadline is the backstop. Results are saved inside each nmap child.
+		join_group_with_timeout(task, label='port_scan:nmap')
 
 	return ports_data
 
 
-@app.task(name='nmap', queue='main_scan_queue', base=SuricatoosTask, bind=True)
+# nmap is a leaf child of port_scan. It runs on its own gevent-served queue (NOT
+# main_scan_queue) so a port_scan blocked waiting on its nmap children can never
+# starve them for a main_scan_queue slot (multi-tenant deadlock prevention).
+@app.task(name='nmap', queue='nmap_queue', base=SuricatoosTask, bind=True)
 def nmap(
 		self,
 		cmd=None,
@@ -2148,8 +2183,19 @@ def fetch_url(self, urls=[], ctx={}, description=None):
 
 	# Run all commands
 	task = chord(tasks)(cleanup)
-	with allow_join_result():
-		task.get()
+	if not join_group_with_timeout(task, label='fetch_url'):
+		# Degraded: the cleanup callback may not have written output_path. Rebuild
+		# it best-effort from whatever per-tool URL files landed so the phase still
+		# proceeds (each crawler is individually `timeout`-bounded, so this is rare).
+		try:
+			with open(self.output_path, 'w') as out:
+				for fn in sorted(os.listdir(self.results_dir)):
+					if fn.startswith('urls_') and fn.endswith('.txt'):
+						with open(os.path.join(self.results_dir, fn)) as pf:
+							out.writelines(pf.readlines())
+		except OSError as e:
+			logger.warning(f'fetch_url: degraded output rebuild failed: {e}')
+			open(self.output_path, 'a').close()  # ensure the file exists for the read below
 
 	# Store all the endpoints and run httpx
 	with open(self.output_path) as f:
@@ -2285,7 +2331,12 @@ def parse_curl_output(response):
 	}
 
 
-@app.task(name='vulnerability_scan', queue='main_scan_queue', bind=True, base=SuricatoosTask)
+# vulnerability_scan and nuclei_scan are pure COORDINATORS: they fan out a group of
+# heavy child scanners and then block on the barrier. They run on the gevent-served
+# coordinator_queue, where a blocked task is just a parked greenlet (near-zero cost)
+# instead of a held prefork slot — so they can never starve their own children for a
+# main_scan_queue slot. The heavy children stay on the memory-bounded main_scan_queue.
+@app.task(name='vulnerability_scan', queue='coordinator_queue', bind=True, base=SuricatoosTask)
 def vulnerability_scan(self, urls=[], ctx={}, description=None):
 	"""
 		This function will serve as an entrypoint to vulnerability scan.
@@ -2333,9 +2384,7 @@ def vulnerability_scan(self, urls=[], ctx={}, description=None):
 	celery_group = group(grouped_tasks)
 	job = celery_group.apply_async()
 
-	while not job.ready():
-		# wait for all jobs to complete
-		time.sleep(5)
+	join_group_with_timeout(job, label='vulnerability_scan')
 
 	logger.info('Vulnerability scan completed...')
 
@@ -3274,7 +3323,9 @@ def secret_scan(self, ctx={}, description=None):
 	return None
 
 
-@app.task(name='nuclei_scan', queue='main_scan_queue', base=SuricatoosTask, bind=True)
+# Coordinator (see vulnerability_scan): fans out per-severity nuclei children and
+# blocks on the barrier — runs on the gevent coordinator_queue, not main_scan_queue.
+@app.task(name='nuclei_scan', queue='coordinator_queue', base=SuricatoosTask, bind=True)
 def nuclei_scan(self, urls=[], ctx={}, description=None):
 	"""HTTP vulnerability scan using Nuclei
 
@@ -3422,9 +3473,7 @@ def nuclei_scan(self, urls=[], ctx={}, description=None):
 	celery_group = group(grouped_tasks)
 	job = celery_group.apply_async()
 
-	while not job.ready():
-		# wait for all jobs to complete
-		time.sleep(5)
+	join_group_with_timeout(job, label='nuclei_scan')
 
 	logger.info('Vulnerability scan with all severities completed...')
 
@@ -5042,6 +5091,89 @@ def _arm_command_watchdog(proc, timeout):
 	return timer, state
 
 
+def _read_lines_until_dead(process, wd, poll=1.0):
+	"""Yield text lines from ``process.stdout``, stopping PROMPTLY when the
+	watchdog fires or the process exits — even if a stray grandchild keeps the
+	stdout pipe's write-end open.
+
+	A plain ``for line in iter(process.stdout.readline, '')`` only ends on EOF.
+	When the watchdog SIGKILLs the process group but a sub-helper escaped that
+	group and still holds the inherited stdout write-end, EOF never arrives, so
+	``readline()`` blocks forever — the reader never reaches ``process.wait()``,
+	the killed tool is never reaped (a ``<defunct>`` zombie) and the worker slot
+	wedges silently. This is the diagnosed scan-#28 hang.
+
+	``select()`` bounds every read to ``poll`` seconds, so after each interval we
+	re-check liveness: if the watchdog already fired (``wd['timed_out']``) or the
+	process has exited, we stop and let the caller reach ``process.wait()``.
+	"""
+	stdout = process.stdout
+	while True:
+		try:
+			ready, _, _ = select.select([stdout], [], [], poll)
+		except (OSError, ValueError):
+			break   # stdout was closed/became invalid
+		if ready:
+			line = stdout.readline()
+			if not line:
+				break   # genuine EOF
+			yield line
+		elif wd.get('timed_out') or process.poll() is not None:
+			# No data within the poll window AND the tool was killed or has
+			# exited → no more output is coming. Break so the dead child is
+			# reaped instead of blocking on an EOF that may never arrive.
+			break
+
+
+@app.task(name='hang_monitor', bind=False, queue='hang_monitor_queue')
+def hang_monitor():
+	"""Backstop safety net: auto-abort scans that have silently wedged.
+
+	Even with the per-tool watchdog, the interruptible reader and the bounded
+	orchestration barriers, an unforeseen wedge could still leave a scan stuck in
+	RUNNING_TASK with no task making progress (the scan-#28 failure mode, where a
+	scan sat silent for 35h). This periodic celery-beat task finds such scans —
+	RUNNING_TASK whose newest ScanActivity (or, lacking any, the scan start) is
+	older than HANG_MONITOR_STALE_AFTER — and aborts them so they self-heal with no
+	operator: it revokes the scan's celery_ids, flips RUNNING activities to ABORTED
+	and sets the scan to ABORTED_TASK. Idempotent; safe to run frequently.
+	"""
+	cutoff = timezone.now() - timedelta(seconds=HANG_MONITOR_STALE_AFTER)
+	aborted = 0
+	for scan in ScanHistory.objects.filter(scan_status=RUNNING_TASK):
+		last_activity = (
+			ScanActivity.objects
+			.filter(scan_of=scan)
+			.order_by('-time')
+			.first())
+		# Progress reference: the newest activity, or the scan start if none yet.
+		ref = last_activity.time if last_activity else scan.start_scan_date
+		if ref and ref > cutoff:
+			continue   # made progress within the budget — leave it alone
+		logger.warning(
+			f'hang_monitor: scan {scan.id} stuck in RUNNING since {ref} '
+			f'(> {HANG_MONITOR_STALE_AFTER}s without progress); auto-aborting')
+		try:
+			for task_id in (scan.celery_ids or []):
+				try:
+					app.control.revoke(task_id, terminate=True, signal='SIGKILL')
+				except Exception:   # noqa: BLE001 - best-effort revoke
+					pass
+			ScanActivity.objects.filter(scan_of=scan, status=RUNNING_TASK).update(
+				status=ABORTED_TASK, time=timezone.now())
+			scan.scan_status = ABORTED_TASK
+			scan.stop_scan_date = timezone.now()
+			scan.error_message = 'Auto-aborted by hang monitor (no scan activity within budget)'
+			scan.save()
+			create_scan_activity(scan.id, 'Scan auto-aborted (hang monitor)', ABORTED_TASK)
+			aborted += 1
+		except Exception as e:   # noqa: BLE001 - one bad scan must not stop the sweep
+			logger.error(f'hang_monitor: failed to abort scan {scan.id}: {e}')
+	if aborted:
+		logger.warning(f'hang_monitor: auto-aborted {aborted} stuck scan(s)')
+	return aborted
+
+
 @app.task(name='run_command', bind=False, queue='run_command_queue')
 def run_command(
 		cmd,
@@ -5100,12 +5232,28 @@ def run_command(
 	_timer, _wd = _arm_command_watchdog(popen, timeout)
 	output = ''
 	try:
-		for stdout_line in iter(popen.stdout.readline, ""):
+		# Interruptible read: breaks promptly if the watchdog kills the tool, so
+		# we always reach popen.wait() and reap the child (no zombie / wedge).
+		for stdout_line in _read_lines_until_dead(popen, _wd):
 			item = stdout_line.strip()
 			output += '\n' + item
 			logger.debug(item)
-		popen.stdout.close()
-		popen.wait()
+		try:
+			popen.stdout.close()
+		except Exception:
+			pass
+		# Bounded wait so a stray grandchild can't make even this hang.
+		try:
+			popen.wait(timeout=30)
+		except subprocess.TimeoutExpired:
+			try:
+				os.killpg(os.getpgid(popen.pid), signal.SIGKILL)
+			except Exception:
+				pass
+			try:
+				popen.wait(timeout=10)
+			except Exception:
+				pass
 	finally:
 		if _timer:
 			_timer.cancel()
@@ -5166,7 +5314,11 @@ def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-
 
 	# Process the output
 	try:
-		for line in iter(lambda: process.stdout.readline(), b''):
+		# Interruptible read (see _read_lines_until_dead): a plain readline() loop
+		# blocks on EOF forever if a watchdog-killed tool leaves a grandchild holding
+		# the stdout pipe — wedging the worker (the scan-#28 hang). This breaks as soon
+		# as the watchdog fires or the process exits, so we always reach process.wait().
+		for line in _read_lines_until_dead(process, _wd):
 			if not line:
 				break
 			line = line.strip()
@@ -5194,8 +5346,19 @@ def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-
 			command_obj.output = output
 			command_obj.save()
 
-		# Retrieve the return code and output
-		process.wait()
+		# Retrieve the return code and output. Bounded so a stray grandchild that
+		# survived the group kill can't turn this into another silent wedge.
+		try:
+			process.wait(timeout=30)
+		except subprocess.TimeoutExpired:
+			try:
+				os.killpg(os.getpgid(process.pid), signal.SIGKILL)
+			except Exception:
+				pass
+			try:
+				process.wait(timeout=10)
+			except Exception:
+				pass
 		return_code = process.returncode
 		if _wd['timed_out']:
 			logger.error(f'stream_command: timed out after {timeout}s, killed process group: {cmd}')
@@ -5223,6 +5386,12 @@ def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-
 					process.kill()
 				except Exception:
 					pass
+		# Always reap the (now dead) child so it can't linger as a <defunct> zombie
+		# holding a slot/PID — the watchdog kill path historically skipped this.
+		try:
+			process.wait(timeout=10)
+		except Exception:
+			pass
 
 
 def process_httpx_response(line):

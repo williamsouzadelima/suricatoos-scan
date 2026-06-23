@@ -29,6 +29,11 @@ services:
     build:
       context: ./web
     restart: always
+    # Run an init (tini) as PID 1 so orphaned subprocess zombies are reaped. The
+    # entrypoint is a bash script (a poor reaper): when the watchdog SIGKILLs a stuck
+    # tool (e.g. nuclei) the child gets reparented to PID 1 and, without an init,
+    # lingers as a <defunct> zombie forever (observed after the scan-#28 hang).
+    init: true
     # Heaviest container (runs every scan tool). Cap RAM so a runaway tool is OOM-killed inside
     # this container instead of starving the host; a little swap headroom (Docker default) is
     # left as a buffer. Hangs are handled by the per-tool watchdog + Celery time limits.
@@ -58,6 +63,11 @@ services:
       - MAX_CONCURRENCY=${MAX_CONCURRENCY}
       - MIN_CONCURRENCY=${MIN_CONCURRENCY}
       - SHARED_CONCURRENCY=${SHARED_CONCURRENCY:-10}
+      # Dedicated gevent worker for the blocking scan coordinators; greenlets are cheap
+      # so this can be high without memory cost (see celery-entrypoint.sh).
+      - COORDINATOR_CONCURRENCY=${COORDINATOR_CONCURRENCY:-30}
+      # Backstop deadline for every fan-out barrier (see definitions.py). 0 disables.
+      - ORCHESTRATION_BARRIER_TIMEOUT=${ORCHESTRATION_BARRIER_TIMEOUT:-7200}
       - GITGUARDIAN_API_KEY=${GITGUARDIAN_API_KEY}
     depends_on:
       - db
@@ -96,6 +106,8 @@ services:
     build:
       context: ./web
     entrypoint: /usr/src/app/entrypoint.sh
+    # Reap orphaned subprocess zombies (WHOIS / tool endpoints spawn subprocesses).
+    init: true
     restart: always
     mem_limit: 640m
     image: suricatoos/web:latest

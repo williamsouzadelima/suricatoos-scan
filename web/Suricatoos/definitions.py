@@ -177,6 +177,28 @@ except (TypeError, ValueError):
 THEHARVESTER_EXEC_TIMEOUT = 600
 SPIDERFOOT_EXEC_TIMEOUT = 900
 
+# Orchestration barrier backstop. Several scan tasks fan out a group/chord of child
+# tasks and then block until the children finish (`while not job.ready()` / `.get()`).
+# An UNBOUNDED block lets one stuck child wedge the parent forever, holding its worker
+# slot — under the prefork main_scan_queue (MAX_CONCURRENCY) that starves the children
+# and deadlocks the whole queue for every user (the diagnosed scan-#28 hang). Every
+# barrier is now bounded by this deadline: on expiry the parent revokes the outstanding
+# children and degrades gracefully (partial results are persisted incrementally). 0
+# disables the bound. Overridable via ORCHESTRATION_BARRIER_TIMEOUT env.
+try:
+    DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT = int(os.environ.get('ORCHESTRATION_BARRIER_TIMEOUT', 7200))  # seconds; 2h default
+except (TypeError, ValueError):
+    DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT = 7200
+
+# Backstop hang monitor: a scan whose newest ScanActivity is older than this (and is
+# still flagged RUNNING) is considered wedged and auto-aborted by the periodic
+# hang_monitor beat task. Default = the Celery hard limit (7200s) + a 30min margin so
+# a legitimately long single tool can't trip it. Overridable via HANG_MONITOR_STALE_AFTER.
+try:
+    HANG_MONITOR_STALE_AFTER = int(os.environ.get('HANG_MONITOR_STALE_AFTER', 9000))  # seconds; 2.5h
+except (TypeError, ValueError):
+    HANG_MONITOR_STALE_AFTER = 9000
+
 # amass
 AMASS_DEFAULT_WORDLIST_PATH = (
     'wordlist/default_wordlist/deepmagic.com-prefixes-top50000.txt'
