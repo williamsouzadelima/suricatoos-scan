@@ -204,13 +204,27 @@ echo 'alias httpx="/go/bin/httpx"' >> ~/.bashrc
 # TEMPORARY FIX FOR langchain
 pip install tenacity==8.2.2
 
-# A06: restaura o requests com patch de segurança DEPOIS de todos os installs de
-# ferramentas. OneForAll (requests==2.28.1) e theHarvester (requests==2.31.0) pinam
-# versões antigas que rebaixam o requests a cada boot do worker. A API HTTP que essas
-# tools usam é estável entre 2.28/2.31 e 2.32, então forçamos a versão patcheada do
-# requirements.txt (PR #35). Sem isto o worker celery roda um requests vulnerável,
-# divergindo do que foi assado na imagem.
-pip install "$(grep -E '^requests==' /usr/src/app/requirements.txt)"
+# --- Conflito duro de SQLAlchemy (OneForAll x langchain) ---------------------
+# OneForAll exige SQLAlchemy 1.3.x: sua camada SQLite vendorizada (common/records.py)
+# itera o resultado de TODO Connection.query(), o que levanta ResourceClosedError sob
+# 1.4 -> crasha logo no init_table() de qualquer scan. Já langchain-community (usado em
+# Suricatoos/llm.py p/ Ollama) exige SQLAlchemy>=1.4, e o app fixa sqlalchemy==1.4.52.
+# As duas versões NÃO coexistem num único env. Solução: a 1.3.22 do OneForAll vai p/ um
+# dir isolado carregado SÓ na invocação dele (PYTHONPATH=/opt/oneforall-sa em tasks.py),
+# e o env principal fica com a 1.4.52 do requirements.txt (langchain + app corretos).
+if [ ! -f /opt/oneforall-sa/sqlalchemy/__init__.py ]; then
+    echo "Isolando SQLAlchemy 1.3.22 para o OneForAll em /opt/oneforall-sa"
+    pip install --target /opt/oneforall-sa --no-cache-dir "SQLAlchemy==1.3.22"
+fi
+
+# Re-assevera TODAS as versões fixadas do app DEPOIS dos installs de ferramentas. As OSINT
+# tools que ficam no env principal (Sublist3r/OneForAll/theHarvester/spiderfoot/CMSeeK/h8mail)
+# rebaixam várias deps assadas a cada boot (SQLAlchemy, requests, beautifulsoup4, certifi,
+# urllib3, ...). Restaurar o requirements.txt deixa o worker idêntico à imagem assada e
+# corrige o A06 (requests 2.32.4) + a dívida do SQLAlchemy 1.4.52 de uma vez. Validado por
+# auditoria adversarial: as tools que permanecem neste env são compatíveis com estas versões;
+# só o OneForAll tinha conflito duro (SQLAlchemy) e por isso roda isolado (acima + tasks.py).
+pip install -r /usr/src/app/requirements.txt
 
 loglevel='info'
 if [ "$DEBUG" == "1" ]; then

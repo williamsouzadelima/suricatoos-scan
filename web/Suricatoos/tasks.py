@@ -598,7 +598,9 @@ def subdomain_discovery(
 
 			elif tool == 'oneforall':
 				csv_path = f'/usr/src/github/OneForAll/results/{host}.csv'
-				cmd = f'python3 /usr/src/github/OneForAll/oneforall.py --target {shlex.quote(host)} run'
+				# PYTHONPATH isola a SQLAlchemy 1.3.22 exigida pelo OneForAll (crasha em 1.4);
+				# o env principal roda 1.4.52 p/ o langchain. Ver celery-entrypoint.sh.
+				cmd = f'PYTHONPATH=/opt/oneforall-sa python3 /usr/src/github/OneForAll/oneforall.py --target {shlex.quote(host)} run'
 				cmd_extract = f'cut -d\',\' -f6 {shlex.quote(csv_path)} | tail -n +2 > {self.results_dir}/subdomains_oneforall.txt'
 				cmd_rm = f'rm -rf {shlex.quote(csv_path)}'
 				cmd += f' && {cmd_extract} && {cmd_rm}'
