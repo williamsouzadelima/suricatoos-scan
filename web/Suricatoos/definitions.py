@@ -3,6 +3,12 @@ import logging
 import os
 import re
 
+# Capacity-proportional scaling for the orchestration DURATION timers below.
+# scale_timer multiplies by the machine capacity factor (>= 1.0); on the baseline
+# 2-CPU box the factor is 1.0, so every value is byte-identical to its base.
+# capacity.py imports only os -> no circular import.
+from Suricatoos.capacity import scale_timer
+
 ###############################################################################
 # TOOLS DEFINITIONS
 ###############################################################################
@@ -46,8 +52,8 @@ MAX_TIME = 'max_time'
 # blows the 90min Celery soft limit when there are many hosts (the recurring
 # dir_file_fuzz timeout). Budget the TOTAL: per-host time = budget // host_count,
 # floored so few-host scans still go deep. Stays well under CELERY_TASK_SOFT_TIME_LIMIT.
-DIR_FUZZ_TIME_BUDGET = 4200   # seconds total for the whole dir-fuzz step (~70min)
-DIR_FUZZ_MIN_PER_HOST = 30    # never fuzz a host for less than this
+DIR_FUZZ_TIME_BUDGET = scale_timer(4200)   # seconds total for the whole dir-fuzz step (~70min)
+DIR_FUZZ_MIN_PER_HOST = scale_timer(30)    # never fuzz a host for less than this
 NAABU_EXCLUDE_PORTS = 'exclude_ports'
 NAABU_EXCLUDE_SUBDOMAINS = 'exclude_subdomains'
 ENABLE_NMAP = 'enable_nmap'
@@ -167,15 +173,21 @@ DEFAULT_VALIDATION_ALLOW_PRIVATE = True
 # never returns (amass-active brute, spiderfoot, theHarvester) can't wedge its Celery
 # task forever (the diagnosed scan-#19 hang). Generous global backstop (raise it if huge
 # nuclei/ffuf scopes legitimately exceed it); per-tool callers pass a tighter value. 0
-# disables. Overridable via the COMMAND_EXEC_TIMEOUT env.
+# disables. Overridable via the COMMAND_EXEC_TIMEOUT env. When the env is set the
+# operator means an absolute value, so it is used VERBATIM (un-scaled); otherwise
+# the 7200 default is scaled by the machine capacity factor. scale_timer keeps 0.
 try:
-    DEFAULT_COMMAND_EXEC_TIMEOUT = int(os.environ.get('COMMAND_EXEC_TIMEOUT', 7200))  # seconds; 2h default
+    _raw = os.environ.get('COMMAND_EXEC_TIMEOUT')
+    if _raw not in (None, ''):
+        DEFAULT_COMMAND_EXEC_TIMEOUT = int(_raw)  # seconds; operator-supplied, verbatim
+    else:
+        DEFAULT_COMMAND_EXEC_TIMEOUT = scale_timer(7200)  # seconds; 2h default, capacity-scaled
 except (TypeError, ValueError):
-    DEFAULT_COMMAND_EXEC_TIMEOUT = 7200
+    DEFAULT_COMMAND_EXEC_TIMEOUT = scale_timer(7200)
 # Tighter caps for the known hang-prone OSINT tools (run on the gevent pool, where
 # Celery's SIGALRM hard limit does NOT apply — the watchdog is the only guard there).
-THEHARVESTER_EXEC_TIMEOUT = 600
-SPIDERFOOT_EXEC_TIMEOUT = 900
+THEHARVESTER_EXEC_TIMEOUT = scale_timer(600)
+SPIDERFOOT_EXEC_TIMEOUT = scale_timer(900)
 
 # Orchestration barrier backstop. Several scan tasks fan out a group/chord of child
 # tasks and then block until the children finish (`while not job.ready()` / `.get()`).
@@ -184,20 +196,32 @@ SPIDERFOOT_EXEC_TIMEOUT = 900
 # and deadlocks the whole queue for every user (the diagnosed scan-#28 hang). Every
 # barrier is now bounded by this deadline: on expiry the parent revokes the outstanding
 # children and degrades gracefully (partial results are persisted incrementally). 0
-# disables the bound. Overridable via ORCHESTRATION_BARRIER_TIMEOUT env.
+# disables the bound. Overridable via ORCHESTRATION_BARRIER_TIMEOUT env. NOTE the
+# live docker-compose.yml sets ORCHESTRATION_BARRIER_TIMEOUT=7200 explicitly, so
+# under the "verbatim if env set" rule the barrier stays 7200 (un-scaled) on every
+# box; remove that compose line to let it scale with capacity. scale_timer keeps 0.
 try:
-    DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT = int(os.environ.get('ORCHESTRATION_BARRIER_TIMEOUT', 7200))  # seconds; 2h default
+    _raw = os.environ.get('ORCHESTRATION_BARRIER_TIMEOUT')
+    if _raw not in (None, ''):
+        DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT = int(_raw)  # seconds; operator-supplied, verbatim
+    else:
+        DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT = scale_timer(7200)  # seconds; 2h default, capacity-scaled
 except (TypeError, ValueError):
-    DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT = 7200
+    DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT = scale_timer(7200)
 
 # Backstop hang monitor: a scan whose newest ScanActivity is older than this (and is
 # still flagged RUNNING) is considered wedged and auto-aborted by the periodic
 # hang_monitor beat task. Default = the Celery hard limit (7200s) + a 30min margin so
-# a legitimately long single tool can't trip it. Overridable via HANG_MONITOR_STALE_AFTER.
+# a legitimately long single tool can't trip it. Overridable via HANG_MONITOR_STALE_AFTER
+# (verbatim if set; else the 9000 default is capacity-scaled).
 try:
-    HANG_MONITOR_STALE_AFTER = int(os.environ.get('HANG_MONITOR_STALE_AFTER', 9000))  # seconds; 2.5h
+    _raw = os.environ.get('HANG_MONITOR_STALE_AFTER')
+    if _raw not in (None, ''):
+        HANG_MONITOR_STALE_AFTER = int(_raw)  # seconds; operator-supplied, verbatim
+    else:
+        HANG_MONITOR_STALE_AFTER = scale_timer(9000)  # seconds; 2.5h default, capacity-scaled
 except (TypeError, ValueError):
-    HANG_MONITOR_STALE_AFTER = 9000
+    HANG_MONITOR_STALE_AFTER = scale_timer(9000)
 
 # amass
 AMASS_DEFAULT_WORDLIST_PATH = (

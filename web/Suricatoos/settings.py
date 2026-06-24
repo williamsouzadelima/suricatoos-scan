@@ -320,8 +320,22 @@ CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 # stream_command watchdog (which also covers the gevent OSINT pool, where SIGALRM limits are
 # a no-op). prefetch=1 stops a worker hoarding long scan tasks; max_tasks/max_memory_per_child
 # recycle bloated prefork children between tasks.
-CELERY_TASK_SOFT_TIME_LIMIT = env.int("CELERY_TASK_SOFT_TIME_LIMIT", default=5400)   # 90 min
-CELERY_TASK_TIME_LIMIT = env.int("CELERY_TASK_TIME_LIMIT", default=7200)             # 120 min hard
+# Capacity-proportional: when the env is explicitly set the operator means an
+# absolute value (used verbatim); otherwise the default is scaled by the machine
+# capacity factor. Uniform scaling keeps soft < hard and budget < soft at any
+# factor; on the baseline 2-CPU box the factor is 1.0 so these stay 5400/7200.
+# capacity.py imports only os -> no circular import with settings.
+from Suricatoos.capacity import scale_timer as _scale_timer
+_raw_soft = os.environ.get("CELERY_TASK_SOFT_TIME_LIMIT")
+CELERY_TASK_SOFT_TIME_LIMIT = (
+    env.int("CELERY_TASK_SOFT_TIME_LIMIT") if _raw_soft not in (None, "")
+    else _scale_timer(5400)
+)   # 90 min
+_raw_hard = os.environ.get("CELERY_TASK_TIME_LIMIT")
+CELERY_TASK_TIME_LIMIT = (
+    env.int("CELERY_TASK_TIME_LIMIT") if _raw_hard not in (None, "")
+    else _scale_timer(7200)
+)             # 120 min hard
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_WORKER_MAX_TASKS_PER_CHILD = env.int("CELERY_WORKER_MAX_TASKS_PER_CHILD", default=50)
 CELERY_WORKER_MAX_MEMORY_PER_CHILD = env.int("CELERY_WORKER_MAX_MEMORY_PER_CHILD", default=350000)  # KB (~350MB)
