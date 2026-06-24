@@ -2,6 +2,11 @@ aiodns==3.0.0
 argh==0.26.2
 beautifulsoup4==4.9.3
 celery==5.4.0
+# Pinado explicitamente: certifi é transitiva (requests etc.) e as ferramentas OSINT
+# instaladas em runtime (theHarvester pina certifi==2023.7.22) rebaixavam o CA bundle do
+# worker p/ ~3 anos atrás. Pinar aqui faz o re-assert do celery-entrypoint restaurar um
+# bundle fresco. CA bundle não tem API — subir é sempre seguro; bumpar periodicamente.
+certifi==2026.6.17
 discord-webhook==1.3.0
 Django==3.2.25
 django-ace==1.0.11
