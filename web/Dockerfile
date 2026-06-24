@@ -33,7 +33,9 @@ RUN apt update -y && \
     python3-pip 
 
 # Install essential packages
-RUN apt install -y --no-install-recommends \
+# apt-get update no MESMO layer do install: senão o índice fica preso ao layer
+# anterior (cacheado) e .debs de patch superseded dão 404 ao rebuildar.
+RUN apt update -y && apt install -y --no-install-recommends \
     build-essential \
     cmake \
     geoip-bin \
