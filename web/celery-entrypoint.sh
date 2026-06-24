@@ -204,6 +204,14 @@ echo 'alias httpx="/go/bin/httpx"' >> ~/.bashrc
 # TEMPORARY FIX FOR langchain
 pip install tenacity==8.2.2
 
+# A06: restaura o requests com patch de segurança DEPOIS de todos os installs de
+# ferramentas. OneForAll (requests==2.28.1) e theHarvester (requests==2.31.0) pinam
+# versões antigas que rebaixam o requests a cada boot do worker. A API HTTP que essas
+# tools usam é estável entre 2.28/2.31 e 2.32, então forçamos a versão patcheada do
+# requirements.txt (PR #35). Sem isto o worker celery roda um requests vulnerável,
+# divergindo do que foi assado na imagem.
+pip install "$(grep -E '^requests==' /usr/src/app/requirements.txt)"
+
 loglevel='info'
 if [ "$DEBUG" == "1" ]; then
     loglevel='debug'
