@@ -687,7 +687,7 @@ class UniversalSearch(APIView):
 			Q(http_url__icontains=query) |
 			Q(name__icontains=query) |
 			Q(description__icontains=query)
-		).distinct()
+		).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE).distinct()
 		vulnerability_data = VulnerabilitySerializer(vulnerability, many=True).data
 		response['results']['vulnerabilities'] = vulnerability_data
 
@@ -714,11 +714,13 @@ class FetchMostCommonVulnerability(APIView):
 			response = {}
 			response['status'] = False
 
+			# exclude validator-flagged false positives so "most common vulnerabilities"
+			# counts match the PDF report and the rest of the app.
 			if project_slug:
 				project = Project.objects.get(slug=project_slug)
-				vulnerabilities = Vulnerability.objects.filter(target_domain__project=project)
+				vulnerabilities = Vulnerability.objects.filter(target_domain__project=project).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
 			else:
-				vulnerabilities = Vulnerability.objects.all()
+				vulnerabilities = Vulnerability.objects.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
 
 
 			if scan_history_id:
@@ -812,7 +814,7 @@ class FetchMostVulnerable(APIView):
 				most_vulnerable_subdomains = (
 					subdomain_query
 					.annotate(
-						vuln_count=Count('vulnerability__name', filter=~Q(vulnerability__severity=0))
+						vuln_count=Count('vulnerability__name', filter=~Q(vulnerability__severity=0) & ~Q(vulnerability__validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE))
 					)
 					.order_by('-vuln_count')
 					.exclude(vuln_count=0)[:limit]
@@ -820,7 +822,7 @@ class FetchMostVulnerable(APIView):
 			else:
 				most_vulnerable_subdomains = (
 					subdomain_query
-					.annotate(vuln_count=Count('vulnerability__name'))
+					.annotate(vuln_count=Count('vulnerability__name', filter=~Q(vulnerability__validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)))
 					.order_by('-vuln_count')
 					.exclude(vuln_count=0)[:limit]
 				)
@@ -839,14 +841,14 @@ class FetchMostVulnerable(APIView):
 			if is_ignore_info:
 				most_vulnerable_subdomains = (
 					subdomain_query
-					.annotate(vuln_count=Count('vulnerability__name', filter=~Q(vulnerability__severity=0)))
+					.annotate(vuln_count=Count('vulnerability__name', filter=~Q(vulnerability__severity=0) & ~Q(vulnerability__validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)))
 					.order_by('-vuln_count')
 					.exclude(vuln_count=0)[:limit]
 				)
 			else:
 				most_vulnerable_subdomains = (
 					subdomain_query
-					.annotate(vuln_count=Count('vulnerability__name'))
+					.annotate(vuln_count=Count('vulnerability__name', filter=~Q(vulnerability__validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)))
 					.order_by('-vuln_count')
 					.exclude(vuln_count=0)[:limit]
 				)
@@ -863,14 +865,14 @@ class FetchMostVulnerable(APIView):
 			if is_ignore_info:
 				most_vulnerable_targets = (
 					domains
-					.annotate(vuln_count=Count('subdomain__vulnerability__name', filter=~Q(subdomain__vulnerability__severity=0)))
+					.annotate(vuln_count=Count('subdomain__vulnerability__name', filter=~Q(subdomain__vulnerability__severity=0) & ~Q(subdomain__vulnerability__validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)))
 					.order_by('-vuln_count')
 					.exclude(vuln_count=0)[:limit]
 				)
 			else:
 				most_vulnerable_targets = (
 					domains
-					.annotate(vuln_count=Count('subdomain__vulnerability__name'))
+					.annotate(vuln_count=Count('subdomain__vulnerability__name', filter=~Q(subdomain__vulnerability__validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)))
 					.order_by('-vuln_count')
 					.exclude(vuln_count=0)[:limit]
 				)
@@ -1033,7 +1035,7 @@ class FetchSubscanResults(APIView):
 			subscan_results = IpSerializer(ips_in_subscan, many=True).data
 
 		elif task_name == 'vulnerability_scan':
-			vulns_in_subscan = Vulnerability.objects.filter(vuln_subscan_ids__in=subscan)
+			vulns_in_subscan = Vulnerability.objects.filter(vuln_subscan_ids__in=subscan).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
 			subscan_results = VulnerabilitySerializer(vulns_in_subscan, many=True).data
 
 		elif task_name == 'fetch_url':
@@ -3045,10 +3047,12 @@ class VulnerabilityViewSet(viewsets.ReadOnlyModelViewSet):
 		vulnerability_name = req.query_params.get('vulnerability_name')
 		slug = self.request.GET.get('project', None)
 
+		# exclude validator-flagged false positives so the Vulnerabilities DataTable
+		# row count matches the PDF report (create_report) and the rest of the app.
 		if slug:
-			vulnerabilities = Vulnerability.objects.filter(scan_history__domain__project__slug=slug)
+			vulnerabilities = Vulnerability.objects.filter(scan_history__domain__project__slug=slug).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
 		else:
-			vulnerabilities = Vulnerability.objects.all()
+			vulnerabilities = Vulnerability.objects.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
 
 		if scan_id:
 			qs = (

@@ -456,6 +456,7 @@ class VisualiseSubdomainSerializer(serializers.ModelSerializer):
 			Vulnerability.objects
 			.filter(scan_history=scan_history)
 			.filter(subdomain=subdomain_name)
+			.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
 		)
 
 		return_data = []
