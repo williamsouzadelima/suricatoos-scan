@@ -38,6 +38,7 @@ from Suricatoos.celery_custom_task import SuricatoosTask
 from Suricatoos.common_func import *
 from Suricatoos.definitions import *
 from Suricatoos.settings import *
+from Suricatoos.capacity import normalize_tier, tier_factor, port_scan_ceiling, scan_time_limit
 from Suricatoos.llm import *
 from Suricatoos.utilities import *
 from scanEngine.models import (EngineType, InstalledExternalTool, Notification, Proxy)
@@ -1480,6 +1481,107 @@ def screenshot(self, ctx={}, description=None):
 			send_file_to_discord.delay(path, title)
 
 
+def build_udp_nmap_cmd(host, tier, out_file=None, max_rate=None):
+	"""Build the UDP full-range nmap command for the Deep tier (None otherwise).
+
+	The Deep tier sweeps every UDP port (``-sU -p 1-65535``), which legitimately
+	runs for days. Non-deep tiers never emit ``-sU``, so this returns None for
+	them. ``1-65535`` is used instead of ``-p -`` because the lone ``-`` token is
+	rejected by is_valid_nmap_command's flag allowlist; the range is equivalent
+	(all 65535 ports). The host is appended only AFTER is_valid_nmap_command
+	validates the flag portion (the validator never sees the target), so it is
+	shlex-quoted and rejected here if it could pose as a flag.
+
+	Returns the command string, or None when the tier is not deep / the host is
+	missing-or-unsafe / the assembled command fails validation.
+	"""
+	if normalize_tier(tier) != 'deep':
+		return None
+	if not host:
+		return None
+	host = str(host)
+	# The host is appended after validation, so it must defend itself: reject a
+	# leading dash (cannot pose as an nmap flag) and any non hostname/IP char.
+	if not re.match(r'^[A-Za-z0-9._:][A-Za-z0-9._:-]*$', host):
+		return None
+	cmd = 'nmap -sU -p 1-65535 --open'
+	if max_rate:
+		try:
+			cmd += f' --max-rate {int(max_rate)}'
+		except (TypeError, ValueError):
+			pass
+	if out_file:
+		# out_file is internal (results_dir-derived), never user input.
+		cmd += f' -oX {out_file}'
+	if not is_valid_nmap_command(cmd):
+		logger.error(f'Refusing to run invalid UDP nmap command: {cmd}')
+		return None
+	return cmd + f' {shlex.quote(host)}'
+
+
+def parse_nmap_xml_open_ports(xml_file):
+	"""Parse an nmap ``-oX`` XML file for OPEN ports.
+
+	Returns a list of ``{'ip','host','port','protocol','service'}`` dicts. This is
+	best-effort: it returns ``[]`` on any missing / malformed file rather than
+	raising, because the caller is a scan stage that must not crash on a partial
+	nmap dump (e.g. a scan killed mid-run by its watchdog).
+	"""
+	try:
+		data = xml2json(xml_file)
+	except Exception as e:
+		logger.error(f'Could not parse nmap XML {xml_file}: {e}')
+		return []
+	out = []
+	nmaprun = (data or {}).get('nmaprun') or {}
+	hosts = nmaprun.get('host') or []
+	if isinstance(hosts, dict):
+		hosts = [hosts]
+	for h in hosts:
+		if not isinstance(h, dict):
+			continue
+		# address may be a single dict or a list (e.g. IPv4 + MAC).
+		addr = h.get('address') or []
+		if isinstance(addr, dict):
+			addr = [addr]
+		ip = ''
+		for a in addr:
+			if isinstance(a, dict) and a.get('@addrtype') in ('ipv4', 'ipv6'):
+				ip = a.get('@addr', '')
+				break
+		hostname = ip
+		hn = h.get('hostnames') or {}
+		if isinstance(hn, dict):
+			name = hn.get('hostname')
+			if isinstance(name, list):
+				name = name[0] if name else None
+			if isinstance(name, dict):
+				hostname = name.get('@name') or ip
+		ports = (h.get('ports') or {}).get('port') or []
+		if isinstance(ports, dict):
+			ports = [ports]
+		for p in ports:
+			if not isinstance(p, dict):
+				continue
+			state = p.get('state') or {}
+			if isinstance(state, dict) and state.get('@state') != 'open':
+				continue
+			try:
+				num = int(p.get('@portid'))
+			except (TypeError, ValueError):
+				continue
+			svc = p.get('service') or {}
+			service = svc.get('@name', '') if isinstance(svc, dict) else ''
+			out.append({
+				'ip': ip,
+				'host': hostname,
+				'port': num,
+				'protocol': p.get('@protocol', 'udp'),
+				'service': service,
+			})
+	return out
+
+
 @app.task(name='port_scan', queue='main_scan_queue', base=SuricatoosTask, bind=True)
 def port_scan(self, hosts=[], ctx={}, description=None):
 	"""Run port scan.
@@ -1496,6 +1598,13 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 
 	# Config
 	config = self.yaml_configuration.get(PORT_SCAN) or {}
+	tier = normalize_tier(self.yaml_configuration.get('depth_tier'))
+	# Per-tier watchdog for the naabu (TCP) sweep. Capped at DEFAULT_COMMAND_EXEC_TIMEOUT
+	# (== the CELERY hard limit on this prefork queue): a watchdog ABOVE the Celery
+	# hard kill would let naabu (its own session) be orphaned when Celery SIGKILLs the
+	# task. So fast shortens it; medium/deep stay at the existing default (the Deep
+	# multi-day cost is the UDP sweep, isolated on deep_port_queue, NOT this naabu run).
+	naabu_timeout = min(DEFAULT_COMMAND_EXEC_TIMEOUT, port_scan_ceiling(tier))
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
 	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
 	exclude_ports = config.get(NAABU_EXCLUDE_PORTS, [])
@@ -1533,6 +1642,28 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 		logger.info('No hosts to port scan - skipping naabu')
 		return {}
 
+	# Deep tier: full-range UDP sweep (nmap -sU over all 65535 UDP ports). It runs
+	# for DAYS, so it is dispatched to the dedicated low-concurrency
+	# `deep_port_queue` and NOT awaited: a multi-day scan must never hold a
+	# main_scan_queue slot (the deadlock the queue isolation in PR #33 prevents).
+	# udp_port_scan saves discovered UDP ports as it completes; the rest of the
+	# scan pipeline keeps flowing meanwhile. This is independent of the naabu TCP
+	# results below, so it is dispatched here (even when 0 TCP ports are found).
+	# Non-deep tiers / engines without `udp: true` skip it entirely — no -sU is
+	# ever emitted.
+	if tier == 'deep' and config.get('udp'):
+		udp_sigs = []
+		for host in hosts:
+			ctx_udp = ctx.copy()
+			ctx_udp['description'] = get_task_title(f'udp_port_scan_{host}', self.scan_id, self.subscan_id)
+			ctx_udp['track'] = False
+			udp_sigs.append(udp_port_scan.si(host=host, ctx=ctx_udp))
+		if udp_sigs:
+			logger.warning(
+				f'Deep tier: dispatching UDP full-range scan for {len(udp_sigs)} '
+				f'host(s) to deep_port_queue (runs asynchronously for days)')
+			group(udp_sigs).apply_async()
+
 	# Build cmd
 	cmd = 'naabu -json -exclude-cdn'
 	cmd += f' -list {shlex.quote(input_file)}'
@@ -1569,7 +1700,8 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 			shell=True,
 			history_file=self.history_file,
 			scan_id=self.scan_id,
-			activity_id=self.activity_id):
+			activity_id=self.activity_id,
+			timeout=naabu_timeout):
 
 		if not isinstance(line, dict):
 			continue
@@ -1780,6 +1912,81 @@ def nmap(
 	return vulns
 
 
+@app.task(name='udp_port_scan', queue='deep_port_queue', base=SuricatoosTask, bind=True,
+		soft_time_limit=port_scan_ceiling('deep') + 3600, time_limit=scan_time_limit('deep'))
+def udp_port_scan(self, host=None, ctx={}, description=None):
+	"""Deep-tier UDP full-range port scan (nmap -sU over all 65535 UDP ports).
+
+	Dispatched (fire-and-forget) by ``port_scan`` only for the Deep tier. Runs on
+	the dedicated low-concurrency ``deep_port_queue`` so its multi-day runtime
+	never holds a ``main_scan_queue`` slot — the scan pipeline keeps flowing while
+	UDP ports are saved here as the sweep completes. The per-task soft/hard limits
+	are the multi-day Deep ceilings (overriding the global 2h CELERY_TASK_TIME_LIMIT
+	that would otherwise kill it), and the subprocess watchdog matches the same
+	finite ceiling. Best-effort: a failed / killed / empty scan logs and returns
+	rather than crashing.
+	"""
+	if not host:
+		return {}
+	config = self.yaml_configuration.get(PORT_SCAN) or {}
+	rate_limit = _safe_int(
+		config.get(NAABU_RATE) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT),
+		DEFAULT_RATE_LIMIT)
+	# host is already validated to hostname/IP chars by build_udp_nmap_cmd; safe in a filename.
+	xml_file = f'{self.results_dir}/{host}_udp_port_scan.xml'
+	cmd = build_udp_nmap_cmd(
+		host, 'deep', out_file=xml_file, max_rate=rate_limit if rate_limit > 0 else None)
+	if not cmd:
+		logger.error(f'Could not build UDP nmap command for host {host!r}')
+		return {}
+	logger.warning(f'Deep UDP full-range scan starting on {host} (this can run for days)')
+	run_command(
+		cmd,
+		shell=True,
+		history_file=self.history_file,
+		scan_id=self.scan_id,
+		activity_id=self.activity_id,
+		timeout=port_scan_ceiling('deep'))
+
+	open_ports = parse_nmap_xml_open_ports(xml_file)
+	if not open_ports:
+		logger.info(f'Deep UDP scan on {host}: no open UDP ports found')
+		return {host: []}
+
+	subdomain = Subdomain.objects.filter(
+		name=host, target_domain=self.domain, scan_history=self.scan).first()
+	saved = []
+	for entry in open_ports:
+		ip, _ = save_ip_address(entry.get('ip'), subdomain, subscan=self.subscan)
+		# save_ip_address returns (None, False) for a non-IP value; skip rather than
+		# deref None (the same trap guarded in the naabu TCP path above).
+		if not ip:
+			continue
+		if self.subscan:
+			ip.ip_subscan_ids.add(self.subscan)
+		# The Port model has no protocol column (no-migration constraint), so a UDP
+		# port is stored as a Port keyed on its number; tag UDP in the description so
+		# it stays distinguishable in the UI and from a same-numbered TCP port.
+		port_number = entry['port']
+		res = get_port_service_description(port_number)
+		service_name = entry.get('service') or res.get('service_name', '')
+		base_desc = res.get('description', '') or ''
+		description_str = (f'UDP — {base_desc}' if base_desc else 'UDP').strip()
+		port, _ = update_or_create_port(
+			port_number=port_number,
+			service_name=service_name,
+			description=description_str)
+		ip.ports.add(port)
+		ip.save()
+		saved.append(port_number)
+
+	logger.warning(f'Deep UDP scan on {host}: saved {len(saved)} open UDP port(s): {saved}')
+	if saved:
+		ports_str = ', '.join(f'`{p}`' for p in saved)
+		self.notify(fields={'UDP ports discovered': f'• `{host}`: {ports_str}'})
+	return {host: saved}
+
+
 @app.task(name='waf_detection', queue='main_scan_queue', base=SuricatoosTask, bind=True)
 def waf_detection(self, ctx={}, description=None):
 	"""
@@ -1925,11 +2132,21 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	# per-host cap to the TOTAL budget / host count (floored). This is what stops the
 	# recurring dir_file_fuzz soft-limit timeout on many-host targets while keeping
 	# depth on few-host ones. The engine's max_time, if set, is the upper bound.
+	# The total budget scales DOWN with the depth tier (fast = 0.4x => quicker
+	# scans), but never UP: dir_file_fuzz runs on main_scan_queue (prefork) where
+	# the global CELERY soft limit hard-caps the task, and the ordering invariant
+	# requires the budget stay below it. So medium/deep keep the (capacity-scaled,
+	# invariant-safe) base budget; deep gains its extra depth from recursion +
+	# wordlist in the engine YAML, not a longer wall-clock budget. The min(1.0, ...)
+	# applies ONLY the tier factor (the base is already capacity-scaled in
+	# definitions.py -- scale_for_tier would double-apply capacity here).
+	tier = normalize_tier(self.yaml_configuration.get('depth_tier'))
+	dir_fuzz_budget = int(round(DIR_FUZZ_TIME_BUDGET * min(1.0, tier_factor(tier))))
 	num_hosts = len(urls) or 1
-	adaptive_max_time = max(DIR_FUZZ_MIN_PER_HOST, DIR_FUZZ_TIME_BUDGET // num_hosts)
+	adaptive_max_time = max(DIR_FUZZ_MIN_PER_HOST, dir_fuzz_budget // num_hosts)
 	eff_max_time = min(max_time, adaptive_max_time) if max_time > 0 else adaptive_max_time
 	cmd += f' -maxtime {eff_max_time}'
-	logger.info(f'dir-fuzz: {num_hosts} host(s) -> {eff_max_time}s/host (budget {DIR_FUZZ_TIME_BUDGET}s total)')
+	logger.info(f'dir-fuzz [{tier}]: {num_hosts} host(s) -> {eff_max_time}s/host (budget {dir_fuzz_budget}s total)')
 
 	# Loop through URLs and run command
 	results = []

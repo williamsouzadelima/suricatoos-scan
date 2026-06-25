@@ -174,3 +174,78 @@
       NT 10.0; Win64; x64) AppleWebKit/537.36\n  (KHTML, like Gecko) Chrome/120.0.0.0
       Safari/537.36'\n"
     default_engine: true
+
+- model: scanEngine.enginetype
+  pk: 20
+  fields:
+    engine_name: Fast Scan
+    default_engine: false
+    yaml_configuration: "depth_tier: fast\nsubdomain_discovery:\n  uses_tools:\n \
+      \ - subfinder\n  - ctfr\n  - sublist3r\n  - oneforall\n  enable_http_crawl:\
+      \ true\n  threads: 30\n  timeout: 5\nhttp_crawl: {}\nport_scan:\n  enable_http_crawl:\
+      \ true\n  timeout: 5\n  ports:\n  - top-100\n  rate_limit: 300\n  threads: 30\n\
+      \  passive: false\n  enable_nmap: false\nfetch_url:\n  uses_tools:\n  - waybackurls\n\
+      \  - gau\n  enable_http_crawl: false\n  threads: 30\nvulnerability_scan:\n \
+      \ run_nuclei: true\n  run_dalfox: false\n  run_crlfuzz: false\n  enable_http_crawl:\
+      \ false\n  concurrency: 50\n  rate_limit: 300\n  nuclei:\n    use_nuclei_config:\
+      \ false\n    severities:\n    - high\n    - critical\n"
+- model: scanEngine.enginetype
+  pk: 21
+  fields:
+    engine_name: Medium Scan
+    default_engine: false
+    yaml_configuration: "depth_tier: medium\nsubdomain_discovery:\n  uses_tools:\n\
+      \  - subfinder\n  - ctfr\n  - sublist3r\n  - tlsx\n  - oneforall\n  - amass-passive\n\
+      \  - amass-active\n  enable_http_crawl: true\n  threads: 20\n  timeout: 10\n\
+      \  amass_timeout: 10\nhttp_crawl: {}\nport_scan:\n  enable_http_crawl: true\n\
+      \  timeout: 5\n  ports:\n  - top-1000\n  rate_limit: 150\n  threads: 20\n  passive:\
+      \ false\n  enable_nmap: true\nosint:\n  discover:\n  - emails\n  - metainfo\n\
+      \  - employees\n  dorks:\n  - login_pages\n  - admin_panels\n  - config_files\n\
+      \  - exposed_documents\n  - git_exposed\n  intensity: normal\n  documents_limit:\
+      \ 50\n  enable_spiderfoot: true\n  spiderfoot_preset: passive\ndir_file_fuzz:\n\
+      \  auto_calibration: true\n  enable_http_crawl: true\n  rate_limit: 150\n  extensions:\n\
+      \  - php\n  - json\n  - yml\n  - config\n  - conf\n  - env\n  - bak\n  - sql\n\
+      \  - git\n  - txt\n  follow_redirect: false\n  max_time: 0\n  match_http_status:\n\
+      \  - 200\n  - 204\n  recursive_level: 1\n  stop_on_error: false\n  timeout:\
+      \ 5\n  threads: 20\n  wordlist_name: dicc\nfetch_url:\n  uses_tools:\n  - gospider\n\
+      \  - hakrawler\n  - waybackurls\n  - katana\n  - gau\n  remove_duplicate_endpoints:\
+      \ true\n  duplicate_fields:\n  - content_length\n  - page_title\n  enable_http_crawl:\
+      \ true\n  threads: 20\nvulnerability_scan:\n  run_nuclei: true\n  run_dalfox:\
+      \ true\n  run_crlfuzz: true\n  enable_http_crawl: true\n  concurrency: 25\n\
+      \  intensity: normal\n  rate_limit: 150\n  retries: 1\n  timeout: 5\n  nuclei:\n\
+      \    use_nuclei_config: false\n    severities:\n    - low\n    - medium\n  \
+      \  - high\n    - critical\nwaf_detection:\n  enable_http_crawl: true\nscreenshot:\n\
+      \  enable_http_crawl: true\n  intensity: normal\n  timeout: 10\n  threads: 20\n\
+      secret_scan:\n  run_gitleaks: true\n  run_ggshield: false\n  gitleaks_mode:\
+      \ dir\n"
+- model: scanEngine.enginetype
+  pk: 22
+  fields:
+    engine_name: Deep Scan
+    default_engine: false
+    yaml_configuration: "depth_tier: deep\nsubdomain_discovery:\n  uses_tools:\n \
+      \ - subfinder\n  - ctfr\n  - sublist3r\n  - tlsx\n  - oneforall\n  - netlas\n\
+      \  - amass-passive\n  - amass-active\n  enable_http_crawl: true\n  threads:\
+      \ 20\n  timeout: 10\n  amass_timeout: 15\nhttp_crawl: {}\nport_scan:\n  enable_http_crawl:\
+      \ true\n  timeout: 8\n  ports:\n  - full\n  udp: true\n  rate_limit: 100\n \
+      \ threads: 20\n  passive: false\n  enable_nmap: true\nosint:\n  discover:\n\
+      \  - emails\n  - metainfo\n  - employees\n  dorks:\n  - login_pages\n  - admin_panels\n\
+      \  - dashboard_pages\n  - config_files\n  - exposed_documents\n  - git_exposed\n\
+      \  - db_files\n  - jenkins\n  - wordpress_files\n  - php_error\n  - code_sharing\n\
+      \  - cloud_buckets\n  intensity: normal\n  documents_limit: 100\n  enable_spiderfoot:\
+      \ true\n  spiderfoot_preset: all\ndir_file_fuzz:\n  auto_calibration: true\n\
+      \  enable_http_crawl: true\n  rate_limit: 150\n  extensions:\n  - html\n  -\
+      \ php\n  - asp\n  - aspx\n  - json\n  - yml\n  - yaml\n  - config\n  - conf\n\
+      \  - cnf\n  - env\n  - bak\n  - sql\n  - git\n  - gz\n  - log\n  - db\n  - txt\n\
+      \  - pdf\n  follow_redirect: false\n  max_time: 0\n  match_http_status:\n  -\
+      \ 200\n  - 204\n  recursive_level: 2\n  stop_on_error: false\n  timeout: 5\n\
+      \  threads: 20\n  wordlist_name: dicc\nfetch_url:\n  uses_tools:\n  - gospider\n\
+      \  - hakrawler\n  - waybackurls\n  - katana\n  - gau\n  remove_duplicate_endpoints:\
+      \ false\n  enable_http_crawl: true\n  threads: 20\nvulnerability_scan:\n  run_nuclei:\
+      \ true\n  run_dalfox: true\n  run_crlfuzz: true\n  enable_http_crawl: true\n\
+      \  concurrency: 25\n  intensity: normal\n  rate_limit: 100\n  retries: 1\n \
+      \ timeout: 8\n  nuclei:\n    use_nuclei_config: false\n    severities:\n   \
+      \ - unknown\n    - info\n    - low\n    - medium\n    - high\n    - critical\n\
+      waf_detection:\n  enable_http_crawl: true\nscreenshot:\n  enable_http_crawl:\
+      \ true\n  intensity: normal\n  timeout: 10\n  threads: 20\nsecret_scan:\n  run_gitleaks:\
+      \ true\n  run_ggshield: false\n  gitleaks_mode: dir\n"
