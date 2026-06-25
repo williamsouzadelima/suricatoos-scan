@@ -81,61 +81,6 @@ then
   wget https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/DNS/deepmagic.com-prefixes-top50000.txt -O /usr/src/wordlist/deepmagic.com-prefixes-top50000.txt
 fi
 
-# clone Sublist3r
-if [ ! -d "/usr/src/github/Sublist3r" ]
-then
-  echo "Cloning Sublist3r"
-  git clone https://github.com/aboul3la/Sublist3r /usr/src/github/Sublist3r
-fi
-python3 -m pip install -r /usr/src/github/Sublist3r/requirements.txt
-
-# clone OneForAll
-if [ ! -d "/usr/src/github/OneForAll" ]
-then
-  echo "Cloning OneForAll"
-  git clone https://github.com/shmilylty/OneForAll /usr/src/github/OneForAll
-fi
-python3 -m pip install -r /usr/src/github/OneForAll/requirements.txt
-
-# clone eyewitness
-if [ ! -d "/usr/src/github/EyeWitness" ]
-then
-  echo "Cloning EyeWitness"
-  git clone https://github.com/FortyNorthSecurity/EyeWitness /usr/src/github/EyeWitness
-  # pip install -r /usr/src/github/Eyewitness/requirements.txt
-fi
-
-# clone theHarvester (pinned: 4.x still ships requirements/base.txt + root theHarvester.py, runs on py3.10)
-if [ ! -d "/usr/src/github/theHarvester" ]
-then
-  echo "Cloning theHarvester 4.4.4"
-  git clone --branch 4.4.4 --depth 1 https://github.com/laramies/theHarvester /usr/src/github/theHarvester
-fi
-python3 -m pip install -r /usr/src/github/theHarvester/requirements/base.txt
-
-# clone spiderfoot (pinned to a fixed release for reproducible OSINT parsing)
-if [ ! -d "/usr/src/github/spiderfoot" ]
-then
-  echo "Cloning SpiderFoot v4.0"
-  git clone --branch v4.0 --depth 1 https://github.com/smicallef/spiderfoot /usr/src/github/spiderfoot
-fi
-# SpiderFoot v4.0 pins pyyaml>=5.4.1,<6 but PyYAML 5.x has no py3.10 wheel and its sdist
-# fails to build (AttributeError: cython_sources). 6.0.1 is already installed and works.
-sed -i '/^[[:space:]]*pyyaml/Id' /usr/src/github/spiderfoot/requirements.txt
-python3 -m pip install -r /usr/src/github/spiderfoot/requirements.txt
-
-# clone vulscan
-if [ ! -d "/usr/src/github/scipag_vulscan" ]
-then
-  echo "Cloning Nmap Vulscan script"
-  git clone https://github.com/scipag/vulscan /usr/src/github/scipag_vulscan
-  echo "Symlinking to nmap script dir"
-  ln -s /usr/src/github/scipag_vulscan /usr/share/nmap/scripts/vulscan
-  echo "Usage in Suricatoos, set vulscan/vulscan.nse in nmap_script scanEngine port_scan config parameter"
-fi
-
-# install h8mail
-python3 -m pip install h8mail
 
 # install gf patterns
 if [ ! -d "/root/Gf-Patterns" ];
@@ -173,27 +118,6 @@ then
   wget https://raw.githubusercontent.com/NagliNagli/BountyTricks/main/ssrf.yaml -O ~/nuclei-templates/ssrf_nagli.yaml
 fi
 
-if [ ! -d "/usr/src/github/CMSeeK" ]
-then
-  echo "Cloning CMSeeK"
-  git clone https://github.com/Tuhinshubhra/CMSeeK /usr/src/github/CMSeeK
-  pip install -r /usr/src/github/CMSeeK/requirements.txt
-fi
-
-# clone ctfr
-if [ ! -d "/usr/src/github/ctfr" ]
-then
-  echo "Cloning CTFR"
-  git clone https://github.com/UnaPibaGeek/ctfr /usr/src/github/ctfr
-fi
-
-# clone gooFuzz
-if [ ! -d "/usr/src/github/goofuzz" ]
-then
-  echo "Cloning GooFuzz"
-  git clone https://github.com/m3n0sd0n4ld/GooFuzz.git /usr/src/github/goofuzz
-  chmod +x /usr/src/github/goofuzz/GooFuzz
-fi
 
 # httpx seems to have issue, use alias instead!!!
 echo 'alias httpx="/go/bin/httpx"' >> ~/.bashrc
@@ -201,30 +125,6 @@ echo 'alias httpx="/go/bin/httpx"' >> ~/.bashrc
 # TEMPORARY FIX, httpcore is causing issues with celery, removing it as temp fix
 #python3 -m pip uninstall -y httpcore
 
-# TEMPORARY FIX FOR langchain
-pip install tenacity==8.2.2
-
-# --- Conflito duro de SQLAlchemy (OneForAll x langchain) ---------------------
-# OneForAll exige SQLAlchemy 1.3.x: sua camada SQLite vendorizada (common/records.py)
-# itera o resultado de TODO Connection.query(), o que levanta ResourceClosedError sob
-# 1.4 -> crasha logo no init_table() de qualquer scan. Já langchain-community (usado em
-# Suricatoos/llm.py p/ Ollama) exige SQLAlchemy>=1.4, e o app fixa sqlalchemy==1.4.52.
-# As duas versões NÃO coexistem num único env. Solução: a 1.3.22 do OneForAll vai p/ um
-# dir isolado carregado SÓ na invocação dele (PYTHONPATH=/opt/oneforall-sa em tasks.py),
-# e o env principal fica com a 1.4.52 do requirements.txt (langchain + app corretos).
-if [ ! -f /opt/oneforall-sa/sqlalchemy/__init__.py ]; then
-    echo "Isolando SQLAlchemy 1.3.22 para o OneForAll em /opt/oneforall-sa"
-    pip install --target /opt/oneforall-sa --no-cache-dir "SQLAlchemy==1.3.22"
-fi
-
-# Re-assevera TODAS as versões fixadas do app DEPOIS dos installs de ferramentas. As OSINT
-# tools que ficam no env principal (Sublist3r/OneForAll/theHarvester/spiderfoot/CMSeeK/h8mail)
-# rebaixam várias deps assadas a cada boot (SQLAlchemy, requests, beautifulsoup4, certifi,
-# urllib3, ...). Restaurar o requirements.txt deixa o worker idêntico à imagem assada e
-# corrige o A06 (requests 2.32.4) + a dívida do SQLAlchemy 1.4.52 de uma vez. Validado por
-# auditoria adversarial: as tools que permanecem neste env são compatíveis com estas versões;
-# só o OneForAll tinha conflito duro (SQLAlchemy) e por isso roda isolado (acima + tasks.py).
-pip install -r /usr/src/app/requirements.txt
 
 loglevel='info'
 if [ "$DEBUG" == "1" ]; then

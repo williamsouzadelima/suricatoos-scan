@@ -57,7 +57,11 @@ RUN apt update -y && apt install -y --no-install-recommends \
     python3-netaddr \
     software-properties-common
 
-RUN add-apt-repository ppa:mozillateam/ppa
+# NÃO-FATAL: add-apt-repository contata o launchpad.net, que o buildkit deste box não
+# alcança (timeout), quebrando builds limpos locais. É REDUNDANTE no build — o
+# celery-entrypoint re-adiciona o pin do PPA e instala o firefox em RUNTIME. Best-effort:
+# se o launchpad estiver acessível (ex.: CI) o PPA entra na imagem; senão o runtime cobre.
+RUN add-apt-repository ppa:mozillateam/ppa || true
 
 RUN ARCH=$(dpkg --print-architecture) \
     && curl -L https://go.dev/dl/go${GOVERSION}.linux-${ARCH}.tar.gz | tar -xzC /usr/local
@@ -119,10 +123,46 @@ RUN nuclei -update-templates
 # (bloqueou PRs #35 e #38). Best-effort: se a atualização falhar, o chaos já instalado funciona.
 RUN chaos -update || true
 
-# Copy requirements
+# Copy requirements (o `pip install -r` foi MOVIDO p/ o fim do Dockerfile — ver "App
+# requirements LAST" — para o app reter autoridade de versão sobre as deps das OSINT tools).
 COPY ./requirements.txt /tmp/requirements.txt
 RUN pip3 install --upgrade setuptools==72.1.0
-RUN pip3 install -r /tmp/requirements.txt --no-cache-dir
+
+# --- OSINT/recon tools assados em BUILD-TIME ----------------------------------------------
+# Antes eram clonados + pip-installados em runtime no celery-entrypoint.sh, o que rebaixava
+# deps fixadas do app a cada boot do worker (dívida do A06/SQLAlchemy). Agora vivem na imagem.
+# /usr/src/github deixou de ser volume nomeado (removido do docker-compose). --depth 1 minimiza
+# a transferência. Pins idênticos ao entrypoint antigo (theHarvester 4.4.4, spiderfoot v4.0).
+RUN set -eux; \
+    mkdir -p /usr/src/github; \
+    git clone --depth 1 https://github.com/aboul3la/Sublist3r /usr/src/github/Sublist3r; \
+    git clone --depth 1 https://github.com/shmilylty/OneForAll /usr/src/github/OneForAll; \
+    git clone --depth 1 https://github.com/FortyNorthSecurity/EyeWitness /usr/src/github/EyeWitness; \
+    git clone --branch 4.4.4 --depth 1 https://github.com/laramies/theHarvester /usr/src/github/theHarvester; \
+    git clone --branch v4.0 --depth 1 https://github.com/smicallef/spiderfoot /usr/src/github/spiderfoot; \
+    git clone --depth 1 https://github.com/scipag/vulscan /usr/src/github/scipag_vulscan; \
+    ln -sf /usr/src/github/scipag_vulscan /usr/share/nmap/scripts/vulscan; \
+    git clone --depth 1 https://github.com/Tuhinshubhra/CMSeeK /usr/src/github/CMSeeK; \
+    git clone --depth 1 https://github.com/UnaPibaGeek/ctfr /usr/src/github/ctfr; \
+    git clone --depth 1 https://github.com/m3n0sd0n4ld/GooFuzz.git /usr/src/github/goofuzz; \
+    chmod +x /usr/src/github/goofuzz/GooFuzz
+
+# Deps Python das tools (podem rebaixar deps do app; o requirements.txt no FIM re-assevera).
+# O sed tira o pin de pyyaml da spiderfoot (5.x não tem wheel p/ py3.10; 6.0.1 já funciona).
+RUN set -eux; \
+    sed -i '/^[[:space:]]*pyyaml/Id' /usr/src/github/spiderfoot/requirements.txt; \
+    python3 -m pip install --no-cache-dir -r /usr/src/github/Sublist3r/requirements.txt; \
+    python3 -m pip install --no-cache-dir -r /usr/src/github/OneForAll/requirements.txt; \
+    python3 -m pip install --no-cache-dir -r /usr/src/github/theHarvester/requirements/base.txt; \
+    python3 -m pip install --no-cache-dir -r /usr/src/github/spiderfoot/requirements.txt; \
+    python3 -m pip install --no-cache-dir -r /usr/src/github/CMSeeK/requirements.txt; \
+    python3 -m pip install --no-cache-dir h8mail; \
+    python3 -m pip install --no-cache-dir tenacity==8.2.2
+
+# OneForAll exige SQLAlchemy 1.3.x (crasha em 1.4); o app/langchain exige >=1.4.52. Isola a
+# 1.3.22 em /opt/oneforall-sa (não-volume), carregada SÓ via PYTHONPATH=/opt/oneforall-sa na
+# invocação do OneForAll (web/Suricatoos/tasks.py:603). NÃO trocar --target por pip install.
+RUN pip install --target /opt/oneforall-sa --no-cache-dir "SQLAlchemy==1.3.22"
 
 # install a Chrome/Chromium for EyeWitness (selenium_module.py is Chrome-only:
 # webdriver.Chrome / find_chromedriver). ARCH-AWARE: Google publishes NO Linux/arm64
@@ -156,6 +196,11 @@ RUN pip3 install --no-cache-dir fuzzywuzzy \
     pyvirtualdisplay \
     netaddr \
     psutil
+
+# App requirements LAST: re-assevera as versões fixadas do app por cima de qualquer downgrade
+# que os installs das OSINT tools acima causaram (autoridade de versão). Substitui o
+# `pip install -r requirements.txt` que o celery-entrypoint fazia a cada boot.
+RUN pip3 install -r /tmp/requirements.txt --no-cache-dir
 
 # Copy source code
 COPY . /usr/src/app/

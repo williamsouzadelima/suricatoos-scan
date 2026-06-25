@@ -42,7 +42,6 @@ services:
     # command: celery -A Suricatoos worker --autoscale=${MAX_CONCURRENCY},${MIN_CONCURRENCY} -l INFO
     volumes:
       - ./web:/usr/src/app
-      - github_repos:/usr/src/github
       - wordlist:/usr/src/wordlist
       - scan_results:/usr/src/scan_results
       - gf_patterns:/root/.gf
@@ -93,7 +92,6 @@ services:
       - db
     volumes:
       - ./web:/usr/src/app
-      - github_repos:/usr/src/github
       - wordlist:/usr/src/wordlist
       - scan_results:/usr/src/scan_results
       - gf_patterns:/root/.gf
@@ -125,7 +123,6 @@ services:
       - DJANGO_SUPERUSER_PASSWORD=${DJANGO_SUPERUSER_PASSWORD}
     volumes:
       - ./web:/usr/src/app
-      - github_repos:/usr/src/github
       - wordlist:/usr/src/wordlist
       - scan_results:/usr/src/scan_results
       - gf_patterns:/root/.gf
@@ -191,7 +188,6 @@ volumes:
   postgres_data:
   gf_patterns:
   nuclei_templates:
-  github_repos:
   wordlist:
   scan_results:
   static_volume:
