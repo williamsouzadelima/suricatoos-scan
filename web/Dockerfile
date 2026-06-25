@@ -113,8 +113,11 @@ RUN printf "\
 # Update Nuclei and Nuclei-Templates
 RUN nuclei -update-templates
 
-# update chaos
-RUN chaos -update
+# update chaos — NÃO-FATAL: `chaos -update` é um self-updater do binário que o `go install`
+# acima já instalou na última versão; ele faz uma chamada NÃO-AUTENTICADA à API do GitHub que
+# rate-limita (403) com frequência nos runners do CI, quebrando o build inteiro por nada
+# (bloqueou PRs #35 e #38). Best-effort: se a atualização falhar, o chaos já instalado funciona.
+RUN chaos -update || true
 
 # Copy requirements
 COPY ./requirements.txt /tmp/requirements.txt
