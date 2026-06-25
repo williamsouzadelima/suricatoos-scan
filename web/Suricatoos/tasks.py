@@ -38,7 +38,7 @@ from Suricatoos.celery_custom_task import SuricatoosTask
 from Suricatoos.common_func import *
 from Suricatoos.definitions import *
 from Suricatoos.settings import *
-from Suricatoos.capacity import normalize_tier, port_scan_ceiling, scan_time_limit
+from Suricatoos.capacity import normalize_tier, tier_factor, port_scan_ceiling, scan_time_limit
 from Suricatoos.llm import *
 from Suricatoos.utilities import *
 from scanEngine.models import (EngineType, InstalledExternalTool, Notification, Proxy)
@@ -1598,6 +1598,13 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 
 	# Config
 	config = self.yaml_configuration.get(PORT_SCAN) or {}
+	tier = normalize_tier(self.yaml_configuration.get('depth_tier'))
+	# Per-tier watchdog for the naabu (TCP) sweep. Capped at DEFAULT_COMMAND_EXEC_TIMEOUT
+	# (== the CELERY hard limit on this prefork queue): a watchdog ABOVE the Celery
+	# hard kill would let naabu (its own session) be orphaned when Celery SIGKILLs the
+	# task. So fast shortens it; medium/deep stay at the existing default (the Deep
+	# multi-day cost is the UDP sweep, isolated on deep_port_queue, NOT this naabu run).
+	naabu_timeout = min(DEFAULT_COMMAND_EXEC_TIMEOUT, port_scan_ceiling(tier))
 	enable_http_crawl = config.get(ENABLE_HTTP_CRAWL, DEFAULT_ENABLE_HTTP_CRAWL)
 	timeout = _safe_int(config.get(TIMEOUT) or self.yaml_configuration.get(TIMEOUT, DEFAULT_HTTP_TIMEOUT), DEFAULT_HTTP_TIMEOUT)
 	exclude_ports = config.get(NAABU_EXCLUDE_PORTS, [])
@@ -1644,7 +1651,7 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 	# results below, so it is dispatched here (even when 0 TCP ports are found).
 	# Non-deep tiers / engines without `udp: true` skip it entirely — no -sU is
 	# ever emitted.
-	if normalize_tier(self.yaml_configuration.get('depth_tier')) == 'deep' and config.get('udp'):
+	if tier == 'deep' and config.get('udp'):
 		udp_sigs = []
 		for host in hosts:
 			ctx_udp = ctx.copy()
@@ -1693,7 +1700,8 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 			shell=True,
 			history_file=self.history_file,
 			scan_id=self.scan_id,
-			activity_id=self.activity_id):
+			activity_id=self.activity_id,
+			timeout=naabu_timeout):
 
 		if not isinstance(line, dict):
 			continue
@@ -2124,11 +2132,21 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	# per-host cap to the TOTAL budget / host count (floored). This is what stops the
 	# recurring dir_file_fuzz soft-limit timeout on many-host targets while keeping
 	# depth on few-host ones. The engine's max_time, if set, is the upper bound.
+	# The total budget scales DOWN with the depth tier (fast = 0.4x => quicker
+	# scans), but never UP: dir_file_fuzz runs on main_scan_queue (prefork) where
+	# the global CELERY soft limit hard-caps the task, and the ordering invariant
+	# requires the budget stay below it. So medium/deep keep the (capacity-scaled,
+	# invariant-safe) base budget; deep gains its extra depth from recursion +
+	# wordlist in the engine YAML, not a longer wall-clock budget. The min(1.0, ...)
+	# applies ONLY the tier factor (the base is already capacity-scaled in
+	# definitions.py -- scale_for_tier would double-apply capacity here).
+	tier = normalize_tier(self.yaml_configuration.get('depth_tier'))
+	dir_fuzz_budget = int(round(DIR_FUZZ_TIME_BUDGET * min(1.0, tier_factor(tier))))
 	num_hosts = len(urls) or 1
-	adaptive_max_time = max(DIR_FUZZ_MIN_PER_HOST, DIR_FUZZ_TIME_BUDGET // num_hosts)
+	adaptive_max_time = max(DIR_FUZZ_MIN_PER_HOST, dir_fuzz_budget // num_hosts)
 	eff_max_time = min(max_time, adaptive_max_time) if max_time > 0 else adaptive_max_time
 	cmd += f' -maxtime {eff_max_time}'
-	logger.info(f'dir-fuzz: {num_hosts} host(s) -> {eff_max_time}s/host (budget {DIR_FUZZ_TIME_BUDGET}s total)')
+	logger.info(f'dir-fuzz [{tier}]: {num_hosts} host(s) -> {eff_max_time}s/host (budget {dir_fuzz_budget}s total)')
 
 	# Loop through URLs and run command
 	results = []

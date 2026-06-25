@@ -210,5 +210,33 @@ class DepthTierFactorTests(unittest.TestCase):
         self.assertGreater(scan_time_limit('deep'), port_scan_ceiling('deep'))
 
 
+class DepthTierTimerWiringTests(unittest.TestCase):
+    """Pin the exact properties the tasks.py tier wiring relies on (Task 6).
+
+    These guard two safety decisions: on the memory-bounded main_scan_queue
+    (prefork) a per-tier duration may only SHRINK (fast), never grow past the
+    invariant-safe base, because the global CELERY limits hard-cap the task; and
+    the naabu watchdog must never exceed the command-exec default, or naabu (its
+    own session) would be orphaned when Celery SIGKILLs the task.
+    """
+
+    def test_dir_fuzz_multiplier_is_shrink_only(self):
+        # dir_file_fuzz uses `min(1.0, tier_factor(tier))` as its budget multiplier.
+        from Suricatoos.capacity import tier_factor
+        self.assertEqual(min(1.0, tier_factor('fast')), 0.4)   # fast: quicker
+        self.assertEqual(min(1.0, tier_factor('medium')), 1.0)  # medium: base
+        self.assertEqual(min(1.0, tier_factor('deep')), 1.0)    # deep: base (no growth)
+
+    def test_naabu_watchdog_never_exceeds_command_default(self):
+        # port_scan caps the naabu watchdog at DEFAULT_COMMAND_EXEC_TIMEOUT so a
+        # killed task can never orphan naabu.
+        from Suricatoos.capacity import port_scan_ceiling
+        from Suricatoos.definitions import DEFAULT_COMMAND_EXEC_TIMEOUT as D
+        self.assertLessEqual(min(D, port_scan_ceiling('fast')), D)
+        self.assertLess(min(D, port_scan_ceiling('fast')), D)        # fast strictly shorter
+        self.assertEqual(min(D, port_scan_ceiling('medium')), D)     # medium == default
+        self.assertEqual(min(D, port_scan_ceiling('deep')), D)       # deep capped at default
+
+
 if __name__ == '__main__':
     unittest.main()
