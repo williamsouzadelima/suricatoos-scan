@@ -212,6 +212,25 @@ if [ "$DEBUG" == "1" ]; then
 else
     commands+="celery -A Suricatoos.tasks worker --pool=gevent --optimization=fair --concurrency=$coordinator_concurrency --loglevel=$loglevel -Q coordinator_queue -n coordinator_worker &"$'\n'
 fi
+
+# Deep-tier UDP port scan worker (gevent): serves deep_port_queue, where the
+# udp_port_scan task runs `nmap -sU` over all 65535 UDP ports -- a sweep that
+# legitimately lasts DAYS. Isolated on its own low-concurrency worker so a
+# multi-day scan NEVER consumes a main_scan_queue slot (the deadlock prevention
+# of PR #33) nor the shared IO worker's greenlets. gevent keeps a parked
+# days-long task cheap; the effective time bound is the run_command WATCHDOG
+# (~14d ceiling) inside udp_port_scan -- the global 2h CELERY hard limit is not
+# enforced on a gevent pool, which is exactly what lets the long sweep run.
+# Low concurrency bounds simultaneous deep sweeps (resource isolation).
+case "${DEEP_PORT_CONCURRENCY:-}" in
+    ''|*[!0-9]*) deep_port_concurrency=4 ;;
+    *)           deep_port_concurrency=$DEEP_PORT_CONCURRENCY ;;
+esac
+if [ "$DEBUG" == "1" ]; then
+    commands+="watchmedo auto-restart --recursive --pattern=\"*.py\" --directory=\"/usr/src/app/Suricatoos/\" -- celery -A Suricatoos.tasks worker --pool=gevent --optimization=fair --concurrency=$deep_port_concurrency --loglevel=$loglevel -Q deep_port_queue -n deep_port_worker &"$'\n'
+else
+    commands+="celery -A Suricatoos.tasks worker --pool=gevent --optimization=fair --concurrency=$deep_port_concurrency --loglevel=$loglevel -Q deep_port_queue -n deep_port_worker &"$'\n'
+fi
 commands="${commands%&}"
 
 eval "$commands"
