@@ -163,5 +163,52 @@ class LiveConstantsRegressionTests(unittest.TestCase):
         self.assertLessEqual(d.DEFAULT_COMMAND_EXEC_TIMEOUT, settings.CELERY_TASK_TIME_LIMIT)
 
 
+class DepthTierFactorTests(unittest.TestCase):
+    """Scan depth tiers: per-tier timer scaling composes with the capacity factor."""
+
+    def test_tier_factor_values(self):
+        from Suricatoos.capacity import tier_factor
+        self.assertEqual(tier_factor('fast'), 0.4)
+        self.assertEqual(tier_factor('medium'), 1.0)
+        self.assertEqual(tier_factor('deep'), 4.0)
+
+    def test_tier_factor_unknown_defaults_to_medium(self):
+        from Suricatoos.capacity import tier_factor
+        self.assertEqual(tier_factor('bogus'), 1.0)
+        self.assertEqual(tier_factor(None), 1.0)
+
+    def test_normalize_tier(self):
+        from Suricatoos.capacity import normalize_tier
+        self.assertEqual(normalize_tier('Deep'), 'deep')
+        self.assertEqual(normalize_tier('  fast '), 'fast')
+        self.assertEqual(normalize_tier(None), 'medium')
+        self.assertEqual(normalize_tier('nope'), 'medium')
+
+    def test_scale_for_tier_preserves_zero_sentinel(self):
+        from Suricatoos.capacity import scale_for_tier
+        self.assertEqual(scale_for_tier(0, 'deep'), 0)
+
+    def test_scale_for_tier_composes_with_capacity(self):
+        from Suricatoos.capacity import scale_for_tier, scale_timer
+        self.assertEqual(scale_for_tier(100, 'fast'), scale_timer(40))
+        self.assertEqual(scale_for_tier(100, 'medium'), scale_timer(100))
+        self.assertEqual(scale_for_tier(100, 'deep'), scale_timer(400))
+
+    def test_port_scan_ceiling_deep_multi_day_finite(self):
+        from Suricatoos.capacity import port_scan_ceiling, scale_timer
+        c = port_scan_ceiling('deep')
+        self.assertEqual(c, scale_timer(14 * 24 * 3600))
+        self.assertGreater(c, 0)
+
+    def test_port_scan_ceiling_ordered_by_tier(self):
+        from Suricatoos.capacity import port_scan_ceiling
+        self.assertLess(port_scan_ceiling('fast'), port_scan_ceiling('medium'))
+        self.assertLess(port_scan_ceiling('medium'), port_scan_ceiling('deep'))
+
+    def test_scan_time_limit_deep_exceeds_port_ceiling(self):
+        from Suricatoos.capacity import scan_time_limit, port_scan_ceiling
+        self.assertGreater(scan_time_limit('deep'), port_scan_ceiling('deep'))
+
+
 if __name__ == '__main__':
     unittest.main()

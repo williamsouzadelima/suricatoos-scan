@@ -120,3 +120,46 @@ def scale_timer(seconds, factor=None):
     if not seconds:
         return seconds
     return int(round(seconds * f))
+
+
+# --- Scan depth tiers (Fast / Medium / Deep) -------------------------------------------
+# Each depth-tier engine carries depth_tier=fast|medium|deep in its yaml_configuration.
+# Duration timers scale by capacity factor AND tier factor (both finite), preserving the
+# watchdog ordering at every tier. medium == 1.0 == today's behaviour (no-op for the
+# existing engines, which have no depth_tier -> normalize to medium).
+_TIER_FACTORS = {'fast': 0.4, 'medium': 1.0, 'deep': 4.0}
+_DEEP_PORT_SCAN_SECONDS = 14 * 24 * 3600   # ~14 days finite ceiling for nmap -sU -p-
+_DEEP_SCAN_LIMIT_SECONDS = 21 * 24 * 3600  # ~21 days finite ceiling for the whole deep scan
+
+
+def normalize_tier(value):
+    """Coerce a raw depth_tier value to one of fast|medium|deep (default medium)."""
+    t = str(value).strip().lower() if value is not None else ''
+    return t if t in _TIER_FACTORS else 'medium'
+
+
+def tier_factor(tier):
+    """Per-tier duration multiplier. Unknown/None -> 1.0 (medium)."""
+    return _TIER_FACTORS.get(normalize_tier(tier), 1.0)
+
+
+def scale_for_tier(seconds, tier):
+    """scale_timer(seconds) further multiplied by the tier factor. Keeps the 0 sentinel."""
+    if not seconds:
+        return seconds
+    return int(round(scale_timer(seconds) * tier_factor(tier)))
+
+
+def port_scan_ceiling(tier):
+    """Per-command timeout for the port_scan stage. Deep gets a dedicated multi-day (but
+    finite) ceiling because nmap -sU -p- legitimately runs for days/weeks."""
+    if normalize_tier(tier) == 'deep':
+        return scale_timer(_DEEP_PORT_SCAN_SECONDS)
+    return scale_for_tier(7200, tier)
+
+
+def scan_time_limit(tier):
+    """Whole-scan Celery time limit. Deep covers the long port_scan plus the other stages."""
+    if normalize_tier(tier) == 'deep':
+        return scale_timer(_DEEP_SCAN_LIMIT_SECONDS)
+    return scale_for_tier(7200, tier)
