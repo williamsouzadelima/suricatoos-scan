@@ -106,12 +106,18 @@ class ScanHistory(models.Model):
 			.count()
 		)
 
-	def get_vulnerability_count(self):
+	def _real_vulnerabilities(self):
+		"""Vulns counted in every user-facing total: excludes validator-flagged false
+		positives, matching the PDF report gate (create_report in web/startScan/views.py).
+		Keeps the app's counts identical to the report (no 247-vs-245 drift)."""
 		return (
 			Vulnerability.objects
 			.filter(scan_history__id=self.id)
-			.count()
+			.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
 		)
+
+	def get_vulnerability_count(self):
+		return self._real_vulnerabilities().count()
 
 	def get_leaked_secret_count(self):
 		return (
@@ -121,52 +127,22 @@ class ScanHistory(models.Model):
 		)
 
 	def get_unknown_vulnerability_count(self):
-		return (
-			Vulnerability.objects
-			.filter(scan_history__id=self.id)
-			.filter(severity=-1)
-			.count()
-		)
+		return self._real_vulnerabilities().filter(severity=-1).count()
 
 	def get_info_vulnerability_count(self):
-		return (
-			Vulnerability.objects
-			.filter(scan_history__id=self.id)
-			.filter(severity=0)
-			.count()
-		)
+		return self._real_vulnerabilities().filter(severity=0).count()
 
 	def get_low_vulnerability_count(self):
-		return (
-			Vulnerability.objects
-			.filter(scan_history__id=self.id)
-			.filter(severity=1)
-			.count()
-		)
+		return self._real_vulnerabilities().filter(severity=1).count()
 
 	def get_medium_vulnerability_count(self):
-		return (
-			Vulnerability.objects
-			.filter(scan_history__id=self.id)
-			.filter(severity=2)
-			.count()
-		)
+		return self._real_vulnerabilities().filter(severity=2).count()
 
 	def get_high_vulnerability_count(self):
-		return (
-			Vulnerability.objects
-			.filter(scan_history__id=self.id)
-			.filter(severity=3)
-			.count()
-		)
+		return self._real_vulnerabilities().filter(severity=3).count()
 
 	def get_critical_vulnerability_count(self):
-		return (
-			Vulnerability.objects
-			.filter(scan_history__id=self.id)
-			.filter(severity=4)
-			.count()
-		)
+		return self._real_vulnerabilities().filter(severity=4).count()
 
 	def get_progress(self):
 		"""Formulae to calculate count number of true things to do, for http
@@ -288,14 +264,21 @@ class Subdomain(models.Model):
 
 	@property
 	def get_vulnerabilities(self):
-		vulns = Vulnerability.objects.filter(subdomain__name=self.name)
+		# exclude validator-flagged false positives so per-subdomain counts match the
+		# PDF report gate (create_report) and the ScanHistory totals — no FP drift.
+		vulns = (Vulnerability.objects
+			.filter(subdomain__name=self.name)
+			.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE))
 		if self.scan_history:
 			vulns = vulns.filter(scan_history=self.scan_history)
 		return vulns
 
 	@property
 	def get_vulnerabilities_without_info(self):
-		vulns = Vulnerability.objects.filter(subdomain__name=self.name).exclude(severity=0)
+		vulns = (Vulnerability.objects
+			.filter(subdomain__name=self.name)
+			.exclude(severity=0)
+			.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE))
 		if self.scan_history:
 			vulns = vulns.filter(scan_history=self.scan_history)
 		return vulns

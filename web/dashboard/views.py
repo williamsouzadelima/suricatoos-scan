@@ -44,7 +44,9 @@ def index(request, slug):
     subdomains = Subdomain.objects.filter(scan_history__domain__project__slug=project)
     endpoints = EndPoint.objects.filter(scan_history__domain__project__slug=project)
     scan_histories = ScanHistory.objects.filter(domain__project=project)
-    vulnerabilities = Vulnerability.objects.filter(scan_history__domain__project__slug=project)
+    # exclude validator-flagged false positives so all dashboard vuln counters/feed/chart
+    # match the PDF report gate (consistent count everywhere).
+    vulnerabilities = Vulnerability.objects.filter(scan_history__domain__project__slug=project).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
     scan_activities = ScanActivity.objects.filter(scan_of__in=scan_histories)
 
     domain_count = domains.count()
