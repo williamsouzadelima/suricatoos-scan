@@ -76,7 +76,9 @@ def detail_scan(request, id, slug):
     employees = Employee.objects.filter(employees__in=[scan])
     subdomains = Subdomain.objects.filter(scan_history=scan)
     endpoints = EndPoint.objects.filter(scan_history=scan)
-    vulns = Vulnerability.objects.filter(scan_history=scan)
+    # exclude validator-flagged false positives so the scan-detail counts/list match
+    # the PDF report (create_report) — no 247-vs-245 drift.
+    vulns = Vulnerability.objects.filter(scan_history=scan).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
     vulns_tags = VulnerabilityTags.objects.filter(vuln_tags__in=vulns)
     ip_addresses = IpAddress.objects.filter(ip_addresses__in=subdomains)
     geo_isos = CountryISO.objects.filter(ipaddress__in=ip_addresses)
