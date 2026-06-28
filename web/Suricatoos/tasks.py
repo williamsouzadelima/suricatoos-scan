@@ -775,7 +775,7 @@ def subdomain_discovery(
 	return SubdomainSerializer(subdomains, many=True).data
 
 
-@app.task(name='osint', queue='main_scan_queue', base=SuricatoosTask, bind=True)
+@app.task(name='osint', queue='coordinator_queue', base=SuricatoosTask, bind=True)
 def osint(self, host=None, ctx={}, description=None):
 	"""Run Open-Source Intelligence tools on selected domain.
 
@@ -1582,7 +1582,7 @@ def parse_nmap_xml_open_ports(xml_file):
 	return out
 
 
-@app.task(name='port_scan', queue='main_scan_queue', base=SuricatoosTask, bind=True)
+@app.task(name='port_scan', queue='coordinator_queue', base=SuricatoosTask, bind=True)
 def port_scan(self, hosts=[], ctx={}, description=None):
 	"""Run port scan.
 
@@ -1820,9 +1820,8 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 	return ports_data
 
 
-# nmap is a leaf child of port_scan. It runs on its own gevent-served queue (NOT
-# main_scan_queue) so a port_scan blocked waiting on its nmap children can never
-# starve them for a main_scan_queue slot (multi-tenant deadlock prevention).
+# nmap is a leaf child of port_scan. Isolated on its own gevent-served queue for
+# resource isolation (a stuck nmap never consumes a coordinator_queue greenlet).
 @app.task(name='nmap', queue='nmap_queue', base=SuricatoosTask, bind=True)
 def nmap(
 		self,
@@ -2265,7 +2264,7 @@ def dir_file_fuzz(self, ctx={}, description=None):
 	return results
 
 
-@app.task(name='fetch_url', queue='main_scan_queue', base=SuricatoosTask, bind=True)
+@app.task(name='fetch_url', queue='coordinator_queue', base=SuricatoosTask, bind=True)
 def fetch_url(self, urls=[], ctx={}, description=None):
 	"""Fetch URLs using different tools like gauplus, gau, gospider, waybackurls ...
 
@@ -2550,11 +2549,12 @@ def parse_curl_output(response):
 	}
 
 
-# vulnerability_scan and nuclei_scan are pure COORDINATORS: they fan out a group of
-# heavy child scanners and then block on the barrier. They run on the gevent-served
-# coordinator_queue, where a blocked task is just a parked greenlet (near-zero cost)
-# instead of a held prefork slot — so they can never starve their own children for a
-# main_scan_queue slot. The heavy children stay on the memory-bounded main_scan_queue.
+# osint, port_scan, fetch_url, vulnerability_scan and nuclei_scan all run on the
+# gevent-served coordinator_queue: they either fan out child tasks and block on the
+# barrier, or run subprocess tools that cooperate with gevent's I/O loop. A blocked
+# or sleeping task is a parked greenlet (near-zero cost) instead of a held prefork
+# slot — eliminating multi-tenant queue saturation that could false-trigger the
+# hang_monitor (Gap-2 fix, 2026-06-24 orchestration audit).
 @app.task(name='vulnerability_scan', queue='coordinator_queue', bind=True, base=SuricatoosTask)
 def vulnerability_scan(self, urls=[], ctx={}, description=None):
 	"""
@@ -5371,6 +5371,32 @@ def hang_monitor():
 		ref = last_activity.time if last_activity else scan.start_scan_date
 		if ref and ref > cutoff:
 			continue   # made progress within the budget — leave it alone
+		# Before aborting, check if any of this scan's tasks are still alive in the
+		# cluster (active or prefetched/reserved). Queue saturation can delay a phase
+		# start for hours with no new ScanActivity — identical to a genuine wedge from
+		# hang_monitor's perspective. An active/reserved task proves the scan is still
+		# progressing; skip the abort. On inspect failure, prefer false-safe (skip).
+		scan_ids = set(scan.celery_ids or [])
+		if scan_ids:
+			try:
+				inspector = app.control.inspect(timeout=2.0)
+				active = inspector.active() or {}
+				reserved = inspector.reserved() or {}
+				live_ids = set()
+				for worker_tasks in (*active.values(), *reserved.values()):
+					for t in worker_tasks:
+						live_ids.add(t['id'])
+				if scan_ids & live_ids:
+					logger.info(
+						f'hang_monitor: scan {scan.id} appears stale but has '
+						f'{len(scan_ids & live_ids)} task(s) active/reserved in cluster '
+						f'— skipping (queue saturation, not a genuine wedge)')
+					continue
+			except Exception as e:   # noqa: BLE001
+				logger.warning(
+					f'hang_monitor: scan {scan.id} — cluster inspect failed ({e}); '
+					f'skipping abort (prefer false-safe over false-abort)')
+				continue
 		logger.warning(
 			f'hang_monitor: scan {scan.id} stuck in RUNNING since {ref} '
 			f'(> {HANG_MONITOR_STALE_AFTER}s without progress); auto-aborting')

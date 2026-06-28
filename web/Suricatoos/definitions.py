@@ -175,15 +175,16 @@ DEFAULT_VALIDATION_ALLOW_PRIVATE = True
 # nuclei/ffuf scopes legitimately exceed it); per-tool callers pass a tighter value. 0
 # disables. Overridable via the COMMAND_EXEC_TIMEOUT env. When the env is set the
 # operator means an absolute value, so it is used VERBATIM (un-scaled); otherwise
-# the 7200 default is scaled by the machine capacity factor. scale_timer keeps 0.
+# the 5100 default is scaled by the machine capacity factor (5100 < soft 5400 < hard 7200
+# ensures the graceful watchdog path fires before Celery SIGKILL). scale_timer keeps 0.
 try:
     _raw = os.environ.get('COMMAND_EXEC_TIMEOUT')
     if _raw not in (None, ''):
         DEFAULT_COMMAND_EXEC_TIMEOUT = int(_raw)  # seconds; operator-supplied, verbatim
     else:
-        DEFAULT_COMMAND_EXEC_TIMEOUT = scale_timer(7200)  # seconds; 2h default, capacity-scaled
+        DEFAULT_COMMAND_EXEC_TIMEOUT = scale_timer(5100)  # seconds; ~85min; watchdog < soft 5400s < hard 7200s
 except (TypeError, ValueError):
-    DEFAULT_COMMAND_EXEC_TIMEOUT = scale_timer(7200)
+    DEFAULT_COMMAND_EXEC_TIMEOUT = scale_timer(5100)
 # Tighter caps for the known hang-prone OSINT tools (run on the gevent pool, where
 # Celery's SIGALRM hard limit does NOT apply — the watchdog is the only guard there).
 THEHARVESTER_EXEC_TIMEOUT = scale_timer(600)
