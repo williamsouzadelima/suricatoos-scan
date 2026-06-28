@@ -204,7 +204,6 @@ networks:
 
 volumes:
   tool_config:
-  postgres_data:
   postgres_data_16:
   gf_patterns:
   nuclei_templates:
