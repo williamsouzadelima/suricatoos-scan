@@ -534,58 +534,6 @@ def remove_ansi_escape_sequences(text):
 	plain_text = re.sub(ansi_escape_pattern, '', text)
 	return plain_text
 
-def get_cms_details(url):
-	"""Get CMS details using cmseek.py.
-
-	Args:
-		url (str): HTTP URL.
-
-	Returns:
-		dict: Response.
-	"""
-	# this function will fetch cms details using cms_detector
-	response = {}
-	cms_detector_command = f'python3 /usr/src/github/CMSeeK/cmseek.py --random-agent --batch --follow-redirect -u {url}'
-	os.system(cms_detector_command)
-
-	response['status'] = False
-	response['message'] = 'Could not detect CMS!'
-
-	parsed_url = urlparse(url)
-
-	domain_name = parsed_url.hostname
-	port = parsed_url.port
-
-	find_dir = domain_name
-
-	if port:
-		find_dir += f'_{port}'
-
-	# subdomain may also have port number, and is stored in dir as _port
-
-	cms_dir_path =  f'/usr/src/github/CMSeeK/Result/{find_dir}'
-	cms_json_path =  cms_dir_path + '/cms.json'
-
-	if os.path.isfile(cms_json_path):
-		cms_file_content = json.loads(open(cms_json_path, 'r').read())
-		if not cms_file_content.get('cms_id'):
-			return response
-		response = {}
-		response = cms_file_content
-		response['status'] = True
-		# remove cms dir path
-		try:
-			shutil.rmtree(cms_dir_path)
-		except Exception as e:
-			logger.error(e)
-
-	return response
-
-
-#--------------------#
-# NOTIFICATION UTILS #
-#--------------------#
-
 def send_telegram_message(message):
 	"""Send Telegram message.
 

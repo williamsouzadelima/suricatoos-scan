@@ -71,3 +71,7 @@ get-docker.sh
 .superpowers/
 core
 core.*
+backups/
+*.bak-*
+*.bak.*
+*.bak-deadfn-*

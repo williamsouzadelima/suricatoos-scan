@@ -1631,7 +1631,6 @@ class CMSDetector(APIView):
 			return Response(response)
 
 		try:
-			# response = get_cms_details(url)
 			response = {}
 			cms_detector_command = f'python3 /usr/src/github/CMSeeK/cmseek.py'
 			cms_detector_command += ' --random-agent --batch --follow-redirect'

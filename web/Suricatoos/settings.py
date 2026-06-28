@@ -473,6 +473,18 @@ LOGGING = {
     },
 }
 
+
+# Container hardening: when enabled, rewrite file-based log handlers to stdout so the
+# app source tree can be mounted read-only (:ro) and logs flow to `docker logs` (with
+# json-file rotation). Default off preserves the original file-based behaviour.
+if env.bool('SURICATOOS_LOG_TO_STDOUT', default=False):
+    for _h in LOGGING['handlers'].values():
+        if 'filename' in _h:
+            for _k in ('filename', 'mode', 'maxBytes', 'backupCount', 'encoding', 'delay'):
+                _h.pop(_k, None)
+            _h['class'] = 'logging.StreamHandler'
+            _h['stream'] = 'ext://sys.stdout'
+
 '''
 File upload settings
 '''
