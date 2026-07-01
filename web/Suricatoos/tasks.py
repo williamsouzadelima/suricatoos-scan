@@ -481,6 +481,149 @@ def report(ctx={}, description=None):
 		engine_id=engine_id,
 		status=status_h)
 
+	# Loop reNgine→OpenVAS (ADR-0006): recon completa com sucesso (não subscan) e o
+	# Domain optou-in → entrega os hosts vivos ao scanner p/ scan profundo.
+	try:
+		from django.conf import settings as _settings
+		if (not subscan and status == SUCCESS_TASK
+				and getattr(_settings, 'SURICATOOS_SCANNER_PUSH_ENABLED', False)
+				and scan and scan.domain_id and scan.domain.send_to_scanner):
+			push_to_scanner.delay(scan_id, engine_id)
+	except Exception as e:
+		logger.error(f'push_to_scanner hook: {e}')
+
+
+@app.task(name='push_to_scanner', bind=False, queue='send_notif_queue',
+		autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
+def push_to_scanner(scan_history_id, engine_id=None):
+	"""Entrega os hosts/portas vivos de uma ScanHistory ao scanner OpenVAS
+	(ADR-0006). Idempotente: get_or_create do ScanBridgeJob + POST idempotente por
+	scan_history_id no lado do scanner. Só erros de rede disparam retry."""
+	from django.conf import settings
+	from Suricatoos import scanner_bridge
+	from startScan.models import ScanBridgeJob
+
+	if not getattr(settings, 'SURICATOOS_SCANNER_PUSH_ENABLED', False):
+		return
+	if not scanner_bridge.is_configured():
+		logger.warning('push_to_scanner: scanner não configurado — skip (sem retry)')
+		return
+	scan = ScanHistory.objects.filter(pk=scan_history_id).first()
+	if not scan or not (scan.domain and scan.domain.send_to_scanner):
+		return
+
+	hosts = scanner_bridge.build_payload(scan)
+	if not hosts:
+		logger.info(f'push_to_scanner: scan {scan_history_id} sem hosts públicos — skip')
+		return
+	max_hosts = int(getattr(settings, 'SURICATOOS_SCANNER_MAX_HOSTS', 256))
+	if len(hosts) > max_hosts:
+		logger.warning(f'push_to_scanner: scan {scan_history_id} {len(hosts)} hosts > cap {max_hosts} — truncando')
+		hosts = hosts[:max_hosts]
+
+	job, _ = ScanBridgeJob.objects.get_or_create(scan_history=scan)
+	if job.imported or job.state in ('COMPLETED', 'IMPORTED'):
+		return
+	engagement = scan.domain.project.name if scan.domain.project_id else ''
+	resp = scanner_bridge.submit(
+		scan_history_id=scan.id, target=scan.domain.name, engagement=engagement, hosts=hosts)
+	job.request_id = resp.get('request_id') or job.request_id
+	job.state = resp.get('state') or 'PENDING'
+	job.hosts_sent = len(hosts)
+	job.error = None
+	job.save()
+	logger.info(f'push_to_scanner: scan {scan_history_id} → request {job.request_id} ({job.state})')
+
+
+@app.task(name='poll_scanner_jobs', bind=False, queue='send_notif_queue')
+def poll_scanner_jobs():
+	"""Beat: faz poll dos ScanBridgeJob não-terminais no scanner e importa os
+	achados quando COMPLETED. Single-flight via lock no cache."""
+	from django.conf import settings
+	from django.core.cache import cache
+	from Suricatoos import scanner_bridge
+	from startScan.models import ScanBridgeJob
+
+	if not getattr(settings, 'SURICATOOS_SCANNER_PUSH_ENABLED', False):
+		return
+	if not cache.add('poll_scanner_jobs_lock', '1', timeout=110):
+		return
+
+	try:
+		max_age = int(getattr(settings, 'SURICATOOS_SCANNER_MAX_AGE_HOURS', 8))
+		jobs = ScanBridgeJob.objects.filter(imported=False).exclude(
+			state__in=['IMPORTED', 'FAILED', 'STOPPED', 'EXPIRED'])
+		for job in jobs:
+			if not job.request_id:
+				continue
+			if job.submitted_at and (timezone.now() - job.submitted_at) > timedelta(hours=max_age):
+				job.state = 'EXPIRED'
+				job.save(update_fields=['state'])
+				continue
+			try:
+				data = scanner_bridge.poll(job.request_id)
+			except Exception as e:
+				logger.warning(f'poll_scanner_jobs: job {job.id} poll falhou: {e}')
+				continue
+			job.state = data.get('state', job.state)
+			job.gvm_task_id = data.get('gvm_task_id') or job.gvm_task_id
+			job.gvm_report_id = data.get('gvm_report_id') or job.gvm_report_id
+			job.last_polled = timezone.now()
+			if job.state == 'COMPLETED' and not job.imported:
+				n = import_openvas_findings(job.scan_history, data.get('findings') or [])
+				job.findings_imported = n
+				job.imported = True
+				job.state = 'IMPORTED'
+				job.completed_at = timezone.now()
+				logger.info(f'poll_scanner_jobs: job {job.id} importou {n} vuln(s) OpenVAS')
+			job.save()
+	finally:
+		cache.delete('poll_scanner_jobs_lock')
+
+
+def import_openvas_findings(scan_history, findings):
+	"""Cria/atualiza Vulnerability a partir dos achados OpenVAS. Atribui um achado
+	SÓ se o host mapeia para um IpAddress desta ScanHistory — senão é fora de escopo
+	e vai para quarentena (nunca envenena o score do alvo). Retorna nº importado."""
+	from Suricatoos import scanner_bridge
+
+	ip_map = scanner_bridge.build_ip_subdomain_map(scan_history)
+	target_domain = scan_history.domain
+	count = 0
+	for f in findings:
+		host = (f.get('host') or '').strip()
+		subdomain = ip_map.get(host)
+		if subdomain is None:
+			logger.warning(f'import_openvas_findings: host fora de escopo {host!r} — quarentena')
+			continue
+		oid = (f.get('oid') or '')[:100]
+		port = f.get('port') or ''
+		name = (f.get('name') or oid or 'OpenVAS finding')[:2500]
+		cvss = f.get('cvss_base') or 0.0
+		vuln, _ = Vulnerability.objects.update_or_create(
+			scan_history=scan_history,
+			source=scanner_bridge.SOURCE_OPENVAS,
+			type=oid,
+			http_url=f'{host}:{port}'[:10000],
+			name=name,
+			defaults={
+				'subdomain': subdomain,
+				'target_domain': target_domain,
+				'severity': scanner_bridge.cvss_to_rengine(cvss),
+				'cvss_score': float(cvss) if cvss else None,
+				'cvss_metrics': (f.get('cvss_vector') or '')[:500],
+				'description': f.get('summary') or '',
+				'impact': f.get('impact') or '',
+				'remediation': f.get('solution') or '',
+				'discovered_date': timezone.now(),
+				'open_status': True,
+			})
+		for cve in f.get('cves') or []:
+			obj, _ = CveId.objects.get_or_create(name=cve[:50])
+			vuln.cve_ids.add(obj)
+		count += 1
+	return count
+
 
 #------------------------- #
 # Tracked Suricatoos tasks    #
