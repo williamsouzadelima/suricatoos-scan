@@ -493,12 +493,14 @@ def report(ctx={}, description=None):
 		logger.error(f'push_to_scanner hook: {e}')
 
 
-@app.task(name='push_to_scanner', bind=False, queue='send_notif_queue',
-		autoretry_for=(Exception,), retry_backoff=True, max_retries=3)
-def push_to_scanner(scan_history_id, engine_id=None):
+@app.task(name='push_to_scanner', bind=True, queue='send_notif_queue',
+		retry_backoff=True, max_retries=3)
+def push_to_scanner(self, scan_history_id, engine_id=None):
 	"""Entrega os hosts/portas vivos de uma ScanHistory ao scanner OpenVAS
 	(ADR-0006). Idempotente: get_or_create do ScanBridgeJob + POST idempotente por
-	scan_history_id no lado do scanner. Só erros de rede disparam retry."""
+	scan_history_id no lado do scanner. Só erros de rede/5xx disparam retry; um 4xx
+	é rejeição permanente (marca o job FAILED, sem retry)."""
+	import requests
 	from django.conf import settings
 	from Suricatoos import scanner_bridge
 	from startScan.models import ScanBridgeJob
@@ -525,8 +527,20 @@ def push_to_scanner(scan_history_id, engine_id=None):
 	if job.imported or job.state in ('COMPLETED', 'IMPORTED'):
 		return
 	engagement = scan.domain.project.name if scan.domain.project_id else ''
-	resp = scanner_bridge.submit(
-		scan_history_id=scan.id, target=scan.domain.name, engagement=engagement, hosts=hosts)
+	try:
+		resp = scanner_bridge.submit(
+			scan_history_id=scan.id, target=scan.domain.name, engagement=engagement, hosts=hosts)
+	except requests.HTTPError as e:
+		code = getattr(e.response, 'status_code', 0)
+		if code >= 500 or code == 429:
+			raise self.retry(exc=e)  # transitório do lado do scanner
+		job.state = 'FAILED'
+		job.error = f'{code}: {str(e)[:1000]}'
+		job.save(update_fields=['state', 'error'])
+		logger.warning(f'push_to_scanner: scan {scan_history_id} rejeitado permanentemente ({code})')
+		return
+	except requests.RequestException as e:
+		raise self.retry(exc=e)  # rede: connection/timeout/etc
 	job.request_id = resp.get('request_id') or job.request_id
 	job.state = resp.get('state') or 'PENDING'
 	job.hosts_sent = len(hosts)
@@ -592,6 +606,10 @@ def import_openvas_findings(scan_history, findings):
 	count = 0
 	for f in findings:
 		host = (f.get('host') or '').strip()
+		try:
+			host = str(ipaddress.ip_address(host))  # canoniza p/ casar as chaves do ip_map
+		except ValueError:
+			pass
 		subdomain = ip_map.get(host)
 		if subdomain is None:
 			logger.warning(f'import_openvas_findings: host fora de escopo {host!r} — quarentena')

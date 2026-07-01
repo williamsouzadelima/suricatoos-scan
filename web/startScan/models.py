@@ -771,6 +771,9 @@ class ScanBridgeJob(models.Model):
 	voltarem como Vulnerability. Um-para-um com ScanHistory (idempotência)."""
 	# Estados: o scanner devolve PENDING/RUNNING/COMPLETED/FAILED/STOPPED/EXPIRED;
 	# o reNgine acrescenta SUBMITTED (antes do POST) e IMPORTED (após importar).
+	# id explícito (AutoField) como o resto do codebase — senão herda BigAutoField
+	# do DEFAULT_AUTO_FIELD e diverge da migração 0007.
+	id = models.AutoField(primary_key=True)
 	scan_history = models.OneToOneField(ScanHistory, on_delete=models.CASCADE, related_name='scanner_job')
 	request_id = models.CharField(max_length=64, null=True, blank=True)
 	gvm_task_id = models.CharField(max_length=64, null=True, blank=True)

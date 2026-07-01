@@ -32,7 +32,9 @@ class CvssToRengineTests(unittest.TestCase):
 
 class IsPublicIpTests(unittest.TestCase):
     def test_public_pass(self):
-        for ip in ("203.0.113.10", "8.8.8.8", "2001:db8::1"):
+        # Endereços genuinamente públicos (não use TEST-NET/2001:db8:: — são
+        # documentação e o ipaddress do CPython os marca como is_private).
+        for ip in ("1.1.1.1", "8.8.8.8", "2606:4700:4700::1111"):
             self.assertTrue(is_public_ip(ip), ip)
 
     def test_non_public_reject(self):
@@ -43,6 +45,7 @@ class IsPublicIpTests(unittest.TestCase):
             "224.0.0.1",                               # multicast
             "0.0.0.0",                                 # unspecified
             "fe80::1", "fc00::1",                      # IPv6 link-local / ULA
+            "203.0.113.10", "2001:db8::1",             # documentação (TEST-NET-3 / 2001:db8::/32)
         ):
             self.assertFalse(is_public_ip(ip), ip)
 
