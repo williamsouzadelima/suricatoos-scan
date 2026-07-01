@@ -9,7 +9,7 @@ Run with:  python3 manage.py test tests.test_scanner_bridge
 """
 import unittest
 
-from Suricatoos.scanner_bridge import cvss_to_rengine, is_public_ip
+from Suricatoos.scanner_bridge import cvss_to_rengine, is_public_ip, is_scannable_ip
 
 
 class CvssToRengineTests(unittest.TestCase):
@@ -52,6 +52,23 @@ class IsPublicIpTests(unittest.TestCase):
     def test_hostname_and_garbage_reject(self):
         for bad in ("evil.com", "*.evil.com", "notanip", "", None, "1.2.3.4:80"):
             self.assertFalse(is_public_ip(bad), repr(bad))
+
+
+class IsScannableIpTests(unittest.TestCase):
+    def test_private_gated_by_flag(self):
+        # Redes internas: bloqueadas por padrão, liberadas com allow_private=True.
+        for ip in ("10.1.2.3", "192.168.1.10", "172.16.5.5", "100.64.0.1", "fc00::1"):
+            self.assertFalse(is_scannable_ip(ip, allow_private=False), ip)
+            self.assertTrue(is_scannable_ip(ip, allow_private=True), ip)
+
+    def test_self_protection_always_dropped(self):
+        # loopback/link-local(metadata)/multicast/unspecified nunca passam, nem com allow_private.
+        for ip in ("127.0.0.1", "169.254.169.254", "169.254.1.1", "224.0.0.1", "0.0.0.0", "::1", "fe80::1"):
+            self.assertFalse(is_scannable_ip(ip, allow_private=True), ip)
+
+    def test_public_always_scannable(self):
+        for ip in ("1.1.1.1", "8.8.8.8", "2606:4700:4700::1111"):
+            self.assertTrue(is_scannable_ip(ip, allow_private=False), ip)
 
 
 if __name__ == "__main__":

@@ -36,6 +36,9 @@ SURICATOOS_SCANNER_KEY = env('SURICATOOS_SCANNER_KEY', default='/certs/score-hub
 SURICATOOS_SCANNER_CA = env('SURICATOOS_SCANNER_CA', default='/certs/score-hub.ca.crt')
 SURICATOOS_SCANNER_MAX_HOSTS = env.int('SURICATOOS_SCANNER_MAX_HOSTS', default=256)
 SURICATOOS_SCANNER_MAX_AGE_HOURS = env.int('SURICATOOS_SCANNER_MAX_AGE_HOURS', default=8)
+# Engajamento de rede interna: quando True, envia também IPs privados (RFC1918/ULA/
+# CGNAT) ao scanner. A allowlist do scanner é a autorização final. Default False.
+SURICATOOS_SCANNER_ALLOW_PRIVATE = env.bool('SURICATOOS_SCANNER_ALLOW_PRIVATE', default=False)
 
 # Common env vars
 DEBUG = env.bool('DEBUG', default=False)

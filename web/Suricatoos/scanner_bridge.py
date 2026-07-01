@@ -35,26 +35,38 @@ def is_configured():
 
 def is_public_ip(addr):
     """True apenas para IP-literais unicast públicos — dropa privado/loopback/
-    link-local/multicast/reservado (o scanner é autoritativo, mas pré-filtramos
-    para não enviar alvos obviamente fora de escopo)."""
+    link-local/multicast/reservado. Atalho para is_scannable_ip(allow_private=False)."""
+    return is_scannable_ip(addr, allow_private=False)
+
+
+def is_scannable_ip(addr, allow_private=False):
+    """True se addr é um IP-literal escaneável. SEMPRE dropa o que nunca é alvo
+    remoto legítimo (loopback/link-local[metadata]/multicast/unspecified/reservado).
+    Faixas privadas (RFC1918/ULA/CGNAT) só entram quando allow_private=True — para
+    engajamentos de rede interna. O scanner é a autorização final (allowlist)."""
     try:
         ip = ipaddress.ip_address((addr or "").strip())
     except ValueError:
         return False
-    return not (
-        ip.is_private or ip.is_loopback or ip.is_link_local
-        or ip.is_multicast or ip.is_reserved or ip.is_unspecified
-    )
+    if ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_unspecified or ip.is_reserved:
+        return False
+    # is_global (não is_private): o CPython não marca 100.64/10 CGNAT como private,
+    # mas marca is_global=False — então "não-global" = interno = requer opt-in.
+    if not ip.is_global and not allow_private:
+        return False
+    return True
 
 
 def build_payload(scan_history):
-    """Constrói [{ip, ports}] dos hosts públicos + portas abertas de uma
-    ScanHistory (ScanHistory → Subdomain → ip_addresses → ports)."""
+    """Constrói [{ip, ports}] dos hosts escaneáveis + portas abertas de uma
+    ScanHistory (ScanHistory → Subdomain → ip_addresses → ports). Inclui redes
+    internas quando SURICATOOS_SCANNER_ALLOW_PRIVATE=True."""
+    allow_private = bool(getattr(settings, "SURICATOOS_SCANNER_ALLOW_PRIVATE", False))
     by_ip = {}
     for sub in scan_history.subdomain_set.all():
         for ipaddr in sub.ip_addresses.all():
             addr = (ipaddr.address or "").strip()
-            if not is_public_ip(addr):
+            if not is_scannable_ip(addr, allow_private):
                 continue
             canon = str(ipaddress.ip_address(addr))
             ports = by_ip.setdefault(canon, set())
