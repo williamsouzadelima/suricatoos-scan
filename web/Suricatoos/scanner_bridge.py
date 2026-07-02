@@ -112,8 +112,16 @@ def build_ip_subdomain_map(scan_history):
 def _session():
     c = _cfg()
     s = requests.Session()
+    # mTLS: present the score-hub client cert (the scanner verifies it against the
+    # enrollment CA on ITS side).
     s.cert = (c["cert"], c["key"])
-    s.verify = c["ca"] or True
+    # Verify the SERVER against the system trust store: the scanner is fronted by a
+    # PUBLIC Let's Encrypt cert (scanner.suricatoos.com), NOT the enrollment CA. Using
+    # the enrollment CA here (the old `c["ca"] or True`) made every request fail with
+    # "certificate verify failed: unable to get local issuer" — the same RootCAs
+    # regression the sensor/agent audit caught. The enrollment CA authenticates the
+    # CLIENT, never the server.
+    s.verify = True
     return s
 
 
