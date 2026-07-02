@@ -27,6 +27,19 @@ SURICATOOS_CACHE_ENABLED = env.bool('SURICATOOS_CACHE_ENABLED', default=False)
 SURICATOOS_RECORD_ENABLED = env.bool('SURICATOOS_RECORD_ENABLED', default=True)
 SURICATOOS_RAISE_ON_ERROR = env.bool('SURICATOOS_RAISE_ON_ERROR', default=False)
 
+# --- Loop reNgine→OpenVAS (scanner.suricatoos.com) — ADR-0006 ---
+# Nasce DESLIGADO: mesmo com o cert montado, nada é enviado até PUSH_ENABLED=True.
+SURICATOOS_SCANNER_PUSH_ENABLED = env.bool('SURICATOOS_SCANNER_PUSH_ENABLED', default=False)
+SURICATOOS_SCANNER_URL = env('SURICATOOS_SCANNER_URL', default='https://scanner.suricatoos.com/ingest')
+SURICATOOS_SCANNER_CERT = env('SURICATOOS_SCANNER_CERT', default='/certs/score-hub.crt')
+SURICATOOS_SCANNER_KEY = env('SURICATOOS_SCANNER_KEY', default='/certs/score-hub.key')
+SURICATOOS_SCANNER_CA = env('SURICATOOS_SCANNER_CA', default='/certs/score-hub.ca.crt')
+SURICATOOS_SCANNER_MAX_HOSTS = env.int('SURICATOOS_SCANNER_MAX_HOSTS', default=256)
+SURICATOOS_SCANNER_MAX_AGE_HOURS = env.int('SURICATOOS_SCANNER_MAX_AGE_HOURS', default=8)
+# Engajamento de rede interna: quando True, envia também IPs privados (RFC1918/ULA/
+# CGNAT) ao scanner. A allowlist do scanner é a autorização final. Default False.
+SURICATOOS_SCANNER_ALLOW_PRIVATE = env.bool('SURICATOOS_SCANNER_ALLOW_PRIVATE', default=False)
+
 # Common env vars
 DEBUG = env.bool('DEBUG', default=False)
 DOMAIN_NAME = env('DOMAIN_NAME', default='localhost:8000')
@@ -348,6 +361,12 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'hang_monitor',
         'schedule': env.float("HANG_MONITOR_INTERVAL", default=600.0),  # every 10 min
         'options': {'queue': 'hang_monitor_queue', 'expires': 540},
+    },
+    # ADR-0006: faz poll dos jobs OpenVAS no scanner e importa os achados.
+    'poll-scanner-jobs': {
+        'task': 'poll_scanner_jobs',
+        'schedule': env.float("SCANNER_POLL_INTERVAL", default=120.0),  # a cada 2 min
+        'options': {'queue': 'send_notif_queue', 'expires': 110},
     },
 }
 '''

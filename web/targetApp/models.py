@@ -155,6 +155,9 @@ class Domain(models.Model):
 	request_headers = models.JSONField(null=True, blank=True)
 	domain_info = models.ForeignKey(DomainInfo, on_delete=models.CASCADE, null=True, blank=True)
 	project = models.ForeignKey(Project, on_delete=models.CASCADE, null=True, blank=False)
+	# Opt-in: quando True, ao concluir uma recon o reNgine entrega os hosts vivos ao
+	# scanner OpenVAS (scanner.suricatoos.com) para scan profundo (ADR-0006).
+	send_to_scanner = models.BooleanField(default=False)
 
 	def get_organization(self):
 		return Organization.objects.filter(domains__id=self.id)

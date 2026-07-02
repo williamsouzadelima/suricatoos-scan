@@ -58,6 +58,8 @@ services:
       - nuclei_templates:/root/nuclei-templates
       - tool_config:/root/.config
       - static_volume:/usr/src/app/staticfiles/
+      # ADR-0006: cert mTLS 'launcher' p/ o loop reNgine→OpenVAS (somente leitura).
+      - ./secrets:/certs:ro
     environment:
       - DEBUG=0
       - CELERY_BROKER=redis://:${REDIS_PASSWORD}@redis:6379/0
@@ -113,6 +115,8 @@ services:
       - gf_patterns:/root/.gf
       - nuclei_templates:/root/nuclei-templates
       - tool_config:/root/.config
+      # ADR-0006: cert mTLS 'launcher' p/ o loop reNgine→OpenVAS (somente leitura).
+      - ./secrets:/certs:ro
     networks:
       - suricatoos_network
 
