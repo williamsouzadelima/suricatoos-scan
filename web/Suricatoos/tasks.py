@@ -643,6 +643,76 @@ def import_openvas_findings(scan_history, findings):
 	return count
 
 
+@app.task(name='import_sensor_findings', bind=False, queue='send_notif_queue')
+def import_sensor_findings(tenant, correlation_id, findings):
+	"""Importa os achados de um sensor de scanner interno (ADR-0007 G) no Score,
+	particionados por TENANT. Diferente do loop externo, esses hosts internos foram
+	descobertos pelo sensor (não por uma recon do reNgine), então criamos as
+	entidades do tenant primeiro: Project=tenant, Domain sintético internal-<tenant>,
+	uma ScanHistory, e um Subdomain+IpAddress por host — daí reusa
+	import_openvas_findings (que mapeia host→subdomain e não quarentena)."""
+	import hashlib
+	from django.utils.text import slugify
+	from dashboard.models import Project
+	from targetApp.models import Domain
+	from startScan.models import ScanHistory, Subdomain, IpAddress, EngineType, SensorImport
+
+	tenant = (tenant or '').strip()
+	correlation_id = (correlation_id or '').strip()
+	if not tenant or not findings:
+		return 0
+
+	# Idempotência (ADR-0007 G): um sensor-report pode ser re-entregue (retry HTTP,
+	# redelivery da fila da nuvem). Se este correlation_id já foi importado, NÃO
+	# re-importa — senão a postura do tenant infla a cada re-entrega.
+	if correlation_id:
+		prior = SensorImport.objects.filter(correlation_id=correlation_id, imported=True).first()
+		if prior:
+			logger.info(f'import_sensor_findings: corr={correlation_id} já importado '
+					 f'({prior.findings_imported} vuln) — ignorando redelivery')
+			return prior.findings_imported
+
+	now = timezone.now()
+	# Project por tenant: slug INJETIVO no tenant BRUTO (o O do cert, autoridade). O
+	# sufixo de hash impede que tenants distintos cujos slugs colidiriam (ex.: "Acme
+	# Corp" vs "acme-corp") sejam fundidos num mesmo Project — o que vazaria dados
+	# entre tenants no Score. O name (display) mantém o tenant bruto.
+	tslug = f'tenant-{slugify(tenant) or "x"}-{hashlib.sha256(tenant.encode()).hexdigest()[:8]}'
+	project, _ = Project.objects.get_or_create(
+		slug=tslug,
+		defaults={'name': f'tenant-{tenant}', 'insert_date': now})
+	domain, _ = Domain.objects.get_or_create(
+		name=f'internal-{tenant}',
+		defaults={'project': project, 'insert_date': now})
+	engine, _ = EngineType.objects.get_or_create(
+		engine_name='Suricatoos Sensor',
+		defaults={'yaml_configuration': '', 'default_engine': False})
+	scan = ScanHistory.objects.create(
+		start_scan_date=now, stop_scan_date=now, scan_status=SUCCESS_TASK,
+		domain=domain, scan_type=engine)
+
+	# Cria Subdomain+IpAddress por host interno para o ip_map casar.
+	for f in findings:
+		host = (f.get('host') or '').strip()
+		try:
+			host = str(ipaddress.ip_address(host))
+		except ValueError:
+			continue
+		sub, _ = Subdomain.objects.get_or_create(
+			scan_history=scan, name=host, defaults={'target_domain': domain})
+		ip, _ = IpAddress.objects.get_or_create(address=host)
+		sub.ip_addresses.add(ip)
+
+	n = import_openvas_findings(scan, findings)
+	# Registra o import p/ tornar re-entregas idempotentes (guarda acima).
+	if correlation_id:
+		SensorImport.objects.update_or_create(
+			correlation_id=correlation_id,
+			defaults={'tenant': tenant, 'scan_history': scan, 'imported': True, 'findings_imported': n})
+	logger.info(f'import_sensor_findings: tenant={tenant} corr={correlation_id} → {n} vuln(s)')
+	return n
+
+
 #------------------------- #
 # Tracked Suricatoos tasks    #
 #--------------------------#

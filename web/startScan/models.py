@@ -790,3 +790,21 @@ class ScanBridgeJob(models.Model):
 
 	def __str__(self):
 		return f'ScanBridgeJob<{self.scan_history_id}:{self.state}>'
+
+
+class SensorImport(models.Model):
+	"""Idempotência do import de achados do sensor de scanner interno (ADR-0007 G):
+	um sensor-report pode ser re-entregue (retry HTTP do ingest, redelivery da fila da
+	nuvem). A âncora é o correlation_id (ponta a ponta); um re-arrivo com o MESMO
+	correlation_id NÃO re-importa, evitando inflar a postura do tenant N vezes."""
+	id = models.AutoField(primary_key=True)
+	correlation_id = models.CharField(max_length=128, unique=True)
+	tenant = models.CharField(max_length=255)
+	scan_history = models.OneToOneField(ScanHistory, on_delete=models.SET_NULL,
+									 null=True, blank=True, related_name='sensor_import')
+	imported = models.BooleanField(default=False)
+	findings_imported = models.IntegerField(default=0)
+	created_at = models.DateTimeField(auto_now_add=True)
+
+	def __str__(self):
+		return f'SensorImport<{self.tenant}:{self.correlation_id}:{self.imported}>'
