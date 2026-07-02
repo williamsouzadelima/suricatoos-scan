@@ -39,6 +39,9 @@ SURICATOOS_SCANNER_MAX_AGE_HOURS = env.int('SURICATOOS_SCANNER_MAX_AGE_HOURS', d
 # Engajamento de rede interna: quando True, envia também IPs privados (RFC1918/ULA/
 # CGNAT) ao scanner. A allowlist do scanner é a autorização final. Default False.
 SURICATOOS_SCANNER_ALLOW_PRIVATE = env.bool('SURICATOOS_SCANNER_ALLOW_PRIVATE', default=False)
+# ADR-0007 G: segredo Bearer do endpoint inbound /api/sensor/import (a nuvem empurra
+# os achados do sensor interno por tenant). Vazio → endpoint nega tudo (401).
+SURICATOOS_SENSOR_IMPORT_SECRET = env('SURICATOOS_SENSOR_IMPORT_SECRET', default='')
 
 # Common env vars
 DEBUG = env.bool('DEBUG', default=False)

@@ -73,6 +73,31 @@ def _await_tool_task(task, timeout=WHOIS_TASK_TIMEOUT):
             {'status': False, 'message': _('Lookup failed.')}, status=HTTP_400_BAD_REQUEST)
 
 
+class SensorFindingsImport(APIView):
+	"""Endpoint inbound máquina-a-máquina (ADR-0007 G): recebe os achados de um
+	sensor de scanner interno, empurrados pelo ingest da nuvem, e os importa no Score
+	particionados por TENANT. Autenticado por Bearer (SURICATOOS_SENSOR_IMPORT_SECRET),
+	NÃO por sessão — csrf-exempt. O tenant vem do payload (que o ingest já derivou do
+	O do cert; a nuvem é a autoridade)."""
+	permission_classes = []
+	authentication_classes = []
+
+	def post(self, request, *args, **kwargs):
+		from django.conf import settings
+		secret = getattr(settings, 'SURICATOOS_SENSOR_IMPORT_SECRET', '')
+		auth = request.META.get('HTTP_AUTHORIZATION', '')
+		if not secret or auth != f'Bearer {secret}':
+			return Response({'error': 'unauthorized'}, status=401)
+		data = request.data or {}
+		tenant = (data.get('tenant') or '').strip()
+		findings = data.get('findings') or []
+		if not tenant:
+			return Response({'error': 'tenant obrigatório'}, status=400)
+		from Suricatoos.tasks import import_sensor_findings
+		import_sensor_findings.delay(tenant, data.get('correlation_id') or '', findings)
+		return Response({'status': 'accepted', 'tenant': tenant, 'findings': len(findings)}, status=202)
+
+
 class ToggleBugBountyModeView(APIView):
 	"""
 		This class manages the user bug bounty mode

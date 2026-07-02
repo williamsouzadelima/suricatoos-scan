@@ -252,6 +252,12 @@ urlpatterns = [
         ToggleBugBountyModeView.as_view(),
         name='toggle_bug_bounty_mode'
     ),
+    # ADR-0007 G: import inbound dos achados do sensor (Bearer, máquina-a-máquina).
+    path(
+        'sensor/import/',
+        SensorFindingsImport.as_view(),
+        name='sensor_findings_import'
+    ),
 ]
 
 urlpatterns += router.urls
