@@ -6,10 +6,11 @@ import sys
 
 def main():
     os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'Suricatoos.settings')
-    # show suricatoos artwork
+    # show suricatoos artwork — em stderr para NÃO poluir o stdout de comandos com
+    # saída de máquina (ex.: `loop_health --json`, dumpdata). Humano ainda vê no terminal.
     f = open('art/Suricatoos.txt', 'r')
     file_contents = f.read()
-    print (file_contents)
+    print(file_contents, file=sys.stderr)
     f.close()
     try:
         from django.core.management import execute_from_command_line
