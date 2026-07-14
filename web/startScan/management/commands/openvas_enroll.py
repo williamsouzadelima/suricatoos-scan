@@ -94,6 +94,20 @@ class Command(BaseCommand):
 
     @staticmethod
     def _write(path, content, mode):
-        with open(path, "w") as f:
-            f.write(content if content.endswith("\n") else content + "\n")
-        os.chmod(path, mode)
+        # Onda 2 (#11): cria o arquivo JÁ com o modo restrito (os.open + O_CREAT|O_WRONLY|
+        # O_TRUNC), fechando a janela TOCTOU em que a chave privada mTLS (sem senha) ficava
+        # world-readable entre o open('w')/write e o chmod. Remove um arquivo pré-existente
+        # p/ não herdar um modo mais permissivo e força o modo com fchmod (cobre umask).
+        data = content if content.endswith("\n") else content + "\n"
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, mode)
+        try:
+            os.fchmod(fd, mode)
+            with os.fdopen(fd, "w") as f:
+                f.write(data)
+        except Exception:
+            os.close(fd)
+            raise
