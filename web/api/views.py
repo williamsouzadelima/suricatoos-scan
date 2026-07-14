@@ -9,7 +9,8 @@ import validators
 import requests
 
 from ipaddress import IPv4Network
-from django.db.models import CharField, Count, F, Max, Prefetch, Q, Value
+from django.db.models import CharField, Count, F, IntegerField, Max, OuterRef, Prefetch, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from packaging import version
 from django.template.defaultfilters import slugify
@@ -2583,6 +2584,33 @@ class SubdomainDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 			'technologies',
 			'waf',
 			Prefetch('directories', queryset=DirectoryScan.objects.prefetch_related('directory_files')),
+		)
+
+		# Onda 3b (#16): substitui os 9 COUNTs por-linha por Subquery annotations correlacionadas
+		# (1 SQL, sem N+1). São tradução LITERAL das properties do model (filtram por
+		# subdomain__name + scan_history + exclude FALSE_POSITIVE). A property só adiciona o filtro
+		# de scan quando o subdomínio TEM scan_history — os method-fields do serializer usam a
+		# annotation só nesse caso (fallback à property p/ null-scan), então casa por construção.
+		def _vuln_sev(sev):
+			return Coalesce(Subquery(
+				Vulnerability.objects
+				.filter(subdomain__name=OuterRef('name'), scan_history=OuterRef('scan_history'), severity=sev)
+				.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+				.values('subdomain__name').annotate(c=Count('id')).values('c'),
+				output_field=IntegerField()), 0)
+		self.queryset = self.queryset.annotate(
+			info_count=_vuln_sev(0), low_count=_vuln_sev(1), medium_count=_vuln_sev(2),
+			high_count=_vuln_sev(3), critical_count=_vuln_sev(4),
+			endpoint_count=Coalesce(Subquery(
+				EndPoint.objects
+				.filter(subdomain__name=OuterRef('name'), scan_history=OuterRef('scan_history'))
+				.values('subdomain__name').annotate(c=Count('id')).values('c'),
+				output_field=IntegerField()), 0),
+			subscan_count=Coalesce(Subquery(
+				SubScan.objects
+				.filter(subdomain__id=OuterRef('id'))
+				.values('subdomain__id').annotate(c=Count('id', distinct=True)).values('c'),
+				output_field=IntegerField()), 0),
 		)
 
 		return self.queryset

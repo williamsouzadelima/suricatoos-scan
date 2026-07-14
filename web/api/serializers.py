@@ -949,29 +949,38 @@ class SubdomainSerializer(serializers.ModelSerializer):
 			.exists()
 		)
 
+	@staticmethod
+	def _annotated_or(subdomain, attr, prop_name, scan_scoped=True):
+		# Onda 3b (#16): usa a Subquery annotation do viewset (0 query) quando presente. Para os
+		# counts escopados por scan (severity/endpoint) só quando o subdomínio tem scan_history —
+		# onde a annotation casa a property exatamente; senão (ou sem annotation) cai na property.
+		if (not scan_scoped or subdomain.scan_history_id is not None) and hasattr(subdomain, attr):
+			return getattr(subdomain, attr)
+		return getattr(subdomain, prop_name)
+
 	def get_endpoint_count(self, subdomain):
-		return subdomain.get_endpoint_count
+		return self._annotated_or(subdomain, 'endpoint_count', 'get_endpoint_count')
 
 	def get_info_count(self, subdomain):
-		return subdomain.get_info_count
+		return self._annotated_or(subdomain, 'info_count', 'get_info_count')
 
 	def get_low_count(self, subdomain):
-		return subdomain.get_low_count
+		return self._annotated_or(subdomain, 'low_count', 'get_low_count')
 
 	def get_medium_count(self, subdomain):
-		return subdomain.get_medium_count
+		return self._annotated_or(subdomain, 'medium_count', 'get_medium_count')
 
 	def get_high_count(self, subdomain):
-		return subdomain.get_high_count
+		return self._annotated_or(subdomain, 'high_count', 'get_high_count')
 
 	def get_critical_count(self, subdomain):
-		return subdomain.get_critical_count
+		return self._annotated_or(subdomain, 'critical_count', 'get_critical_count')
 
 	def get_directories_count(self, subdomain):
 		return subdomain.get_directories_count
 
 	def get_subscan_count(self, subdomain):
-		return subdomain.get_subscan_count
+		return self._annotated_or(subdomain, 'subscan_count', 'get_subscan_count', scan_scoped=False)
 
 	def get_todos_count(self, subdomain):
 		return len(subdomain.get_todos.filter(is_done=False))
