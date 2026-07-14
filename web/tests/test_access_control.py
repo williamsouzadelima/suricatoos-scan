@@ -109,7 +109,14 @@ class SubdomainCountAnnotationTests(TestCase):
 
         resp = self.client.get(f'/api/listDatatableSubdomain/?scan_id={sh.id}')
         self.assertEqual(resp.status_code, 200)
-        rows = [r for r in resp.data['data'] if r['name'] == sub.name]
+        # O envelope varia: sem os params de DataTables (draw/start/length) o paginador
+        # devolve a lista pura; com paginação vem {'data': [...]} (ou {'results': [...]}).
+        payload = resp.data
+        if isinstance(payload, dict):
+            rows_src = payload.get('data') or payload.get('results') or []
+        else:
+            rows_src = payload
+        rows = [r for r in rows_src if r['name'] == sub.name]
         self.assertEqual(len(rows), 1, 'o subdomínio do fixture deve aparecer na página')
         row = rows[0]
         # a annotation (via endpoint) deve bater com a property (fonte da verdade)...
