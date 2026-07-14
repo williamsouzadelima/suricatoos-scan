@@ -20,7 +20,8 @@ por dimensão → cada achado verificado adversarialmente (real? ainda presente?
 | 3 | MED | `report()` sobrescreve `stop_scan_date`/status do ScanHistory pai a cada subscan; e crasha (AttributeError) se scan=None → laço de `link_error` | tasks.py `report` |
 | 4 | LOW | `findings_imported` conta pré-dedup → diverge do relatório | tasks.py `import_openvas_findings` |
 
-### ⏳ Onda 2 — Segurança (real hoje)
+### 🚧 Onda 2 — Segurança (em PR: `fix/audit-wave2-security`; detalhe em `security-onda2.md`)
+> 9 corrigidos (#5,#6,#8,#9,#10,#11,#13,#14,#15); #12 = residual aceito (egress filtering/IMDSv2); #7 = deferido com plano (não-root exige refatorar volumes /root + apt build-time, validar no container).
 | # | Sev | Achado | Arquivo |
 |---|---|---|---|
 | 5 | HIGH | SSRF: guard só valida a origem; WafDetector/CMSDetector seguem 3xx → metadata/interno (bypass) | api/views.py, tasks.py `is_blocked_fetch_target` |
