@@ -9,7 +9,7 @@ import validators
 import requests
 
 from ipaddress import IPv4Network
-from django.db.models import CharField, Count, F, Q, Value
+from django.db.models import CharField, Count, F, Prefetch, Q, Value
 from django.utils import timezone
 from packaging import version
 from django.template.defaultfilters import slugify
@@ -2547,6 +2547,18 @@ class SubdomainDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 
 		if name:
 			self.queryset = self.queryset.filter(name=name)
+
+		# Onda 3 (#16): prefetch dos M2M + serializers aninhados. Sem isto o SubdomainSerializer
+		# dispara 1 query/linha por M2M (ip_addresses/technologies/waf/directories) + aninhados
+		# (IpSerializer.ports, DirectoryScanSerializer.directory_files) → ×500 do DataTable.
+		# Colapsa p/ ~6 queries constantes. Output-invariante. (Os 9 COUNTs por-linha e o hoist
+		# do is_interesting ficam p/ Onda 3b — precisam de verificação com DB, ver perf-onda3.md.)
+		self.queryset = self.queryset.prefetch_related(
+			Prefetch('ip_addresses', queryset=IpAddress.objects.prefetch_related('ports')),
+			'technologies',
+			'waf',
+			Prefetch('directories', queryset=DirectoryScan.objects.prefetch_related('directory_files')),
+		)
 
 		return self.queryset
 
