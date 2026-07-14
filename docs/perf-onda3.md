@@ -1,0 +1,57 @@
+# Onda 3 — Performance (N+1 / índices)
+
+Branch `fix/audit-wave3-performance`. Terceira onda do programa de excelência
+(`audit-2026-07-04-roadmap.md`). Recon adversarial confirmou os 6 achados no código atual
+antes de otimizar.
+
+## Postura de risco
+
+Django/PG não rodam no mac → correção de ORM é verificada por **`assertNumQueries` + valores
+fixados no CI** (que roda agora que os PRs miram `main`). Esta onda entrega o que é
+**output-invariante** (eager-loading, índices, consolidação de aggregate) com alta confiança,
+e **defere** as reescritas que mudam como um valor é computado/o contrato de saída, porque
+exigem verificação contra um banco real (correção de contagem num produto de segurança não se
+chuta).
+
+## Entregue nesta onda (output-invariante / seguro)
+
+| # | Achado | O que foi feito |
+|---|---|---|
+| 20 | Falta de índices | `Meta.indexes` + migração 0010: `severity`, `validation_status`, compostos `(target_domain,severity)`/`(scan_history,severity)`, `subdomain.name` |
+| 17 | VulnerabilitySerializer depth=2 N+1 | `select_related` de todas as FKs + `prefetch_related` dos M2M no `VulnerabilityViewSet.get_queryset` (cobre inclusive os M2M lidos por `model_to_dict`) |
+| 16 | SubdomainSerializer (HIGH) — M2M | `prefetch_related` de `ip_addresses(+ports)`/`technologies`/`waf`/`directories(+directory_files)` no `SubdomainDatatableViewSet` (colapsa o N+1 aninhado) |
+| 19 | ListTargetsDatatableViewSet | `select_related('project','domain_info')` + `prefetch_related('domains')`; `get_organization` passa a ler o cache do prefetch (0 query/linha) |
+| 18 | ListScanHistory | `select_related('domain','domain__project','initiated_by')` |
+| 21 | Dashboard ~13 COUNTs | 6 counts de severidade → 1 `aggregate` (campo local, valores idênticos) |
+
+Todos os nomes de relação foram **conferidos nos models** (um nome errado em
+`select_related`/`prefetch_related` = `FieldError`/500). Smoke test em `test_access_control`
+(`test_eager_loaded_lists_return_200`) exercita os endpoints otimizados (pega erros de
+`select_related`).
+
+## Onda 3b — deferido (muda output/contrato → exige verificação com DB)
+
+Estas otimizações têm o padrão exato já mapeado pelo recon, mas mudam como um valor é
+computado (risco de divergência de contagem) ou o contrato da resposta — precisam de
+`assertNumQueries` + igualdade de saída contra um dataset real (dup-name, FALSE_POSITIVE) antes
+de shipar:
+
+- **#16 (HIGH) — os 9 COUNTs por-linha** do SubdomainSerializer (endpoint/5 severidades/
+  directories/subscan) → **Subquery annotations com `OuterRef('name')`** (as contagens são
+  por NOME, não pela FK; `annotate(Count(...))` com múltiplos M2M causa fan-out cartesiano →
+  usar Subquery). + **hoist do `is_interesting`**: materializar o set de nomes interessantes
+  1× e passar via `context` (hoje ~4 queries/linha). Método-field com **fallback à property**
+  se a annotation faltar.
+- **#18 — counts por-scan** (subdomain/endpoint/vuln/progress) via annotate `distinct=True` +
+  método-fields lendo a annotation; e **paginação** (a resposta é lista pura → mudar p/
+  envelope DataTables **muda o contrato**, exige validar o frontend de scan history).
+- **#19 — `vuln_count`** (hoje bug latente: `get_vuln_count` lê `obj.vuln_count` que nunca é
+  anotado → sempre `None`) → `annotate(vuln_count=Count('vulnerability', filter=~Q(FALSE_POSITIVE),
+  distinct=True))`; e `recent_scan_id=Max('scanhistory__id')` p/ o `get_most_recent_scan`
+  (1 query/linha hoje).
+
+## Notas de deploy (gated — não feito aqui)
+
+- Migração 0010 (índices) aplicada no `manage.py migrate` do deploy. `AddIndex` é atômico
+  (lock breve); p/ tabela muito grande converter p/ `AddIndexConcurrently` + `atomic=False`.
+- Sem mudança de contrato de API nesta onda (só as annotations/paginação da Onda 3b mudam saída).

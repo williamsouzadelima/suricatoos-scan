@@ -52,6 +52,16 @@ class ReadOnlyResultViewSetsTests(TestCase):
         resp = self.client.get('/api/listTargets/')
         self.assertEqual(resp.status_code, 200)
 
+    def test_eager_loaded_lists_return_200(self):
+        # Onda 3 (#16/#17/#19): as querysets ganharam select_related/prefetch_related. Um nome
+        # de relação errado dispararia FieldError (HTTP 500). O select_related constrói os JOINs
+        # na montagem do queryset — exercitado mesmo em base vazia — então este smoke pega erros
+        # de nome de relação nos endpoints otimizados.
+        for route in ('/api/listVulnerability/', '/api/listDatatableSubdomain/',
+                      '/api/listSubdomains/', '/api/listTargets/'):
+            resp = self.client.get(route)
+            self.assertEqual(resp.status_code, 200, f'GET {route} deveria ser 200, veio {resp.status_code}')
+
 
 class ChangeVulnStatusRbacTests(TestCase):
     """A01-3: change_vuln_status must require PERM_MODIFY_SCAN_RESULTS."""
