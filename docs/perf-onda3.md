@@ -20,7 +20,7 @@ chuta).
 | 20 | Falta de índices | `Meta.indexes` + migração 0010: `severity`, `validation_status`, compostos `(target_domain,severity)`/`(scan_history,severity)`, `subdomain.name` |
 | 17 | VulnerabilitySerializer depth=2 N+1 | `select_related` de todas as FKs + `prefetch_related` dos M2M no `VulnerabilityViewSet.get_queryset` (cobre inclusive os M2M lidos por `model_to_dict`) |
 | 16 | SubdomainSerializer (HIGH) — M2M | `prefetch_related` de `ip_addresses(+ports)`/`technologies`/`waf`/`directories(+directory_files)` no `SubdomainDatatableViewSet` (colapsa o N+1 aninhado) |
-| 19 | ListTargetsDatatableViewSet | `select_related('project','domain_info')` + `prefetch_related('domains')`; `get_organization` passa a ler o cache do prefetch (0 query/linha) |
+| 19 (completo) | ListTargetsDatatableViewSet | `select_related('project','domain_info')` + `prefetch_related('domains')` (get_organization lê o cache) + `annotate(vuln_count=Count distinct, recent_scan_id=Max)` — corrige o bug do `vuln_count` sempre `None` |
 | 18 | ListScanHistory | `select_related('domain','domain__project','initiated_by')` |
 | 21 | Dashboard ~13 COUNTs | 6 counts de severidade → 1 `aggregate` (campo local, valores idênticos) |
 
@@ -45,10 +45,11 @@ de shipar:
 - **#18 — counts por-scan** (subdomain/endpoint/vuln/progress) via annotate `distinct=True` +
   método-fields lendo a annotation; e **paginação** (a resposta é lista pura → mudar p/
   envelope DataTables **muda o contrato**, exige validar o frontend de scan history).
-- **#19 — `vuln_count`** (hoje bug latente: `get_vuln_count` lê `obj.vuln_count` que nunca é
-  anotado → sempre `None`) → `annotate(vuln_count=Count('vulnerability', filter=~Q(FALSE_POSITIVE),
-  distinct=True))`; e `recent_scan_id=Max('scanhistory__id')` p/ o `get_most_recent_scan`
-  (1 query/linha hoje).
+- ~~**#19 — `vuln_count` + `recent_scan_id`**~~ ✅ **CONCLUÍDO** (commit posterior): `annotate(
+  vuln_count=Count('vulnerability', filter=~Q(FALSE_POSITIVE), distinct=True),
+  recent_scan_id=Max('scanhistory__id'))`. Corrige o bug do `vuln_count` sempre `None` e tira o
+  `get_recent_scan_id()` por-linha (get_most_recent_scan lê a annotation via hasattr). Reverse-names
+  e tipo de retorno (int) conferidos nos models. #19 agora completo.
 
 ## Notas de deploy (gated — não feito aqui)
 
