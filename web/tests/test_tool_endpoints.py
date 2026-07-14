@@ -42,6 +42,31 @@ class ToolEndpointInputValidationTests(TestCase):
         self.assertEqual(resp.status_code, 504)
 
 
+class ToolCommandGuardTests(TestCase):
+    """Onda 2 (#13) — UpdateTool/UninstallTool compõem comandos a partir de campos
+    controlados por admin (update_command / install_command / github_clone_path).
+    Estes guards impedem que um campo adulterado vire RCE via shell / injeção de path."""
+
+    def test_has_shell_meta_flags_injection(self):
+        from api.views import _has_shell_meta
+        for bad in ['git pull; rm -rf /', 'a | b', 'x && y', '$(id)', '`id`',
+                    'a > /etc/x', 'a < b', 'foo\nbar', 'a & b']:
+            self.assertTrue(_has_shell_meta(bad), f'deveria bloquear: {bad!r}')
+
+    def test_has_shell_meta_allows_plain_commands(self):
+        from api.views import _has_shell_meta
+        for ok in ['git pull', 'go install github.com/projectdiscovery/nuclei/v3@latest',
+                   'pip install dnsvalidator', 'nuclei -update-templates', 'subfinder -up']:
+            self.assertFalse(_has_shell_meta(ok), f'não deveria bloquear: {ok!r}')
+
+    def test_safe_path_segment(self):
+        from api.views import _is_safe_path_segment
+        for ok in ['nuclei', 'sub-finder', 'tool_1', 'a.b']:
+            self.assertTrue(_is_safe_path_segment(ok), f'deveria aceitar: {ok!r}')
+        for bad in ['', '-rf', 'a/b', 'a;b', '../etc', 'a b', 'a$b']:
+            self.assertFalse(_is_safe_path_segment(bad), f'deveria rejeitar: {bad!r}')
+
+
 class ToolFetchTimeoutTests(TestCase):
     @patch('Suricatoos.common_func.requests.get')
     def test_reverse_whois_fetch_has_timeout(self, mock_get):

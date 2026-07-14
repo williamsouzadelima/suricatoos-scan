@@ -80,6 +80,24 @@ class DetectorSsrfTests(TestCase):
             self.client.get('/api/tools/waf_detector/', {'url': 'http://example.com/'})
         mock_run.assert_called()
 
+    @patch('api.views.run_command', return_value=(0, ''))
+    def test_waf_detector_disables_redirect(self, mock_run):
+        # #5: wafw00f must be invoked with -r/--noredirect so a 3xx from the target
+        # can't bounce the fetch into metadata/internal *after* the origin check passed.
+        with patch('Suricatoos.tasks.socket.getaddrinfo', return_value=_addrinfo('93.184.216.34')):
+            self.client.get('/api/tools/waf_detector/', {'url': 'http://example.com/'})
+        cmd = mock_run.call_args[0][0]
+        self.assertIn('-r', cmd.split(), 'wafw00f deve rodar com -r (no-redirect)')
+
+    @patch('api.views.run_command', return_value=(0, ''))
+    def test_cms_detector_does_not_follow_redirect(self, mock_run):
+        # #5: CMSeeK must NOT follow redirects — it reflects fetched content in the API
+        # response, so following a 3xx into metadata/internal would be SSRF w/ exfiltration.
+        with patch('Suricatoos.tasks.socket.getaddrinfo', return_value=_addrinfo('93.184.216.34')):
+            self.client.get('/api/tools/cms_detector/', {'url': 'http://example.com/'})
+        commands = ' '.join(str(a) for call in mock_run.call_args_list for a in call[0])
+        self.assertNotIn('--follow-redirect', commands)
+
 
 class CveDetailsValidationTests(TestCase):
     def setUp(self):
