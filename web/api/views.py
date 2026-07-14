@@ -2282,6 +2282,10 @@ class SubdomainsViewSet(viewsets.ReadOnlyModelViewSet):
 					.filter(scan_history__id=scan_id)
 					.exclude(screenshot_path__isnull=True))
 			return Subdomain.objects.filter(scan_history=scan_id)
+		# Bug pré-existente (achado na Onda 3): sem scan_id o get_queryset caía fora sem return
+		# → None → o paginador fazia len(None) → HTTP 500 num GET /api/listSubdomains/ sem params.
+		# Retorna vazio (a UI sempre passa scan_id; listar TODOS seria um dump sem filtro).
+		return Subdomain.objects.none()
 
 	def paginate_queryset(self, queryset, view=None):
 		if 'no_page' in self.request.query_params:
