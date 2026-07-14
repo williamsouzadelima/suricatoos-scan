@@ -19,7 +19,7 @@ chuta).
 |---|---|---|
 | 20 | Falta de índices | `Meta.indexes` + migração 0010: `severity`, `validation_status`, compostos `(target_domain,severity)`/`(scan_history,severity)`, `subdomain.name` |
 | 17 | VulnerabilitySerializer depth=2 N+1 | `select_related` de todas as FKs + `prefetch_related` dos M2M no `VulnerabilityViewSet.get_queryset` (cobre inclusive os M2M lidos por `model_to_dict`) |
-| 16 | SubdomainSerializer (HIGH) — M2M | `prefetch_related` de `ip_addresses(+ports)`/`technologies`/`waf`/`directories(+directory_files)` no `SubdomainDatatableViewSet` (colapsa o N+1 aninhado) |
+| 16 (HIGH) | SubdomainSerializer | `prefetch_related` dos M2M aninhados (ip_addresses+ports/technologies/waf/directories+directory_files) + **Subquery annotations** substituindo os 7 COUNTs por-linha (5 severidades + endpoint + subscan). Falta só o hoist do `is_interesting` (Onda 3b) |
 | 19 (completo) | ListTargetsDatatableViewSet | `select_related('project','domain_info')` + `prefetch_related('domains')` (get_organization lê o cache) + `annotate(vuln_count=Count distinct, recent_scan_id=Max)` — corrige o bug do `vuln_count` sempre `None` |
 | 18 | ListScanHistory | `select_related('domain','domain__project','initiated_by')` |
 | 21 | Dashboard ~13 COUNTs | 6 counts de severidade → 1 `aggregate` (campo local, valores idênticos) |
@@ -36,12 +36,14 @@ computado (risco de divergência de contagem) ou o contrato da resposta — prec
 `assertNumQueries` + igualdade de saída contra um dataset real (dup-name, FALSE_POSITIVE) antes
 de shipar:
 
-- **#16 (HIGH) — os 9 COUNTs por-linha** do SubdomainSerializer (endpoint/5 severidades/
-  directories/subscan) → **Subquery annotations com `OuterRef('name')`** (as contagens são
-  por NOME, não pela FK; `annotate(Count(...))` com múltiplos M2M causa fan-out cartesiano →
-  usar Subquery). + **hoist do `is_interesting`**: materializar o set de nomes interessantes
-  1× e passar via `context` (hoje ~4 queries/linha). Método-field com **fallback à property**
-  se a annotation faltar.
+- ~~**#16 (HIGH) — os COUNTs por-linha** (5 severidades + endpoint + subscan)~~ ✅ **CONCLUÍDO**
+  (commit posterior): **Subquery annotations** correlacionadas (tradução literal das properties:
+  `subdomain__name` + `scan_history` + exclude FALSE_POSITIVE). Method-fields usam a annotation
+  SÓ quando o subdomínio tem `scan_history` (via helper `_annotated_or`), com **fallback à
+  property** (null-scan raro; subscan incondicional). `directories_count` fica como property
+  (subquery nested complexo). **Teste de valor** no endpoint real vs property + valores concretos.
+  RESTA só o **hoist do `is_interesting`** (o `scan_id` varia por-linha → precisa de cache
+  por-scan no `context`; ~4 queries/linha).
 - **#18 — counts por-scan** (subdomain/endpoint/vuln/progress) via annotate `distinct=True` +
   método-fields lendo a annotation; e **paginação** (a resposta é lista pura → mudar p/
   envelope DataTables **muda o contrato**, exige validar o frontend de scan history).
