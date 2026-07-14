@@ -10,7 +10,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth.password_validation import validate_password
 from django.contrib.auth.signals import user_logged_in, user_logged_out
 from django.contrib import messages
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.db.models.functions import TruncDay
 from django.dispatch import receiver
 from django.shortcuts import redirect, render, get_object_or_404
@@ -57,12 +57,22 @@ def index(request, slug):
     alive_count = subdomains.exclude(http_status__exact=0).count()
     endpoint_alive_count = endpoints.filter(http_status__exact=200).count()
 
-    info_count = vulnerabilities.filter(severity=0).count()
-    low_count = vulnerabilities.filter(severity=1).count()
-    medium_count = vulnerabilities.filter(severity=2).count()
-    high_count = vulnerabilities.filter(severity=3).count()
-    critical_count = vulnerabilities.filter(severity=4).count()
-    unknown_count = vulnerabilities.filter(severity=-1).count()
+    # Onda 3 (#21): 6 COUNTs de severidade → 1 aggregate. severity é campo local (sem join),
+    # então Count('id', filter=Q(severity=N)) == filter(severity=N).count() — valores idênticos.
+    _sev = vulnerabilities.aggregate(
+        info=Count('id', filter=Q(severity=0)),
+        low=Count('id', filter=Q(severity=1)),
+        medium=Count('id', filter=Q(severity=2)),
+        high=Count('id', filter=Q(severity=3)),
+        critical=Count('id', filter=Q(severity=4)),
+        unknown=Count('id', filter=Q(severity=-1)),
+    )
+    info_count = _sev['info']
+    low_count = _sev['low']
+    medium_count = _sev['medium']
+    high_count = _sev['high']
+    critical_count = _sev['critical']
+    unknown_count = _sev['unknown']
 
     vulnerability_feed = vulnerabilities.order_by('-discovered_date')[:50]
     activity_feed = scan_activities.order_by('-time')[:50]
