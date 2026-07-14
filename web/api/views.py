@@ -9,7 +9,8 @@ import validators
 import requests
 
 from ipaddress import IPv4Network
-from django.db.models import CharField, Count, F, Q, Value
+from django.db.models import CharField, Count, F, IntegerField, Max, OuterRef, Prefetch, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from packaging import version
 from django.template.defaultfilters import slugify
@@ -636,9 +637,28 @@ class ListTargetsDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 	serializer_class = DomainSerializer
 
 	def get_queryset(self):
+		# Onda 3 (#19): eager-loading. select_related cobre a expansão depth=2 das FKs diretas
+		# de Domain (project/domain_info); prefetch_related('domains') alimenta o get_organization
+		# (Organization.domains reverse) em 0 query/linha. Fica no self.queryset p/ sobreviver ao
+		# self.queryset.filter() de filter_queryset. Output-invariante.
+		# annotate vuln_count (Count distinct — o get_vuln_count já lê obj.vuln_count, hoje sempre
+		# None por falta desta annotation) + recent_scan_id (= Max scanhistory id, o mesmo que
+		# get_recent_scan_id() ordenado por -id). distinct=True no Count porque o join reverso de
+		# scanhistory faz cross-join com vulnerability e inflaria a contagem sem ele. Espelha o
+		# padrão annotate já usado no dashboard (views.py get_most_common... / most_vulnerable).
+		qs = (
+			Domain.objects
+			.select_related('project', 'domain_info')
+			.prefetch_related('domains')
+			.annotate(
+				vuln_count=Count('vulnerability', filter=~Q(vulnerability__validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE), distinct=True),
+				recent_scan_id=Max('scanhistory__id'),
+			)
+		)
 		slug = self.request.GET.get('slug', None)
 		if slug:
-			self.queryset = self.queryset.filter(project__slug=slug)
+			qs = qs.filter(project__slug=slug)
+		self.queryset = qs
 		return self.queryset
 
 	def filter_queryset(self, qs):
@@ -1933,7 +1953,15 @@ class ListTodoNotes(APIView):
 class ListScanHistory(APIView):
 	def get(self, request, format=None):
 		req = self.request
-		scan_history = ScanHistory.objects.all().order_by('-start_scan_date')
+		# Onda 3 (#18, parcial): select_related das FKs serializadas (domain + project + o
+		# initiated_by do MinimalUserSerializer) — remove queries de FK por-linha. Os counts
+		# por-scan (subdomain/endpoint/vuln/progress) e a paginação (a resposta é lista pura;
+		# mudá-la p/ envelope exige validar o frontend) ficam p/ Onda 3b. Output-invariante.
+		scan_history = (
+			ScanHistory.objects
+			.select_related('domain', 'domain__project', 'initiated_by')
+			.order_by('-start_scan_date')
+		)
 		project = req.query_params.get('project')
 		if project:
 			scan_history = scan_history.filter(domain__project__slug=project)
@@ -2255,6 +2283,10 @@ class SubdomainsViewSet(viewsets.ReadOnlyModelViewSet):
 					.filter(scan_history__id=scan_id)
 					.exclude(screenshot_path__isnull=True))
 			return Subdomain.objects.filter(scan_history=scan_id)
+		# Bug pré-existente (achado na Onda 3): sem scan_id o get_queryset caía fora sem return
+		# → None → o paginador fazia len(None) → HTTP 500 num GET /api/listSubdomains/ sem params.
+		# Retorna vazio (a UI sempre passa scan_id; listar TODOS seria um dump sem filtro).
+		return Subdomain.objects.none()
 
 	def paginate_queryset(self, queryset, view=None):
 		if 'no_page' in self.request.query_params:
@@ -2541,6 +2573,45 @@ class SubdomainDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 
 		if name:
 			self.queryset = self.queryset.filter(name=name)
+
+		# Onda 3 (#16): prefetch dos M2M + serializers aninhados. Sem isto o SubdomainSerializer
+		# dispara 1 query/linha por M2M (ip_addresses/technologies/waf/directories) + aninhados
+		# (IpSerializer.ports, DirectoryScanSerializer.directory_files) → ×500 do DataTable.
+		# Colapsa p/ ~6 queries constantes. Output-invariante. (Os 9 COUNTs por-linha e o hoist
+		# do is_interesting ficam p/ Onda 3b — precisam de verificação com DB, ver perf-onda3.md.)
+		self.queryset = self.queryset.prefetch_related(
+			Prefetch('ip_addresses', queryset=IpAddress.objects.prefetch_related('ports')),
+			'technologies',
+			'waf',
+			Prefetch('directories', queryset=DirectoryScan.objects.prefetch_related('directory_files')),
+		)
+
+		# Onda 3b (#16): substitui os 9 COUNTs por-linha por Subquery annotations correlacionadas
+		# (1 SQL, sem N+1). São tradução LITERAL das properties do model (filtram por
+		# subdomain__name + scan_history + exclude FALSE_POSITIVE). A property só adiciona o filtro
+		# de scan quando o subdomínio TEM scan_history — os method-fields do serializer usam a
+		# annotation só nesse caso (fallback à property p/ null-scan), então casa por construção.
+		def _vuln_sev(sev):
+			return Coalesce(Subquery(
+				Vulnerability.objects
+				.filter(subdomain__name=OuterRef('name'), scan_history=OuterRef('scan_history'), severity=sev)
+				.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+				.values('subdomain__name').annotate(c=Count('id')).values('c'),
+				output_field=IntegerField()), 0)
+		self.queryset = self.queryset.annotate(
+			info_count=_vuln_sev(0), low_count=_vuln_sev(1), medium_count=_vuln_sev(2),
+			high_count=_vuln_sev(3), critical_count=_vuln_sev(4),
+			endpoint_count=Coalesce(Subquery(
+				EndPoint.objects
+				.filter(subdomain__name=OuterRef('name'), scan_history=OuterRef('scan_history'))
+				.values('subdomain__name').annotate(c=Count('id')).values('c'),
+				output_field=IntegerField()), 0),
+			subscan_count=Coalesce(Subquery(
+				SubScan.objects
+				.filter(subdomain__id=OuterRef('id'))
+				.values('subdomain__id').annotate(c=Count('id', distinct=True)).values('c'),
+				output_field=IntegerField()), 0),
+		)
 
 		return self.queryset
 
@@ -3183,6 +3254,23 @@ class VulnerabilityViewSet(viewsets.ReadOnlyModelViewSet):
 			qs = qs.filter(severity=severity)
 		if subdomain_id:
 			qs = qs.filter(subdomain__id=subdomain_id)
+		# Onda 3 (#17): eager-loading. O VulnerabilitySerializer usa Meta.depth=2 + fields='__all__'
+		# e get_scan_history/model_to_dict → sem isto, dezenas de queries POR LINHA (×500 do
+		# DataTable). select_related nas FKs (não muda o shape do JSON) + prefetch_related nos M2M
+		# (inclui os lidos por model_to_dict do scan_history). Antes do self.queryset p/ sobreviver
+		# ao .filter() de filter_queryset. Nomes de relação conferidos nos models.
+		qs = qs.select_related(
+			'scan_history', 'scan_history__domain', 'scan_history__scan_type',
+			'scan_history__initiated_by', 'scan_history__aborted_by',
+			'subdomain', 'subdomain__scan_history', 'subdomain__target_domain',
+			'endpoint', 'endpoint__scan_history', 'endpoint__target_domain', 'endpoint__subdomain',
+			'target_domain', 'target_domain__project',
+		).prefetch_related(
+			'tags', 'references', 'cve_ids', 'cwe_ids', 'vuln_subscan_ids',
+			'scan_history__emails', 'scan_history__employees', 'scan_history__buckets', 'scan_history__dorks',
+			'subdomain__technologies', 'subdomain__ip_addresses', 'subdomain__directories', 'subdomain__waf',
+			'endpoint__techs', 'endpoint__endpoint_subscan_ids',
+		)
 		self.queryset = qs
 		return self.queryset
 
