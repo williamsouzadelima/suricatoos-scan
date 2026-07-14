@@ -103,11 +103,13 @@ class Command(BaseCommand):
             os.remove(path)
         except FileNotFoundError:
             pass
-        fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC, mode)
+        fd = os.open(path, os.O_CREAT | os.O_WRONLY | os.O_TRUNC | os.O_NOFOLLOW, mode)
         try:
             os.fchmod(fd, mode)
-            with os.fdopen(fd, "w") as f:
-                f.write(data)
         except Exception:
             os.close(fd)
             raise
+        # Daqui em diante o fdopen assume a posse do fd e o fecha exatamente uma vez
+        # (se o write falhar, o __exit__ do with fecha — sem double-close).
+        with os.fdopen(fd, "w") as f:
+            f.write(data)

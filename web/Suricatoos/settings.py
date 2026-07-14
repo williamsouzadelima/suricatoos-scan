@@ -73,9 +73,11 @@ THEHARVESTER_API_KEYS_PATH = os.environ.get(
 # só vale em DEBUG; em produção (DEBUG=False) sem a env explícita cai p/ localhost/loopback
 # em vez de aceitar qualquer Host header (evita Host-header poisoning / cache poisoning /
 # links de reset forjados). Deploy real deve setar ALLOWED_HOSTS=scanner.suricatoos.com,...
-ALLOWED_HOSTS = env.list(
-    'ALLOWED_HOSTS',
-    default=['*'] if DEBUG else ['localhost', '127.0.0.1'])
+# NB (#15, revisão adversarial): o docker-compose injeta ALLOWED_HOSTS=${ALLOWED_HOSTS}
+# SEMPRE (string vazia quando o .env não define), e env.list('') retorna [] — não o default.
+# Sem o `or` abaixo a defesa ficaria inerte e um [] derrubaria TODO Host. Coagimos vazio ao
+# fallback seguro; prod deve setar ALLOWED_HOSTS=scanner.suricatoos.com no ambiente.
+ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=[]) or (['*'] if DEBUG else ['localhost', '127.0.0.1'])
 SECRET_KEY = first_run(SECRET_FILE, BASE_DIR)
 
 # --- Security hardening (OWASP A05/A02/A07) -------------------------------

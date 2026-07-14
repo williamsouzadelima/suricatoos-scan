@@ -47,3 +47,28 @@ usuário não-root cego quebraria os endpoints de tool e o boot do celery. Plano
    `scan_results`, execução de nuclei/gf, e um scan ponta-a-ponta antes de considerar fechado.
 
 Enquanto #7 não é fechado, o container roda como root (estado atual, inalterado por esta onda).
+
+## Revisão adversarial (loop de verificação)
+
+Os fixes passaram por uma verificação adversarial (skeptics tentando derrubá-los). Achados
+reais corrigidos num segundo passo:
+- **#13 (denylist → allowlist real):** o filtro de metacaracteres sozinho não continha
+  execução de binário arbitrário (`shell=False` só barra chaining; `wget … -O /go/bin/httpx`
+  sem metacaractere ainda rodaria). Agora `argv[0]` é restrito a uma allowlist
+  (`git/go/pip/pip3/nuclei/subfinder/chaos` + auto-update do próprio tool).
+- **#13b (path traversal no UninstallTool):** `startswith('/usr/src/github/')` era driblável
+  por `'/usr/src/github/../../etc'`. Agora exige que o `realpath` seja filho DIRETO de
+  `/usr/src/github` e usa o caminho normalizado no `rm`.
+- **#11 (double-close):** o caminho de erro fechava o fd duas vezes (fchmod movido p/ `try`
+  próprio; o `fdopen` assume a posse depois) + `O_NOFOLLOW`.
+- **#15 (defesa inerte sob compose):** `env.list('')` retornava `[]` (não o default) e o
+  compose sempre injeta a var → coagido vazio→fallback via `or`.
+- **#10 (nit):** header `Authorization` não-ASCII agora dá 401 limpo (compara em bytes).
+
+## Follow-up sinalizado (fora do escopo desta onda)
+
+**SSRF irmão — `startScan/views.py` `_report_url_fetcher`:** guarda só a URL inicial; o
+WeasyPrint/urllib segue redirects internamente sem reinvocar o guard (contexto de relatório,
+`allow_private=True`). Menor prioridade (superfície de renderização de relatório, privada por
+design), mas deve ser revisitado — mesma classe do #5/#12.
+
