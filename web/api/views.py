@@ -643,7 +643,9 @@ class WafDetector(APIView):
 			response['message'] = _('Invalid Domain/URL provided!')
 			return Response(response)
 
-		wafw00f_command = f'wafw00f {url}'
+		# Onda 2 (#5 SSRF): -r/--noredirect — a decisão do guard sobre a origem é o único
+		# host que wafw00f contata; sem isso um 3xx do alvo levaria a 169.254.169.254/interno.
+		wafw00f_command = f'wafw00f -r {url}'
 		_unused, output = run_command(wafw00f_command, remove_ansi_sequence=True)
 		regex = r"behind (.*?) WAF"
 		group = re.search(regex, output)
@@ -1658,7 +1660,9 @@ class CMSDetector(APIView):
 		try:
 			response = {}
 			cms_detector_command = f'python3 /usr/src/github/CMSeeK/cmseek.py'
-			cms_detector_command += ' --random-agent --batch --follow-redirect'
+			# Onda 2 (#5 SSRF): sem --follow-redirect. CMSeeK reflete o conteúdo buscado na
+			# resposta da API, então seguir 3xx→metadata/interno seria SSRF com exfiltração.
+			cms_detector_command += ' --random-agent --batch'
 			cms_detector_command += f' -u {url}'
 
 			_unused, output = run_command(cms_detector_command, remove_ansi_sequence=True)
