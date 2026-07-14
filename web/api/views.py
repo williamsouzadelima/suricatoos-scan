@@ -1939,7 +1939,15 @@ class ListTodoNotes(APIView):
 class ListScanHistory(APIView):
 	def get(self, request, format=None):
 		req = self.request
-		scan_history = ScanHistory.objects.all().order_by('-start_scan_date')
+		# Onda 3 (#18, parcial): select_related das FKs serializadas (domain + project + o
+		# initiated_by do MinimalUserSerializer) — remove queries de FK por-linha. Os counts
+		# por-scan (subdomain/endpoint/vuln/progress) e a paginação (a resposta é lista pura;
+		# mudá-la p/ envelope exige validar o frontend) ficam p/ Onda 3b. Output-invariante.
+		scan_history = (
+			ScanHistory.objects
+			.select_related('domain', 'domain__project', 'initiated_by')
+			.order_by('-start_scan_date')
+		)
 		project = req.query_params.get('project')
 		if project:
 			scan_history = scan_history.filter(domain__project__slug=project)
