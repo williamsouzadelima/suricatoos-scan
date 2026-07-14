@@ -3183,6 +3183,23 @@ class VulnerabilityViewSet(viewsets.ReadOnlyModelViewSet):
 			qs = qs.filter(severity=severity)
 		if subdomain_id:
 			qs = qs.filter(subdomain__id=subdomain_id)
+		# Onda 3 (#17): eager-loading. O VulnerabilitySerializer usa Meta.depth=2 + fields='__all__'
+		# e get_scan_history/model_to_dict → sem isto, dezenas de queries POR LINHA (×500 do
+		# DataTable). select_related nas FKs (não muda o shape do JSON) + prefetch_related nos M2M
+		# (inclui os lidos por model_to_dict do scan_history). Antes do self.queryset p/ sobreviver
+		# ao .filter() de filter_queryset. Nomes de relação conferidos nos models.
+		qs = qs.select_related(
+			'scan_history', 'scan_history__domain', 'scan_history__scan_type',
+			'scan_history__initiated_by', 'scan_history__aborted_by',
+			'subdomain', 'subdomain__scan_history', 'subdomain__target_domain',
+			'endpoint', 'endpoint__scan_history', 'endpoint__target_domain', 'endpoint__subdomain',
+			'target_domain', 'target_domain__project',
+		).prefetch_related(
+			'tags', 'references', 'cve_ids', 'cwe_ids', 'vuln_subscan_ids',
+			'scan_history__emails', 'scan_history__employees', 'scan_history__buckets', 'scan_history__dorks',
+			'subdomain__technologies', 'subdomain__ip_addresses', 'subdomain__directories', 'subdomain__waf',
+			'endpoint__techs', 'endpoint__endpoint_subscan_ids',
+		)
 		self.queryset = qs
 		return self.queryset
 
