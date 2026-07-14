@@ -100,6 +100,12 @@ class DomainSerializer(serializers.ModelSerializer):
 			return [org.name for org in orgs]
 
 	def get_most_recent_scan(self, obj):
+		# Onda 3 (#19): usa a annotation recent_scan_id (Max scanhistory id) quando o viewset a
+		# adiciona (0 query/linha) — mesmo valor que get_recent_scan_id() (maior id = mais
+		# recente). hasattr distingue "anotado" (int, ou None se o domínio não tem scan) de
+		# "não anotado" (serializer usado em outro lugar → cai no método, compatível).
+		if hasattr(obj, 'recent_scan_id'):
+			return obj.recent_scan_id
 		return obj.get_recent_scan_id()
 
 	def get_insert_date(self, obj):

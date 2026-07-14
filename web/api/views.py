@@ -9,7 +9,7 @@ import validators
 import requests
 
 from ipaddress import IPv4Network
-from django.db.models import CharField, Count, F, Prefetch, Q, Value
+from django.db.models import CharField, Count, F, Max, Prefetch, Q, Value
 from django.utils import timezone
 from packaging import version
 from django.template.defaultfilters import slugify
@@ -640,7 +640,20 @@ class ListTargetsDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 		# de Domain (project/domain_info); prefetch_related('domains') alimenta o get_organization
 		# (Organization.domains reverse) em 0 query/linha. Fica no self.queryset p/ sobreviver ao
 		# self.queryset.filter() de filter_queryset. Output-invariante.
-		qs = Domain.objects.select_related('project', 'domain_info').prefetch_related('domains')
+		# annotate vuln_count (Count distinct — o get_vuln_count já lê obj.vuln_count, hoje sempre
+		# None por falta desta annotation) + recent_scan_id (= Max scanhistory id, o mesmo que
+		# get_recent_scan_id() ordenado por -id). distinct=True no Count porque o join reverso de
+		# scanhistory faz cross-join com vulnerability e inflaria a contagem sem ele. Espelha o
+		# padrão annotate já usado no dashboard (views.py get_most_common... / most_vulnerable).
+		qs = (
+			Domain.objects
+			.select_related('project', 'domain_info')
+			.prefetch_related('domains')
+			.annotate(
+				vuln_count=Count('vulnerability', filter=~Q(vulnerability__validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE), distinct=True),
+				recent_scan_id=Max('scanhistory__id'),
+			)
+		)
 		slug = self.request.GET.get('slug', None)
 		if slug:
 			qs = qs.filter(project__slug=slug)
