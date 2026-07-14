@@ -636,9 +636,15 @@ class ListTargetsDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 	serializer_class = DomainSerializer
 
 	def get_queryset(self):
+		# Onda 3 (#19): eager-loading. select_related cobre a expansão depth=2 das FKs diretas
+		# de Domain (project/domain_info); prefetch_related('domains') alimenta o get_organization
+		# (Organization.domains reverse) em 0 query/linha. Fica no self.queryset p/ sobreviver ao
+		# self.queryset.filter() de filter_queryset. Output-invariante.
+		qs = Domain.objects.select_related('project', 'domain_info').prefetch_related('domains')
 		slug = self.request.GET.get('slug', None)
 		if slug:
-			self.queryset = self.queryset.filter(project__slug=slug)
+			qs = qs.filter(project__slug=slug)
+		self.queryset = qs
 		return self.queryset
 
 	def filter_queryset(self, qs):

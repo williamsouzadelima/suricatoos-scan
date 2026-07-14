@@ -91,8 +91,13 @@ class DomainSerializer(serializers.ModelSerializer):
 			return None
 
 	def get_organization(self, obj):
-		if Organization.objects.filter(domains__id=obj.id).exists():
-			return [org.name for org in Organization.objects.filter(domains__id=obj.id)]
+		# Onda 3 (#19): usa o prefetch_related('domains') do viewset (0 query/linha) em vez de
+		# dois Organization.objects.filter(domains__id=...). obj.domains é o reverse de
+		# Organization.domains (related_name='domains') → as Organizations deste domínio.
+		# Mesmo output (lista de nomes, ou None quando não há organização).
+		orgs = list(obj.domains.all())
+		if orgs:
+			return [org.name for org in orgs]
 
 	def get_most_recent_scan(self, obj):
 		return obj.get_recent_scan_id()
