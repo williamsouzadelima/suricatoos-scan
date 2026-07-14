@@ -69,9 +69,13 @@ THEHARVESTER_API_KEYS_PATH = os.environ.get(
 
 # Globals
 # OWASP A05-2: env-driven so a deployment can restrict the accepted Host headers
-# (e.g. ALLOWED_HOSTS=recon.example.com,127.0.0.1). Defaults to the wildcard to
-# preserve the inherited behaviour for IP-accessed dev boxes; production should set it.
-ALLOWED_HOSTS = env.list('ALLOWED_HOSTS', default=['*'])
+# (e.g. ALLOWED_HOSTS=recon.example.com,127.0.0.1). Onda 2 (#15): o fallback wildcard
+# só vale em DEBUG; em produção (DEBUG=False) sem a env explícita cai p/ localhost/loopback
+# em vez de aceitar qualquer Host header (evita Host-header poisoning / cache poisoning /
+# links de reset forjados). Deploy real deve setar ALLOWED_HOSTS=scanner.suricatoos.com,...
+ALLOWED_HOSTS = env.list(
+    'ALLOWED_HOSTS',
+    default=['*'] if DEBUG else ['localhost', '127.0.0.1'])
 SECRET_KEY = first_run(SECRET_FILE, BASE_DIR)
 
 # --- Security hardening (OWASP A05/A02/A07) -------------------------------
@@ -212,6 +216,14 @@ TEMPLATES = [
     },
 }]
 ROOT_URLCONF = 'Suricatoos.urls'
+
+# Onda 2 (#8): throttle global da API (além do rate-limit de login). Env-flagged,
+# ligado por padrão fora de DEBUG. As contagens usam o cache 'default' (LocMemCache);
+# o entrypoint roda gunicorn com 1 worker (+threads), então a contagem é consistente
+# num único processo (mesma premissa do login_throttle). O ingest máquina-a-máquina
+# (SensorFindingsImport) declara throttle_classes=[] p/ ficar isento.
+SURICATOOS_API_THROTTLE_ENABLED = env.bool('SURICATOOS_API_THROTTLE_ENABLED', default=not DEBUG)
+
 REST_FRAMEWORK = {
     # Session auth: the template-driven (DataTables) API calls authenticate with
     # the logged-in Django session cookie.
@@ -235,6 +247,18 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS':(
         'rest_framework_datatables.pagination.DatatablesPageNumberPagination'
     ),
+    # Onda 2 (#8): rates folgados p/ não quebrar os grids DataTables (várias chamadas
+    # /api/ por página, PAGE_SIZE=500) nem o polling da UI; ajustáveis por env.
+    'DEFAULT_THROTTLE_CLASSES': (
+        (
+            'rest_framework.throttling.AnonRateThrottle',
+            'rest_framework.throttling.UserRateThrottle',
+        ) if SURICATOOS_API_THROTTLE_ENABLED else ()
+    ),
+    'DEFAULT_THROTTLE_RATES': {
+        'anon': env('SURICATOOS_API_THROTTLE_ANON', default='60/min'),
+        'user': env('SURICATOOS_API_THROTTLE_USER', default='600/min'),
+    },
     'PAGE_SIZE': 500,
 }
 
