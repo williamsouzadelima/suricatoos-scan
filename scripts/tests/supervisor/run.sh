@@ -35,8 +35,14 @@ for lbl in main_scan_queue api_worker shared_worker coordinator_worker deep_port
 done
 
 NQ=$(wc -l < /var/lib/suricatoos/served-queues)
-[ "$NQ" = "8" ] && ok "manifesto com 8 filas" || ko "manifesto de filas" "esperado 8, veio $NQ ($(tr '\n' ' ' < /var/lib/suricatoos/served-queues))"
-grep -qx coordinator_queue /var/lib/suricatoos/served-queues && ok "coordinator_queue no manifesto" || ko "manifesto" "coordinator_queue ausente"
+EXP=$(cat /tmp/expected-queues 2>/dev/null || echo 27)
+[ "$NQ" = "$EXP" ] && ok "manifesto completo ($EXP filas)" || ko "manifesto de filas" "esperado $EXP, veio $NQ"
+# Regressao do truncamento: com a classe [a-z_,] o match parava no primeiro nome com
+# digito ou maiuscula e o manifesto saia com 23 de 27, perdendo hang_monitor_queue.
+for q in coordinator_queue h8mail_queue theHarvester_queue hang_monitor_queue main_scan_queue; do
+  grep -qx "$q" /var/lib/suricatoos/served-queues && ok "manifesto contem '$q'" || ko "manifesto truncado" "'$q' ausente"
+done
+grep -qx h /var/lib/suricatoos/served-queues && ko "manifesto" "entrada espuria 'h' (truncamento)" || ok "sem entrada espuria de truncamento"
 
 # healthcheck deve estar VERDE agora
 sh /test/celery-healthcheck.sh 2>/tmp/hc1.err; RC=$?

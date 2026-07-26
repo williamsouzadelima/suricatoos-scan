@@ -36,6 +36,8 @@ LINE=$(grep -n '^eval "\$commands"' "$ENTRYPOINT" | head -1 | cut -d: -f1)
 sed -n "${LINE},\$p" "$ENTRYPOINT" > "$WORK/supervision.inc"
 
 cp "$HEALTHCHECK" "$HERE/harness.sh" "$HERE/run.sh" "$WORK/"
+# O harness extrai a lista real de filas daqui (nomes com digito/maiuscula incluidos).
+cp "$ENTRYPOINT" "$WORK/entrypoint.src"
 
 echo "Bloco de supervisao extraido de web/celery-entrypoint.sh (a partir da linha $LINE)."
 exec docker run --rm --network none -v "$WORK":/test:ro "$IMAGE" bash /test/run.sh

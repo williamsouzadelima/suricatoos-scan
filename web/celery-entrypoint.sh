@@ -415,7 +415,7 @@ for _pid in $(jobs -p); do
     # worker (que nao usa -n), a fila do `-Q`.
     _cmd=$(tr '\0' ' ' < "/proc/$_pid/cmdline" 2>/dev/null)
     _label=$(printf '%s' "$_cmd" | grep -oE '\-n [A-Za-z0-9_.@-]+' | head -1 | cut -d' ' -f2)
-    [ -z "$_label" ] && _label=$(printf '%s' "$_cmd" | grep -oE '\-Q [a-z_]+' | head -1 | cut -d' ' -f2)
+    [ -z "$_label" ] && _label=$(printf '%s' "$_cmd" | grep -oE '\-Q [A-Za-z0-9_]+' | head -1 | cut -d' ' -f2)
     [ -z "$_label" ] && _label="worker_$_pid"
     WORKER_LABEL[$_pid]="$_label"
     echo "$_pid $_label" >> "$WORKER_PIDS_FILE"
@@ -423,7 +423,10 @@ for _pid in $(jobs -p); do
     # este conjunto (o esperado) com o que os processos vivos cobrem, e assim consegue
     # NOMEAR a fila que ficou orfa — o diagnostico que faltou por 3 dias em 22/07,
     # quando a unica pista era "scan abortado pelo hang monitor".
-    printf '%s' "$_cmd" | grep -oE '\-Q [a-z_,]+' | head -1 | cut -d' ' -f2 | tr ',' '\n' \
+    # A classe precisa de [A-Za-z0-9]: ha filas com digito (h8mail_queue) e com
+    # maiuscula (theHarvester_queue). Com [a-z_,] o match parava na primeira delas e
+    # o manifesto saia TRUNCADO (23 de 27), perdendo justamente hang_monitor_queue.
+    printf '%s' "$_cmd" | grep -oE '\-Q [A-Za-z0-9_,]+' | head -1 | cut -d' ' -f2 | tr ',' '\n' \
         >> "$SURICATOOS_STATE_DIR/served-queues.tmp"
 done
 sort -u "$SURICATOOS_STATE_DIR/served-queues.tmp" 2>/dev/null > "$SURICATOOS_STATE_DIR/served-queues"
