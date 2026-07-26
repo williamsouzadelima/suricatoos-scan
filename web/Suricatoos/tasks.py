@@ -6706,6 +6706,16 @@ def save_vulnerability(**vuln_data):
 			vuln.tags.add(tag)
 			vuln.save()
 
+	# Taxonomia: separa reconhecimento de vulnerabilidade. Feito AQUI, e nao no
+	# get_or_create, por dois motivos: (a) as tags — que sao o insumo da classificacao —
+	# so existem depois do laco acima; (b) incluir finding_class no lookup do
+	# get_or_create faria um achado ja gravado com outra classe virar linha DUPLICADA.
+	# Reavaliado a cada ocorrencia para que uma mudanca de regra alcance achado antigo.
+	new_class = classify_finding(vuln_data.get('severity'), tags)
+	if vuln.finding_class != new_class:
+		vuln.finding_class = new_class
+		vuln.save(update_fields=['finding_class'])
+
 	# Save CVEs
 	for cve_id in cve_ids or []:
 		cve, created = CveId.objects.get_or_create(name=cve_id)

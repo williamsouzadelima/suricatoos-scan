@@ -305,6 +305,39 @@ try:
 except (TypeError, ValueError):
     HTTP_CRAWL_BATCH_SIZE = 150
 
+# ---------------------------------------------------------------------------
+# TAXONOMIA DO ACHADO — separar reconhecimento de vulnerabilidade.
+#
+# Medido em producao (26/07/2026, 12.096 achados): 97,3% eram `info`, e o achado de
+# MAIOR volume era "RDAP WHOIS" (3.923) — uma consulta WHOIS. O 3o era "WAF Detection"
+# (1.532), que e uma coisa BOA. Isso e inventario e reconhecimento gravado na tabela de
+# vulnerabilidades: enquanto for, toda contagem, dashboard, relatorio e rating mente, e
+# os 2 achados criticos reais ficam soterrados sob 11.766 linhas de fato de ambiente.
+#
+# A classificacao NAO precisa de heuristica nova: o proprio nuclei ja marca isso nas
+# tags do template. Verificado contra a base real — a regra abaixo separa 8.048 de
+# inventario e 3.448 de higiene sem capturar UM UNICO achado de severidade media ou
+# maior, e preserva os 10 alta/critica e os 247 media+ do lado de vulnerabilidade.
+FINDING_CLASS_VULNERABILITY = 'vulnerability'
+FINDING_CLASS_HYGIENE = 'hygiene'
+FINDING_CLASS_INVENTORY = 'inventory'
+
+# Fato sobre o ambiente: "existe um WAF", "a tecnologia e X", "o registro CAA e Y".
+# Nao ha o que remediar — e inventario, e pertence ao ativo, nao ao backlog de risco.
+FINDING_TAGS_INVENTORY = frozenset({
+    'discovery', 'tech', 'osint', 'enum', 'passive', 'whois', 'rdap',
+})
+# Boa pratica ausente: cabecalho de seguranca faltando, SRI ausente. E real e vale
+# reportar, mas nao e exploravel por si — misturado com CVE, achata a prioridade.
+FINDING_TAGS_HYGIENE = frozenset({
+    'misconfig', 'compliance', 'headers',
+})
+# Piso de seguranca: a classificacao por tag NUNCA rebaixa um achado de severidade
+# media ou maior. As tags do nuclei sao inconsistentes (o proprio "RDAP WHOIS" carrega
+# a tag `vuln`), entao um template severo que um dia venha marcado `discovery` seria
+# escondido em silencio. Hoje o piso nao descarta nada — ele protege o amanha.
+FINDING_CLASS_SEVERITY_FLOOR = 2   # 2 = medium na escala do reNgine
+
 # naabu
 NAABU_DEFAULT_PORTS = ['top-100']
 

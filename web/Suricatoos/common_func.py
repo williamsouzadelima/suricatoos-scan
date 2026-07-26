@@ -1744,3 +1744,46 @@ def is_valid_nmap_command(cmd):
 		return False
 
 	return True
+
+
+def classify_finding(severity, tags):
+	"""Classifica um achado em vulnerability / hygiene / inventory.
+
+	Existe porque o scanner grava reconhecimento na mesma tabela que vulnerabilidade.
+	Medido em producao: 97,3% dos 12.096 achados eram `info`, e o de maior volume era
+	"RDAP WHOIS" — uma consulta WHOIS. Sem separar, toda contagem mente e os achados
+	criticos reais ficam soterrados.
+
+	Nao inventa heuristica: usa as tags que o proprio nuclei ja poe no template.
+	Verificado contra a base real — separa 8.048 de inventario e 3.448 de higiene sem
+	capturar nenhum achado de severidade media ou maior.
+
+	Args:
+		severity (int): severidade na escala do reNgine (-1 unknown .. 4 critical).
+		tags (iterable): tags do template; vazio para fontes que nao tageiam (dalfox).
+
+	Returns:
+		str: uma das constantes FINDING_CLASS_*.
+	"""
+	# Piso: nada de severidade media+ e rebaixado a inventario/higiene, por mais que a
+	# tag diga o contrario. As tags do nuclei sao inconsistentes — "RDAP WHOIS" carrega
+	# a tag `vuln` — entao confiar nelas para ESCONDER algo severo seria um risco mudo.
+	try:
+		sev = int(severity)
+	except (TypeError, ValueError):
+		sev = -1
+	if sev >= FINDING_CLASS_SEVERITY_FLOOR:
+		return FINDING_CLASS_VULNERABILITY
+
+	# Sem tag (dalfox e o scanner bridge nao tageiam) -> nao ha base para rebaixar.
+	tag_set = {str(t).strip().lower() for t in (tags or []) if str(t).strip()}
+	if not tag_set:
+		return FINDING_CLASS_VULNERABILITY
+
+	# Inventario vence higiene: "WordPress Passive Detection" carrega as duas familias,
+	# e o que ele entrega e fato de ambiente, nao boa pratica ausente.
+	if tag_set & FINDING_TAGS_INVENTORY:
+		return FINDING_CLASS_INVENTORY
+	if tag_set & FINDING_TAGS_HYGIENE:
+		return FINDING_CLASS_HYGIENE
+	return FINDING_CLASS_VULNERABILITY

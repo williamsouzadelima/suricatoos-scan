@@ -509,6 +509,29 @@ class Vulnerability(models.Model):
 	validated_date = models.DateTimeField(null=True, blank=True)
 	validation_evidence = models.TextField(null=True, blank=True)
 
+	# Taxonomia do achado: o scanner grava RECONHECIMENTO na mesma tabela que
+	# vulnerabilidade. Medido em 26/07/2026 sobre 12.096 achados: 97,3% eram `info` e o
+	# de maior volume era "RDAP WHOIS" (3.923 linhas) — uma consulta WHOIS. O 3o era
+	# "WAF Detection", que e uma coisa boa. Sem separar, toda contagem/dashboard/relatorio
+	# mente e os 2 criticos reais ficam soterrados.
+	#
+	# Default `vulnerability` de proposito: a coluna nasce sem mudar contagem nenhuma. A
+	# reclassificacao dos dados existentes e um passo EXPLICITO (manage.py classify_findings),
+	# e os consumidores passam a filtrar por classe numa mudanca propria — nao de carona.
+	CLASS_VULNERABILITY = 'vulnerability'   # exploravel / risco de fato
+	CLASS_HYGIENE = 'hygiene'               # boa pratica ausente (header, SRI)
+	CLASS_INVENTORY = 'inventory'           # fato de ambiente (WHOIS, WAF, tech, CAA)
+	FINDING_CLASS_CHOICES = (
+		(CLASS_VULNERABILITY, 'Vulnerability'),
+		(CLASS_HYGIENE, 'Hygiene'),
+		(CLASS_INVENTORY, 'Inventory'),
+	)
+	finding_class = models.CharField(
+		max_length=20,
+		choices=FINDING_CLASS_CHOICES,
+		default=CLASS_VULNERABILITY,
+		db_index=True)
+
 	# used for subscans
 	vuln_subscan_ids = models.ManyToManyField('SubScan', related_name='vuln_subscan_ids', blank=True)
 
