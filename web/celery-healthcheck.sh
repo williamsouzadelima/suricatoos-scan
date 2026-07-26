@@ -38,6 +38,27 @@ if [ -e "$MARKER" ]; then
     esac
 fi
 
+# --- (1b) boot em andamento -------------------------------------------------
+# Vem DEPOIS do crashloop de proposito: em crashloop o container tem que aparecer
+# `unhealthy`, e nao "eternamente subindo". Aqui so cobre o preambulo LEGITIMO
+# (migrate/collectstatic/apt/git clone), que num boot recriado leva minutos. Passado o
+# orcamento, boot que nao termina e boot travado -> unhealthy, que e o diagnostico certo.
+BOOTING="$STATE_DIR/booting"
+BOOT_BUDGET=${SURICATOOS_BOOT_BUDGET:-1800}
+if [ -e "$BOOTING" ]; then
+    started=$(cat "$BOOTING" 2>/dev/null)
+    case "$started" in
+        ''|*[!0-9]*) exit 1 ;;                     # marcador corrompido -> fail-closed
+        *)
+            age=$(( $(date +%s) - started ))
+            if [ "$age" -lt "$BOOT_BUDGET" ]; then
+                exit 0                             # preambulo em andamento, dentro do orcamento
+            fi
+            echo "boot travado: ${age}s no preambulo (orcamento ${BOOT_BUDGET}s)" >&2
+            exit 1 ;;
+    esac
+fi
+
 # --- (2) workers vivos ------------------------------------------------------
 # Ausente/vazio = ainda no preambulo (o entrypoint apaga o arquivo no inicio do boot)
 # ou supervisor caido. Ambos sao "nao pronto". O `start_period` do compose e quem
@@ -52,7 +73,9 @@ rc=0
 while read -r pid label; do
     [ -n "$pid" ] || continue
     if kill -0 "$pid" 2>/dev/null; then
-        alive_cmdlines="$alive_cmdlines $(tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null)"
+        # `2>/dev/null` ANTES do `<`: quem emite "cannot open" e o shell ao processar o
+        # `<`, entao com o `2>` depois a mensagem escapava.
+        alive_cmdlines="$alive_cmdlines $(tr '\0' ' ' 2>/dev/null < "/proc/$pid/cmdline")"
     else
         echo "worker MORTO: $label (pid $pid)" >&2
         rc=1

@@ -117,6 +117,28 @@ grep -q "FILA SEM CONSUMIDOR: coordinator_queue" /tmp/hc3.err \
 rm -f /var/lib/suricatoos/served-queues
 echo
 
+# --------------------------------------------------- T3c: marcador de boot
+echo "--- T3c: boot em andamento vs boot travado vs crashloop ---"
+rm -f /var/lib/suricatoos/crashloop /var/lib/suricatoos/served-queues /tmp/suricatoos-workers.pids
+mkdir -p /var/lib/suricatoos
+# Preambulo legitimo em andamento: sem pids ainda, mas NAO pode reprovar.
+date +%s > /var/lib/suricatoos/booting
+sh /test/celery-healthcheck.sh 2>/dev/null; RC=$?
+[ "$RC" = "0" ] && ok "boot em andamento -> healthy (sem pids ainda)" || ko "marcador booting" "rc=$RC"
+# Boot que nao termina e boot TRAVADO: tem que reprovar, e nao ficar 'starting' p/ sempre.
+echo $(( $(date +%s) - 99999 )) > /var/lib/suricatoos/booting
+sh /test/celery-healthcheck.sh 2>/tmp/hc4.err; RC=$?
+[ "$RC" = "1" ] && ok "boot travado -> unhealthy" || ko "boot travado" "rc=$RC"
+grep -q "boot travado" /tmp/hc4.err && ok "diz que o boot travou" || ko "diagnostico de boot" "$(cat /tmp/hc4.err)"
+# Crashloop VENCE o booting: senao o container em crashloop ficaria eternamente "subindo",
+# que e exatamente o buraco que o start_period longo criava.
+date +%s > /var/lib/suricatoos/booting
+echo $(( $(date +%s) + 600 )) > /var/lib/suricatoos/crashloop
+sh /test/celery-healthcheck.sh 2>/dev/null; RC=$?
+[ "$RC" = "1" ] && ok "crashloop vence booting -> unhealthy" || ko "precedencia crashloop" "rc=$RC"
+rm -f /var/lib/suricatoos/crashloop /var/lib/suricatoos/booting
+echo
+
 # ---------------------------------------------------------------- T4: injecao nos envs
 echo "--- T4: env hostil nao executa comando ---"
 rm -rf /var/lib/suricatoos /tmp/pwn; mkdir -p /var/lib/suricatoos

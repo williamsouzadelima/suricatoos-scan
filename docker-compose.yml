@@ -63,9 +63,14 @@ services:
       interval: 10s
       timeout: 10s
       retries: 3
-      # O preambulo (migrate/collectstatic/apt/git clone) leva minutos num boot que
-      # RECRIA o container. Estimativa: se um boot legitimo virar `unhealthy`, subir.
-      start_period: 1200s
+      # CURTO de proposito. Um start_period longo NAO servia aqui: ele reseta a cada
+      # restart e so termina antes da hora se um probe PASSAR, entao num crashloop (onde o
+      # probe sempre reprova) o container ficava `health: starting` para SEMPRE e nunca
+      # `unhealthy` — suprimindo o unico sinal externo novo, exatamente no incidente que
+      # ele existe para expor. Verificado empiricamente contra o Docker.
+      # Quem cobre o preambulo legitimo agora e o marcador `booting` que o entrypoint
+      # escreve, e que o healthcheck sabe distinguir de um boot travado.
+      start_period: 60s
     # command: celery -A Suricatoos worker --autoscale=${MAX_CONCURRENCY},${MIN_CONCURRENCY} -l INFO
     volumes:
       - ./web:/usr/src/app:ro

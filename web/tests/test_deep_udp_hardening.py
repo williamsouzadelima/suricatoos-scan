@@ -82,6 +82,102 @@ class ChunkingTests(unittest.TestCase):
             self.assertIsNone(build_udp_nmap_cmd('example.com', tier, port_range='1-100'))
 
 
+class AdaptiveSweepTests(unittest.TestCase):
+    """O caminho de ESTOURO — o que a primeira versao errava e nenhum teste cobria.
+
+    Com bloco de tamanho FIXO, um alvo que faz rate-limit de ICMP dest-unreachable
+    (~1 porta/s — a classe de alvo que motiva o tier deep, e a razao de um `-sU -p-` durar
+    ~18h) nunca cabia nos 2700s do orcamento. Todo bloco morria por SIGKILL, o nmap nao
+    grava parcial, e apos 3 strikes o host voltava VAZIO: "rapido e sempre vazio",
+    indistinguivel de "nenhuma porta UDP" na UI. Era REGRESSAO — antes dos blocos, um unico
+    nmap com watchdog de dias concluia com as portas reais.
+    """
+
+    def test_slow_target_is_subdivided_instead_of_abandoned(self):
+        from Suricatoos.tasks import _deep_udp_sweep
+        from Suricatoos.definitions import DEEP_UDP_MIN_CHUNK_PORTS
+        # Alvo que so consegue varrer faixas pequenas: qualquer coisa acima do piso estoura.
+        scanned = []
+
+        def scan_range(lo, hi):
+            if (hi - lo + 1) > DEEP_UDP_MIN_CHUNK_PORTS:
+                return True, []          # morto pelo watchdog, sem resultado parcial
+            scanned.append((lo, hi))
+            return False, [{'port': lo, 'ip': '10.0.0.1'}]
+
+        found, reason = _deep_udp_sweep([(1, 8192)], scan_range)
+        self.assertEqual(reason, '', 'nao pode desistir do host: as faixas cabem quando divididas')
+        self.assertEqual(len(found), 8192 // DEEP_UDP_MIN_CHUNK_PORTS)
+        # E a faixa toda tem que acabar coberta, sem buraco nem sobreposicao.
+        cobertura = sorted(scanned)
+        self.assertEqual(cobertura[0][0], 1)
+        self.assertEqual(cobertura[-1][1], 8192)
+        for (a_lo, a_hi), (b_lo, b_hi) in zip(cobertura, cobertura[1:]):
+            self.assertEqual(b_lo, a_hi + 1)
+
+    def test_fast_target_is_not_subdivided(self):
+        from Suricatoos.tasks import _deep_udp_sweep
+        calls = []
+
+        def scan_range(lo, hi):
+            calls.append((lo, hi))
+            return False, []
+
+        _deep_udp_sweep([(1, 8192), (8193, 16384)], scan_range)
+        self.assertEqual(calls, [(1, 8192), (8193, 16384)], 'sem estouro, nada de subdividir')
+
+    def test_gives_up_only_after_the_floor_itself_times_out(self):
+        from Suricatoos.tasks import _deep_udp_sweep
+        from Suricatoos.definitions import DEEP_UDP_MAX_TIMED_OUT_CHUNKS
+        # Alvo que nao responde nem no piso: aí sim desistir é o certo.
+        found, reason = _deep_udp_sweep([(1, 8192)], lambda lo, hi: (True, []))
+        self.assertEqual(found, [])
+        self.assertIn('piso', reason)
+        self.assertIn(str(DEEP_UDP_MAX_TIMED_OUT_CHUNKS), reason)
+
+    def test_results_confirmed_before_giving_up_are_kept(self):
+        # O ponto do fatiamento: o que ja foi confirmado nao se perde quando o resto morre.
+        # Faixas ja no piso, entao cada estouro conta strike direto (sem subdividir); sao
+        # precisos DEEP_UDP_MAX_TIMED_OUT_CHUNKS estouros para desistir do host.
+        from Suricatoos.tasks import _deep_udp_sweep
+        from Suricatoos.definitions import DEEP_UDP_MAX_TIMED_OUT_CHUNKS
+        ranges = [(1, 100)] + [(100 * i + 1, 100 * (i + 1))
+                               for i in range(1, DEEP_UDP_MAX_TIMED_OUT_CHUNKS + 1)]
+
+        def scan_range(lo, hi):
+            return (False, [{'port': 53}]) if lo == 1 else (True, [])
+
+        found, reason = _deep_udp_sweep(ranges, scan_range)
+        self.assertEqual(found, [{'port': 53}], 'o que foi confirmado tem que sobreviver')
+        self.assertIn('piso', reason, 'desistiu apos os strikes no piso')
+
+    def test_host_budget_stops_the_sweep(self):
+        from Suricatoos.tasks import _deep_udp_sweep
+        from Suricatoos.definitions import DEEP_UDP_HOST_BUDGET
+        # Relogio falso que salta o orcamento inteiro apos a primeira faixa.
+        ticks = iter([0, 0, DEEP_UDP_HOST_BUDGET + 1, DEEP_UDP_HOST_BUDGET + 2])
+        found, reason = _deep_udp_sweep(
+            [(1, 100), (101, 200)], lambda lo, hi: (False, [{'port': lo}]),
+            clock=lambda: next(ticks))
+        self.assertEqual(found, [{'port': 1}], 'a primeira faixa foi varrida e salva')
+        self.assertIn('teto', reason)
+
+    def test_irrelevant_scan_stops_the_sweep_midway(self):
+        from Suricatoos.tasks import _deep_udp_sweep
+        calls = []
+
+        def scan_range(lo, hi):
+            calls.append((lo, hi))
+            return False, []
+
+        # Relevante na 1a checagem, irrelevante na 2a (scan abortado no meio da varredura).
+        states = iter([(True, ''), (False, 'scan 49 foi abortado')])
+        found, reason = _deep_udp_sweep(
+            [(1, 100), (101, 200)], scan_range, still_relevant=lambda: next(states))
+        self.assertEqual(len(calls), 1, 'nao pode seguir varrendo host de scan abortado')
+        self.assertIn('abortado', reason)
+
+
 class RelevanceGuardTests(TestCase):
     def setUp(self):
         from targetApp.models import Domain

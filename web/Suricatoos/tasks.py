@@ -2218,6 +2218,62 @@ def _deep_udp_select_hosts(hosts, scan, scan_id):
 	return rotated[:cap], len(ordered) - cap
 
 
+def _deep_udp_sweep(chunks, scan_range, still_relevant=None, clock=None, label=''):
+	"""Percorre as faixas de porta com SUBDIVISAO ADAPTATIVA. Devolve (achados, motivo).
+
+	``scan_range(lo, hi) -> (killed, found)`` executa uma faixa: ``killed`` diz se o
+	processo foi morto por estourar o orcamento (o nmap NAO grava parcial nesse caso, entao
+	``found`` vem vazio) e ``found`` sao as portas abertas confirmadas.
+
+	A logica vive aqui, separada do nmap, porque e ela que contem o unico defeito serio
+	que esta feature ja teve: com bloco de tamanho FIXO, um alvo que faz rate-limit de ICMP
+	(~1 porta/s — exatamente a classe de alvo que motiva o tier deep) nunca cabia no
+	orcamento, todo bloco morria, e depois de 3 strikes o host voltava VAZIO. Ficava
+	"rapido e sempre vazio", indistinguivel na UI de "nenhuma porta UDP", e era uma
+	REGRESSAO: antes dos blocos, um unico nmap com watchdog de dias concluia com as portas
+	reais. Aqui a faixa que nao cabe e DIVIDIDA AO MEIO e re-tentada, ate caber ou atingir
+	DEEP_UDP_MIN_CHUNK_PORTS.
+	"""
+	clock = clock or time.time
+	found_all = []
+	pending = list(chunks)
+	deadline = (clock() + DEEP_UDP_HOST_BUDGET) if DEEP_UDP_HOST_BUDGET else None
+	floor_strikes = 0
+	while pending:
+		if deadline and clock() >= deadline:
+			return found_all, (
+				f'teto de {DEEP_UDP_HOST_BUDGET}s atingido com {len(pending)} faixa(s) '
+				f'pendente(s); o que foi confirmado ja esta salvo')
+		if still_relevant:
+			ok, why = still_relevant()
+			if not ok:
+				return found_all, why
+		lo, hi = pending.pop(0)
+		width = hi - lo + 1
+		killed, found = scan_range(lo, hi)
+		if killed:
+			if width > DEEP_UDP_MIN_CHUNK_PORTS:
+				mid = lo + width // 2 - 1
+				pending.insert(0, (mid + 1, hi))
+				pending.insert(0, (lo, mid))
+				logger.warning(
+					f'Deep UDP {label}: faixa {lo}-{hi} nao coube em '
+					f'{DEEP_UDP_CHUNK_TIMEOUT}s; subdividindo em {lo}-{mid} e {mid + 1}-{hi}')
+				continue
+			# Ja no piso: nem a menor faixa cabe. AGORA sim conta como strike.
+			floor_strikes += 1
+			logger.warning(
+				f'Deep UDP {label}: faixa {lo}-{hi} estourou ja no piso de '
+				f'{DEEP_UDP_MIN_CHUNK_PORTS} portas ({floor_strikes} strike(s))')
+			if DEEP_UDP_MAX_TIMED_OUT_CHUNKS and floor_strikes >= DEEP_UDP_MAX_TIMED_OUT_CHUNKS:
+				return found_all, (
+					f'{floor_strikes} faixas estouraram ja no piso — alvo limita ICMP a ponto '
+					f'de nem o piso caber; {len(pending)} faixa(s) nao varrida(s)')
+			continue
+		found_all.extend(found or [])
+	return found_all, ''
+
+
 def _deep_udp_broker():
 	"""Conexao com o redis do BROKER, para o lock single-flight do udp_port_scan.
 
@@ -2356,19 +2412,25 @@ def udp_port_scan(self, host=None, ctx={}, description=None):
 		config.get(NAABU_RATE) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT),
 		DEFAULT_RATE_LIMIT)
 
+	# Valida o host UMA vez: se ele nao passa no allowlist, nenhuma faixa vai passar, e
+	# deixar isso para dentro do laco so produziria uma cascata inutil de subdivisoes.
+	if not build_udp_nmap_cmd(host, 'deep'):
+		logger.error(f'Could not build UDP nmap command for host {host!r}')
+		_deep_udp_lock_release(self.scan_id, host, token)
+		return {host: []}
+
 	open_ports = []
 	try:
 		logger.warning(
-			f'Deep UDP sweep em {host}: {len(chunks)} bloco(s) de '
-			f'{DEEP_UDP_CHUNK_PORTS} portas, ate {DEEP_UDP_CHUNK_TIMEOUT}s cada')
-		timed_out_run = 0
-		for idx, (lo, hi) in enumerate(chunks, 1):
-			# Reavalia a relevancia a cada bloco: uma varredura de horas nao pode seguir
-			# depois de o scan ser abortado (o caso do scan 49, vivo por 24 dias).
-			relevant, why = _deep_udp_still_relevant(self.scan_id)
-			if not relevant:
-				logger.warning(f'Deep UDP scan on {host}: interrompida no bloco {idx} — {why}')
-				break
+			f'Deep UDP sweep em {host}: {len(chunks)} bloco(s) de ate '
+			f'{DEEP_UDP_CHUNK_PORTS} portas, {DEEP_UDP_CHUNK_TIMEOUT}s cada, '
+			f'teto de {DEEP_UDP_HOST_BUDGET}s no host')
+		# Fila de trabalho, nao lista fixa: um bloco que estoura e SUBDIVIDIDO e volta
+		# para a frente da fila. Bloco fixo era regressao — contra alvo que faz rate-limit
+		# de ICMP (~1 porta/s, a classe que motivou a feature) 8192 portas nunca cabem em
+		# 2700s, todo bloco morria por SIGKILL, o nmap nao grava parcial e o host voltava
+		# vazio. Dividindo, as faixas encolhem ate caber e o resultado E capturado.
+		def _scan_range(lo, hi):
 			# host ja foi validado a caracteres de hostname/IP por build_udp_nmap_cmd.
 			xml_file = f'{self.results_dir}/{host}_udp_port_scan_{lo}-{hi}.xml'
 			cmd = build_udp_nmap_cmd(
@@ -2377,10 +2439,12 @@ def udp_port_scan(self, host=None, ctx={}, description=None):
 				port_range=f'{lo}-{hi}',
 				max_retries=DEEP_UDP_MAX_RETRIES or None)
 			if not cmd:
+				# Nao deveria ocorrer: o host ja foi validado antes da varredura. Se ocorrer,
+				# sinaliza "nao varrido" — a subdivisao nao resolve, mas o piso encerra.
 				logger.error(f'Could not build UDP nmap command for host {host!r}')
-				break
+				return True, []
 			started_at = time.time()
-			run_command(
+			return_code, _ = run_command(
 				cmd,
 				shell=True,
 				history_file=self.history_file,
@@ -2388,23 +2452,20 @@ def udp_port_scan(self, host=None, ctx={}, description=None):
 				activity_id=self.activity_id,
 				timeout=DEEP_UDP_CHUNK_TIMEOUT)
 			elapsed = time.time() - started_at
-			# Cada bloco e um nmap que TERMINA, entao o -oX dele e parseavel na hora — e
-			# o que ja foi confirmado fica salvo mesmo se os blocos seguintes forem cortados.
-			found = parse_nmap_xml_open_ports(xml_file)
-			open_ports.extend(found)
-			if elapsed >= DEEP_UDP_CHUNK_TIMEOUT:
-				timed_out_run += 1
-				logger.warning(
-					f'Deep UDP {host} bloco {lo}-{hi}: estourou {DEEP_UDP_CHUNK_TIMEOUT}s '
-					f'({timed_out_run} consecutivo(s))')
-				if DEEP_UDP_MAX_TIMED_OUT_CHUNKS and timed_out_run >= DEEP_UDP_MAX_TIMED_OUT_CHUNKS:
-					logger.warning(
-						f'Deep UDP scan on {host}: {timed_out_run} blocos consecutivos '
-						f'estourados — alvo provavelmente faz rate-limit de ICMP; desistindo '
-						f'apos o bloco {idx}/{len(chunks)}')
-					break
-			else:
-				timed_out_run = 0
+			# O watchdog mata o grupo com SIGKILL e run_command devolve -9 — sinal preciso.
+			# O tempo decorrido fica so de rede de seguranca.
+			killed = (return_code is not None and return_code < 0) or elapsed >= DEEP_UDP_CHUNK_TIMEOUT
+			if killed:
+				# nmap morto NAO deixa parcial: o -oX fica sem <host> e o parse devolve [].
+				return True, []
+			return False, parse_nmap_xml_open_ports(xml_file)
+
+		open_ports, stop_reason = _deep_udp_sweep(
+			chunks, _scan_range,
+			still_relevant=lambda: _deep_udp_still_relevant(self.scan_id),
+			label=host)
+		if stop_reason:
+			logger.warning(f'Deep UDP scan on {host}: encerrada — {stop_reason}')
 	finally:
 		_deep_udp_lock_release(self.scan_id, host, token)
 

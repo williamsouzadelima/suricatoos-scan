@@ -24,6 +24,18 @@ mkdir -p "$SURICATOOS_STATE_DIR" 2>/dev/null
 # (apt/git/wget/python do proprio preambulo) devolveria `healthy` sem worker no ar.
 rm -f "$WORKER_PIDS_FILE"
 
+# Marcador de BOOT EM ANDAMENTO, com timestamp.
+#
+# Existe porque o `start_period` do compose nao serve para isto: ele e medido a partir de
+# State.StartedAt e RESETA a cada restart, e so termina antes da hora se um probe PASSAR.
+# Num crashloop o probe nunca passa (o marcador de crashloop reprova) e cada vida do
+# container e mais curta que o start_period — resultado: `health: starting` para sempre e
+# NUNCA `unhealthy`, suprimindo o unico sinal externo que esta mudanca cria, justamente no
+# incidente que ela existe para expor. Verificado empiricamente contra o Docker.
+# Com este marcador o start_period pode ser curto, e e o healthcheck quem sabe distinguir
+# "preambulo legitimo em andamento" de "boot travado" (marcador velho demais).
+date +%s > "$SURICATOOS_STATE_DIR/booting"
+
 if [ -s "$SURICATOOS_STATE_DIR/last-worker-death" ]; then
     echo "[celery-supervisor] boot apos morte de worker: $(cat "$SURICATOOS_STATE_DIR/last-worker-death")"
 fi
@@ -53,7 +65,15 @@ esac
 
 _boot_log="$SURICATOOS_STATE_DIR/celery-boots"
 _now=$(date +%s)
-echo "$_now" >> "$_boot_log" 2>/dev/null
+# So conta o boot que SUCEDE UMA MORTE DE WORKER. Contando todo boot, o freio disparava em
+# cima do operador que esta consertando o incidente: 5 `up -d`/`restart` numa hora de
+# trabalho ja marcavam o container como crashloop e impunham backoff de ate 5min a cada
+# tentativa. Crashloop e "o worker morre sozinho, repetidamente" — nao "o humano reiniciou".
+if [ -s "$SURICATOOS_STATE_DIR/last-worker-death" ]; then
+    echo "$_now" >> "$_boot_log" 2>/dev/null
+    # Consumido: o aviso ja foi ecoado acima e nao deve contar duas vezes.
+    rm -f "$SURICATOOS_STATE_DIR/last-worker-death"
+fi
 if awk -v cutoff=$((_now - CRASHLOOP_WINDOW)) \
        '$1 ~ /^[0-9]+$/ && $1 >= cutoff' "$_boot_log" > "$_boot_log.tmp" 2>/dev/null; then
     mv "$_boot_log.tmp" "$_boot_log" 2>/dev/null
@@ -413,7 +433,10 @@ for _pid in $(jobs -p); do
     # Rotulo derivado do proprio cmdline: `-n <nome>` quando existe (api_worker,
     # shared_worker, coordinator_worker, deep_port_worker) e, para o main scan
     # worker (que nao usa -n), a fila do `-Q`.
-    _cmd=$(tr '\0' ' ' < "/proc/$_pid/cmdline" 2>/dev/null)
+    # `2>/dev/null` ANTES do `<`: redirecionamentos sao aplicados em ordem, e quem emite
+    # "cannot open /proc/N/cmdline" e o proprio shell ao processar o `<`. Com o `2>` depois,
+    # a mensagem escapava para o log.
+    _cmd=$(tr '\0' ' ' 2>/dev/null < "/proc/$_pid/cmdline")
     _label=$(printf '%s' "$_cmd" | grep -oE '\-n [A-Za-z0-9_.@-]+' | head -1 | cut -d' ' -f2)
     [ -z "$_label" ] && _label=$(printf '%s' "$_cmd" | grep -oE '\-Q [A-Za-z0-9_]+' | head -1 | cut -d' ' -f2)
     [ -z "$_label" ] && _label="worker_$_pid"
@@ -433,6 +456,8 @@ sort -u "$SURICATOOS_STATE_DIR/served-queues.tmp" 2>/dev/null > "$SURICATOOS_STA
 rm -f "$SURICATOOS_STATE_DIR/served-queues.tmp"
 echo "[celery-supervisor] ${#WORKER_LABEL[@]} workers no ar: ${WORKER_LABEL[*]}"
 echo "[celery-supervisor] $(wc -l < "$SURICATOOS_STATE_DIR/served-queues" 2>/dev/null) filas com consumidor."
+# Boot concluido: a partir daqui o healthcheck cobra os workers de verdade.
+rm -f "$SURICATOOS_STATE_DIR/booting"
 
 while :; do
     wait -n

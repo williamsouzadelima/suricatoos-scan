@@ -26,7 +26,7 @@ from recon_note.models import *
 from Suricatoos.celery import app
 from Suricatoos.common_func import *
 from Suricatoos.database_utils import *
-from Suricatoos.definitions import ABORTED_TASK
+from Suricatoos.definitions import ABORTED_TASK, HANG_MONITOR_HOLD_PREFIX
 from Suricatoos.tasks import *
 from Suricatoos.llm import *
 from Suricatoos.utilities import is_safe_path
@@ -1178,6 +1178,12 @@ class StopScan(APIView):
 				scan.scan_status = ABORTED_TASK
 				scan.stop_scan_date = timezone.now()
 				scan.aborted_by = request.user
+				# O "hold" do hang_monitor e transitorio e nao e a causa DESTE abort. Sem
+				# limpar, um scan que estava segurado e foi abortado pelo operador exibiria
+				# em vermelho a mensagem de infra como se fosse o motivo — a atribuicao
+				# errada de causa que o hang_monitor passou a evitar.
+				if scan.error_message and scan.error_message.startswith(HANG_MONITOR_HOLD_PREFIX):
+					scan.error_message = None
 				scan.save()
 				for task_id in task_ids:
 					app.control.revoke(task_id, terminate=True, signal='SIGKILL')

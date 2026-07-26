@@ -52,6 +52,12 @@ jobs:
             --entrypoint python3 suricatoos/web:ci \
             manage.py test tests.test_command_injection tests.test_secret_scan tests.test_nmap tests.test_security_headers tests.test_access_control tests.test_osint_logging tests.test_ssrf_fetch_guard tests.test_password_policy tests.test_admin_csrf tests.test_tool_endpoints tests.test_login_lockout tests.test_scanner_bridge tests.test_sensor_import tests.test_orchestration_deadlock tests.test_deep_port_queue tests.test_deep_udp_hardening tests.test_hang_monitor_diagnosis -v 2
 
+      # Trava do supervisor de workers (incidente de 2026-07-22: um OOM matou o
+      # coordinator_worker, o container seguiu `Up` e a coordinator_queue ficou 3 dias sem
+      # consumidor). A suite Django nao alcanca esse nucleo — ele e shell.
+      - name: 🩺 Supervisor de workers do celery (bateria shell)
+        run: ./scripts/tests/supervisor/test.sh
+
       - name: 🔧 Django deploy-config check (OWASP A05)
         run: |
           docker run --rm \

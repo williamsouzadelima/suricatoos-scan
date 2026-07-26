@@ -315,9 +315,25 @@ def _deep_udp_int(name, default):
 
 DEEP_UDP_CHUNK_PORTS = _deep_udp_int('DEEP_UDP_CHUNK_PORTS', 8192)      # 8 blocos cobrem 1-65535
 DEEP_UDP_CHUNK_TIMEOUT = _deep_udp_int('DEEP_UDP_CHUNK_TIMEOUT', 2700)  # 45min/bloco -> ~6h/host
-# Blocos consecutivos que podem estourar antes de desistir do host (evita gastar 6h num
-# alvo que so faz rate-limit). 0 = nunca desiste.
+# Piso da subdivisao adaptativa. Um bloco que estoura o orcamento NAO faz o host ser
+# abandonado: ele e DIVIDIDO AO MEIO e cada metade e re-tentada, ate caber no orcamento ou
+# atingir este piso.
+#
+# Sem isso, o fatiamento com bloco FIXO era uma REGRESSAO contra a exata classe de alvo que
+# motivou a feature: um host que faz rate-limit de ICMP dest-unreachable (o motivo de um
+# `-sU -p-` durar ~18h) responde a ~1 porta/s, entao 8192 portas precisam de ~8200s e nunca
+# caberiam nos 2700s. Todo bloco morria por SIGKILL, o nmap nao grava parcial (XML sem
+# <host>), e o host inteiro voltava vazio depois de 3 strikes — "rapido e sempre vazio",
+# indistinguivel de "nenhuma porta UDP" na UI. Antes dos blocos, esse mesmo alvo rodava um
+# unico nmap com watchdog de dias e concluia com as portas reais.
+DEEP_UDP_MIN_CHUNK_PORTS = _deep_udp_int('DEEP_UDP_MIN_CHUNK_PORTS', 256)
+# Quantas faixas JA NO PISO podem estourar antes de desistir do host. So conta no piso: um
+# bloco largo que estourou vira subdivisao, nao strike. 0 = nunca desiste.
 DEEP_UDP_MAX_TIMED_OUT_CHUNKS = _deep_udp_int('DEEP_UDP_MAX_TIMED_OUT_CHUNKS', 3)
+# Teto de relogio por host. A subdivisao multiplica o numero de execucoes, entao o limite
+# precisa ser EXPLICITO e nao emergir do numero de blocos. 18h e a ordem de grandeza
+# documentada de um `-sU -p-` completo contra alvo que limita ICMP. 0 = sem teto.
+DEEP_UDP_HOST_BUDGET = _deep_udp_int('DEEP_UDP_HOST_BUDGET', 18 * 3600)
 # ATENCAO: 0 mantem o default do nmap (10) DE PROPOSITO. udp_port_scan descarta tudo que
 # nao seja exatamente 'open' (open|filtered e jogado fora), entao baixar retries reduz
 # DIRETAMENTE achados verdadeiros. So mexa depois de medir contra uma porta UDP conhecida.
