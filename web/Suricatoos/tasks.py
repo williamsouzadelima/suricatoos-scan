@@ -584,12 +584,21 @@ def poll_scanner_jobs():
 			job.gvm_report_id = data.get('gvm_report_id') or job.gvm_report_id
 			job.last_polled = timezone.now()
 			if job.state == 'COMPLETED' and not job.imported:
-				n = import_openvas_findings(job.scan_history, data.get('findings') or [])
-				job.findings_imported = n
-				job.imported = True
-				job.state = 'IMPORTED'
-				job.completed_at = timezone.now()
-				logger.info(f'poll_scanner_jobs: job {job.id} importou {n} vuln(s) OpenVAS')
+				try:
+					n = import_openvas_findings(job.scan_history, data.get('findings') or [])
+					job.findings_imported = n
+					job.imported = True
+					job.state = 'IMPORTED'
+					job.completed_at = timezone.now()
+					job.error = None
+					logger.info(f'poll_scanner_jobs: job {job.id} importou {n} vuln(s) OpenVAS')
+				except Exception as e:
+					# Import falhou: NÃO deixa a exceção subir (senão um job envenenado aborta o
+					# ciclo inteiro, congela o last_polled de TODOS os jobs e vira um falso
+					# "beat parado"). Persiste COMPLETED+erro — o job re-tenta no próximo beat e
+					# fica visível como 'import_failing' (loop_health), com diagnóstico correto.
+					job.error = f'import: {str(e)[:1000]}'
+					logger.error(f'poll_scanner_jobs: job {job.id} import falhou: {e}')
 			job.save()
 	finally:
 		cache.delete('poll_scanner_jobs_lock')
