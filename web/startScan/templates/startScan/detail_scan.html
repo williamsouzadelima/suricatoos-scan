@@ -96,6 +96,11 @@
 					<a class="nav-link" id="pills-vulnerabilities-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#vulnerabilities-tab">{% trans "Vulnerabilities" %}</a>
 				</li>
 				{% endif %}
+				{% if total_hygiene_count > 0 %}
+				<li class="nav-item">
+					<a class="nav-link" id="pills-hygiene-tab" data-bs-toggle="tab" aria-expanded="false" href="#hygiene-tab">{% trans "Hygiene" %}<span class="badge badge-soft-warning float-end ms-1 ps-1 pe-1">{{total_hygiene_count}}</span></a>
+				</li>
+				{% endif %}
 				{% if total_leaked_secret_count > 0 %}
 				<li class="nav-item">
 					<a class="nav-link" id="pills-secrets-tab" data-bs-toggle="tab" aria-expanded="false" class="nav-link" href="#secrets-tab">{% trans "Secrets" %}</a>
@@ -1165,6 +1170,36 @@
 	</div>
 	{% endif %}
 
+	{# Hygiene Section — boa pratica ausente, separada do risco explorave l #}
+	{% if total_hygiene_count > 0 %}
+	<div class="tab-pane" id="hygiene-tab">
+		<div class="row">
+			<div class="col-12">
+				<div class="card">
+					<div class="card-body">
+						<h4 class="header-title">{% trans "Hygiene &amp; Compliance" %}
+							<span class="badge badge-soft-warning ms-1">{{total_hygiene_count}}</span>
+						</h4>
+						<p class="text-muted font-13 mb-3">
+							{% trans "Missing best practices (security headers, SRI, cookie flags, CORS). Real and reportable, but not exploitable on their own — kept out of the vulnerability count so they do not bury actual risk." %}
+						</p>
+						<table id="hygiene_results" class="table dt-responsive w-100">
+							<thead>
+								<tr>
+									<th>{% trans "Type" %}</th>
+									<th>{% trans "Asset" %}</th>
+									<th>{% trans "URL" %}</th>
+								</tr>
+							</thead>
+							<tbody></tbody>
+						</table>
+					</div>
+				</div>
+			</div>
+		</div>
+	</div>
+	{% endif %}
+
 	{# Secrets Section #}
 	{% if total_leaked_secret_count > 0 %}
 	<div class="tab-pane" id="secrets-tab">
@@ -1697,6 +1732,31 @@ $(document).ready(function() {
 		chart.render()
 
 		// vulnerability datatable
+		// Aba de Higiene: mesma API, filtrada por classe. Tabela simples de proposito —
+		// higiene nao tem severidade util (todas sao info), entao ordenar por risco seria
+		// teatro; o que importa e o tipo e onde.
+		$("#pills-hygiene-tab").click(function() {
+			if ( $.fn.dataTable.isDataTable( '#hygiene_results' ) ) {
+				return false;
+			}
+			$('#hygiene_results').DataTable({
+				"destroy": true,
+				"processing": true,
+				"serverSide": true,
+				"order": [[0, "asc"]],
+				"ajax": '/api/listVulnerability/?scan_history={{scan_history_id}}&finding_class=hygiene&format=datatables',
+				"columns": [
+					{"data": "name"},
+					{"data": "subdomain.name", "defaultContent": "-"},
+					{"data": "http_url", "defaultContent": "-", "render": function(data) {
+						if (!data) { return '-'; }
+						var safe = $('<div>').text(data).html();
+						return '<a href="' + safe + '" target="_blank" rel="noopener noreferrer" class="text-muted">' + safe + '</a>';
+					}}
+				]
+			});
+		});
+
 		const ps2 = new PerfectScrollbar(document.querySelector('.vulnerability-search'));
 		$("#pills-vulnerabilities-tab").click(function() {
 			// prevent table loading twice

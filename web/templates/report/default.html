@@ -675,6 +675,31 @@
       </article>
     {% endif %}
 
+    {# Higiene e Conformidade — secao PROPRIA, fora da contagem de risco.
+       Boa pratica ausente (cabecalho, SRI, cookie sem Secure, CORS) e real e o cliente
+       quer ver, mas nao e exploravel: somada ao risco, milhares de "Missing Security
+       Headers" soterravam os achados criticos de verdade. #}
+    {% if show_vuln and hygiene_findings %}
+      <article style="page-break-before: always" class="summary">
+        <h3 id="hygiene-summary" class="page_title">{% trans "Hygiene &amp; Compliance" %}</h3>
+        <p>{% trans "Missing best practices found on the target. These are reportable and worth fixing, but are not directly exploitable — they are listed apart from the vulnerabilities above so they do not dilute the risk picture." %}</p>
+        <div class="table">
+          <div class="row header">
+            <div class="cell grey-color" style="width: 45%">{% trans "Finding" %}</div>
+            <div class="cell grey-color" style="width: 25%">{% trans "Asset" %}</div>
+            <div class="cell grey-color" style="width: 30%">{% trans "URL" %}</div>
+          </div>
+          {% for h in hygiene_findings %}
+          <div class="row">
+            <div class="cell" style="width: 45%">{{ h.name }}</div>
+            <div class="cell" style="width: 25%">{{ h.subdomain.name|default:"-" }}</div>
+            <div class="cell" style="width: 30%"><span class="wrap-anywhere">{{ h.http_url|default:"-" }}</span></div>
+          </div>
+          {% endfor %}
+        </div>
+      </article>
+    {% endif %}
+
     {# vulnerability_summary only when vuln_report #}
     {% if show_vuln %}
       <article style="page-break-before: always" class="summary">
