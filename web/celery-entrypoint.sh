@@ -299,7 +299,6 @@ queues=(
     "osint_discovery_queue"
     "h8mail_queue"
     "theHarvester_queue"
-    "spiderfoot_queue"
     "send_scan_notif_queue"
     "hang_monitor_queue"
 )

@@ -132,14 +132,13 @@ RUN pip3 install --upgrade setuptools==72.1.0
 # Antes eram clonados + pip-installados em runtime no celery-entrypoint.sh, o que rebaixava
 # deps fixadas do app a cada boot do worker (dívida do A06/SQLAlchemy). Agora vivem na imagem.
 # /usr/src/github deixou de ser volume nomeado (removido do docker-compose). --depth 1 minimiza
-# a transferência. Pins idênticos ao entrypoint antigo (theHarvester 4.4.4, spiderfoot v4.0).
+# a transferência. Pins idênticos ao entrypoint antigo (theHarvester 4.4.4).
 RUN set -eux; \
     mkdir -p /usr/src/github; \
     git clone --depth 1 https://github.com/aboul3la/Sublist3r /usr/src/github/Sublist3r; \
     git clone --depth 1 https://github.com/shmilylty/OneForAll /usr/src/github/OneForAll; \
     git clone --depth 1 https://github.com/FortyNorthSecurity/EyeWitness /usr/src/github/EyeWitness; \
     git clone --branch 4.4.4 --depth 1 https://github.com/laramies/theHarvester /usr/src/github/theHarvester; \
-    git clone --branch v4.0 --depth 1 https://github.com/smicallef/spiderfoot /usr/src/github/spiderfoot; \
     git clone --depth 1 https://github.com/scipag/vulscan /usr/src/github/scipag_vulscan; \
     ln -sf /usr/src/github/scipag_vulscan /usr/share/nmap/scripts/vulscan; \
     git clone --depth 1 https://github.com/Tuhinshubhra/CMSeeK /usr/src/github/CMSeeK; \
@@ -148,13 +147,10 @@ RUN set -eux; \
     chmod +x /usr/src/github/goofuzz/GooFuzz
 
 # Deps Python das tools (podem rebaixar deps do app; o requirements.txt no FIM re-assevera).
-# O sed tira o pin de pyyaml da spiderfoot (5.x não tem wheel p/ py3.10; 6.0.1 já funciona).
 RUN set -eux; \
-    sed -i '/^[[:space:]]*pyyaml/Id' /usr/src/github/spiderfoot/requirements.txt; \
     python3 -m pip install --no-cache-dir -r /usr/src/github/Sublist3r/requirements.txt; \
     python3 -m pip install --no-cache-dir -r /usr/src/github/OneForAll/requirements.txt; \
     python3 -m pip install --no-cache-dir -r /usr/src/github/theHarvester/requirements/base.txt; \
-    python3 -m pip install --no-cache-dir -r /usr/src/github/spiderfoot/requirements.txt; \
     python3 -m pip install --no-cache-dir -r /usr/src/github/CMSeeK/requirements.txt; \
     python3 -m pip install --no-cache-dir h8mail; \
     python3 -m pip install --no-cache-dir tenacity==8.2.2

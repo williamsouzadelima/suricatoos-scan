@@ -18,7 +18,7 @@ from scanEngine.forms import *
 from scanEngine.forms import ConfigurationForm
 from scanEngine.models import *
 from dashboard.models import ApiCredential
-from dashboard.providers import PROVIDERS, is_valid_custom_option, custom_provider_slug
+from dashboard.providers import PROVIDERS
 from scanEngine.provider_keys import (
     SUBFINDER_UI_PROVIDERS, set_subfinder_key, subfinder_providers_status,
     THEHARVESTER_UI_PROVIDERS, set_theharvester_key, theharvester_providers_status,
@@ -562,12 +562,6 @@ def api_vault(request, slug):
                 propagate_vault_key(prov_slug, key, extra)
             # else: blank leaves the stored value untouched
 
-        # Custom SpiderFoot module:option entry
-        opt = (request.POST.get('custom_option') or '').strip()
-        cval = (request.POST.get('custom_key') or '').strip()
-        if opt and cval and is_valid_custom_option(opt):
-            ApiCredential.upsert(custom_provider_slug(opt), cval, label=opt)
-
         # subfinder passive-source keys → provider-config.yaml (not the vault DB);
         # subfinder auto-loads them during subdomain enumeration.
         for _provider in SUBFINDER_UI_PROVIDERS:
@@ -594,15 +588,6 @@ def api_vault(request, slug):
             'enabled': cred.enabled if cred else True,
         })
     context['vault_rows'] = rows
-
-    # Custom entries (provider starts with 'custom:')
-    context['custom_rows'] = [
-        {
-            'option': c.provider[len('custom:'):],
-            'masked': _mask_key(c.decrypted()[0]),
-        }
-        for c in ApiCredential.objects.filter(provider__startswith='custom:')
-    ]
 
     # Subdomain/OSINT tool keys stored in tool config files (not the vault DB).
     # Per-provider booleans only — the raw keys are never rendered.

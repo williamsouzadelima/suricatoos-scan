@@ -1,44 +1,41 @@
 """Declarative registry mapping vault credentials to their destinations.
 
-`destination` is either a SpiderFoot config option ('sfp_<module>:<option>')
-seeded into spiderfoot.db before a scan, or 'consumer:<name>' read by recon/LLM
-code via common_func.get_credential().
+`destination` documenta QUEM consome a chave. Ele é informativo: a leitura real é por
+SLUG — `common_func.get_credential(<slug>)` para os consumidores diretos, e
+`scanEngine.provider_keys.propagate_vault_key(<slug>, ...)` para os que são espelhados
+nos arquivos de config do subfinder e do theHarvester no momento do save.
+
+Historicamente havia um terceiro destino, `sfp_<módulo>:<opção>`, semeado no
+`spiderfoot.db` antes de cada scan. A integração do SpiderFoot foi REMOVIDA (28 de 29
+execuções morriam no watchdog de 900s, com o JSON truncado e falha silenciosa; e o fork
+mantido do projeto eliminou o modo monolito `sf.py` na v6.0.0). Dos 14 provedores que
+existiam por causa dela, **8 permanecem** aqui porque o subfinder e/ou o theHarvester
+consomem a mesma chave — ver `VAULT_TOOL_PROPAGATION` em scanEngine/provider_keys.py.
+Os 6 que ficariam sem nenhum leitor (haveibeenpwned, dehashed, greynoise, abuseipdb,
+ipinfo, leakix) foram removidos: um campo de API key que ninguém lê é uma mentira de UI.
 """
-import re
 
 PROVIDERS = {
-    # --- SpiderFoot-backed (curated, high ROI for the OSINT gap) ---
+    # --- espelhados em subfinder / theHarvester por propagate_vault_key() ---
     'shodan':         {'label': 'Shodan',          'url': 'https://account.shodan.io',
-                       'fields': [('key', 'sfp_shodan:api_key')]},
-    'haveibeenpwned': {'label': 'HaveIBeenPwned',  'url': 'https://haveibeenpwned.com/API/Key',
-                       'fields': [('key', 'sfp_haveibeenpwned:api_key')]},
-    'dehashed':       {'label': 'DeHashed',        'url': 'https://dehashed.com',
-                       'fields': [('username', 'sfp_dehashed:username'),
-                                  ('key', 'sfp_dehashed:api_key')]},
+                       'fields': [('key', 'consumer:subfinder+theharvester')]},
     'virustotal':     {'label': 'VirusTotal',      'url': 'https://www.virustotal.com',
-                       'fields': [('key', 'sfp_virustotal:api_key')]},
+                       'fields': [('key', 'consumer:subfinder+theharvester')]},
     'securitytrails': {'label': 'SecurityTrails',  'url': 'https://securitytrails.com',
-                       'fields': [('key', 'sfp_securitytrails:api_key')]},
-    'hunter':         {'label': 'Hunter.io',       'url': 'https://hunter.io',
-                       'fields': [('key', 'sfp_hunter:api_key')]},
+                       'fields': [('key', 'consumer:subfinder+theharvester')]},
     'binaryedge':     {'label': 'BinaryEdge',      'url': 'https://www.binaryedge.io',
-                       'fields': [('key', 'sfp_binaryedge:api_key')]},
-    'censys':         {'label': 'Censys',          'url': 'https://search.censys.io/account/api',
-                       'fields': [('key', 'sfp_censys:api_key_uid'),
-                                  ('secret', 'sfp_censys:api_key_secret')]},
-    'greynoise':      {'label': 'GreyNoise',       'url': 'https://www.greynoise.io',
-                       'fields': [('key', 'sfp_greynoise:api_key')]},
-    'abuseipdb':      {'label': 'AbuseIPDB',       'url': 'https://www.abuseipdb.com',
-                       'fields': [('key', 'sfp_abuseipdb:api_key')]},
-    'ipinfo':         {'label': 'IPInfo',          'url': 'https://ipinfo.io',
-                       'fields': [('key', 'sfp_ipinfo:api_key')]},
+                       'fields': [('key', 'consumer:subfinder+theharvester')]},
     'fullhunt':       {'label': 'FullHunt',        'url': 'https://fullhunt.io',
-                       'fields': [('key', 'sfp_fullhunt:api_key')]},
+                       'fields': [('key', 'consumer:subfinder+theharvester')]},
     'intelx':         {'label': 'IntelX',          'url': 'https://intelx.io',
-                       'fields': [('key', 'sfp_intelx:api_key')]},
-    'leakix':         {'label': 'LeakIX',          'url': 'https://leakix.net',
-                       'fields': [('key', 'sfp_leakix:api_key')]},
-    # --- existing integrations (migrated; consumed by recon/LLM/H1) ---
+                       'fields': [('key', 'consumer:subfinder+theharvester')]},
+    'hunter':         {'label': 'Hunter.io',       'url': 'https://hunter.io',
+                       'fields': [('key', 'consumer:theharvester')]},
+    # subfinder quer id:secret — propagate_vault_key combina os dois campos.
+    'censys':         {'label': 'Censys',          'url': 'https://search.censys.io/account/api',
+                       'fields': [('key', 'consumer:subfinder'),
+                                  ('secret', 'consumer:subfinder')]},
+    # --- consumidores diretos (recon / LLM / HackerOne) ---
     'openai':         {'label': 'OpenAI',     'url': 'https://platform.openai.com/api-keys',
                        'fields': [('key', 'consumer:llm')]},
     'netlas':         {'label': 'Netlas',     'url': 'https://netlas.io',
@@ -51,18 +48,3 @@ PROVIDERS = {
                        'fields': [('username', 'consumer:h1_user'),
                                   ('key', 'consumer:h1_key')]},
 }
-
-CUSTOM_OPTION_RE = re.compile(r'^sfp_[a-z0-9_]+:[a-z0-9_]+$')
-
-
-def sf_destination(dest: str) -> str | None:
-    """Return the SpiderFoot option for a destination, or None for consumer fields."""
-    return dest if dest.startswith('sfp_') else None
-
-
-def is_valid_custom_option(s: str) -> bool:
-    return bool(CUSTOM_OPTION_RE.match(s or ''))
-
-
-def custom_provider_slug(option: str) -> str:
-    return f'custom:{option}'

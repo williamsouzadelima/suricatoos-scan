@@ -60,9 +60,7 @@ osint: {
   ],
   # 'custom_dorks': [],
   'intensity': 'normal',
-  'documents_limit': 50,
-  'enable_spiderfoot': false,        # SpiderFoot OSINT (cloned at runtime), set true to enable
-  # 'spiderfoot_preset': 'passive'   # passive | footprint | investigate | all
+  'documents_limit': 50
 }
 dir_file_fuzz: {
   'auto_calibration': true,

@@ -756,7 +756,7 @@ class LeakedSecret(models.Model):
 
 
 class OsintResult(models.Model):
-	"""Generic OSINT intelligence (mainly from SpiderFoot) that doesn't fit the
+	"""Generic OSINT intelligence (theHarvester e afins) that doesn't fit the
 	typed OSINT models (Email/Employee/Dork/Metadata). One row per finding,
 	grouped by `bucket`, exposed read-only via the API. Mirrors the flat
 	LeakedSecret pattern instead of exploding into one model per event family."""
@@ -788,12 +788,12 @@ class OsintResult(models.Model):
 	target_domain = models.ForeignKey(Domain, on_delete=models.CASCADE, null=True, blank=True)
 	source = models.CharField(max_length=50, null=True, blank=True)
 	bucket = models.CharField(max_length=50, choices=BUCKET_CHOICES, null=True, blank=True)
-	# the raw SpiderFoot event label, e.g. "Malicious IP Address"
+	# rotulo cru do evento da ferramenta de origem, ex.: "Malicious IP Address"
 	event_type = models.CharField(max_length=200, null=True, blank=True)
 	data = models.CharField(max_length=2000, null=True, blank=True)
-	# optional context (e.g. SpiderFoot module / parent event)
+	# contexto opcional (ex.: modulo da ferramenta / evento pai)
 	extra = models.CharField(max_length=2000, null=True, blank=True)
-	# provenance / capture fields (populated from SpiderFoot event metadata)
+	# proveniencia / captura (preenchidos a partir dos metadados do evento)
 	module = models.CharField(max_length=120, null=True, blank=True)
 	parent = models.CharField(max_length=500, null=True, blank=True)
 	confidence = models.IntegerField(null=True, blank=True)
