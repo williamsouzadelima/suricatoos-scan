@@ -472,6 +472,12 @@ def report(ctx={}, description=None):
 	else:
 		scan.scan_status = status
 	scan.stop_scan_date = timezone.now()
+	# O "hold" do hang_monitor e transitorio: se o scan retomou e chegou ate aqui, aquela
+	# mensagem nao e a causa deste desfecho. Sem esta limpeza um scan que foi segurado,
+	# retomou e concluiu dentro da janela da beat carregaria a string para sempre e a UI
+	# atribuiria a causa errada — exatamente o que o hang_monitor passou a evitar.
+	if scan.error_message and scan.error_message.startswith(HANG_MONITOR_HOLD_PREFIX):
+		scan.error_message = None
 	scan.save()
 
 	# Send scan status notif
@@ -1712,7 +1718,8 @@ def screenshot(self, ctx={}, description=None):
 			send_file_to_discord.delay(path, title)
 
 
-def build_udp_nmap_cmd(host, tier, out_file=None, max_rate=None):
+def build_udp_nmap_cmd(host, tier, out_file=None, max_rate=None,
+		port_range=None, max_retries=None):
 	"""Build the UDP full-range nmap command for the Deep tier (None otherwise).
 
 	The Deep tier sweeps every UDP port (``-sU -p 1-65535``), which legitimately
@@ -1735,10 +1742,23 @@ def build_udp_nmap_cmd(host, tier, out_file=None, max_rate=None):
 	# leading dash (cannot pose as an nmap flag) and any non hostname/IP char.
 	if not re.match(r'^[A-Za-z0-9._:][A-Za-z0-9._:-]*$', host):
 		return None
-	cmd = 'nmap -sU -p 1-65535 --open'
+	# A faixa vem FATIADA de udp_port_scan; no agregado os blocos cobrem 1-65535, entao a
+	# promessa do tier deep e preservada de verdade. Cada bloco e um nmap que TERMINA e
+	# cujo -oX e parseado e salvo na hora — ao contrario de `--host-timeout` sobre a faixa
+	# cheia, que produz `<host timedout="true">` SEM `<ports>` e perde tudo.
+	port_range = port_range or '1-65535'
+	if not re.match(r'^\d{1,5}-\d{1,5}$', str(port_range)):
+		logger.error(f'Refusing unsafe UDP port range: {port_range!r}')
+		return None
+	cmd = f'nmap -sU -p {port_range} --open'
 	if max_rate:
 		try:
 			cmd += f' --max-rate {int(max_rate)}'
+		except (TypeError, ValueError):
+			pass
+	if max_retries:
+		try:
+			cmd += f' --max-retries {int(max_retries)}'
 		except (TypeError, ValueError):
 			pass
 	if out_file:
@@ -1883,17 +1903,34 @@ def port_scan(self, hosts=[], ctx={}, description=None):
 	# Non-deep tiers / engines without `udp: true` skip it entirely — no -sU is
 	# ever emitted.
 	if tier == 'deep' and config.get('udp'):
+		# Dedup: o mesmo host duas vezes seria a duplicata que o lock recusaria depois —
+		# barato demitir aqui.
+		udp_hosts = list(dict.fromkeys(h for h in hosts if h))
+		total_udp = len(udp_hosts)
+		selected, skipped = _deep_udp_select_hosts(udp_hosts, self.scan, self.scan_id)
 		udp_sigs = []
-		for host in hosts:
+		for host in selected:
 			ctx_udp = ctx.copy()
 			ctx_udp['description'] = get_task_title(f'udp_port_scan_{host}', self.scan_id, self.subscan_id)
 			ctx_udp['track'] = False
 			udp_sigs.append(udp_port_scan.si(host=host, ctx=ctx_udp))
 		if udp_sigs:
 			logger.warning(
-				f'Deep tier: dispatching UDP full-range scan for {len(udp_sigs)} '
-				f'host(s) to deep_port_queue (runs asynchronously for days)')
-			group(udp_sigs).apply_async()
+				f'Deep tier: dispatching UDP sweep for {len(udp_sigs)} of {total_udp} '
+				f'host(s) to deep_port_queue (assincrono, horas por host)')
+			# expires: passado esse prazo o broker descarta a mensagem sem nem entregar.
+			# E o que impede a fila de guardar trabalho de um scan encerrado ha semanas —
+			# a deep_port_queue chegou a 344 tarefas assim.
+			group(udp_sigs).apply_async(expires=DEEP_UDP_MESSAGE_EXPIRES)
+		if skipped:
+			# Visivel ao usuario, nao so no log: sem isto a UI apresenta "nenhuma porta UDP"
+			# para um host que simplesmente nunca foi varrido.
+			logger.warning(
+				f'Deep tier: {skipped} de {total_udp} host(s) NAO varridos por UDP '
+				f'(teto DEEP_UDP_MAX_HOSTS={DEEP_UDP_MAX_HOSTS})')
+			self.notify(fields={'UDP sweep truncado':
+				f'{skipped} de {total_udp} host(s) NAO varridos (teto {DEEP_UDP_MAX_HOSTS}). '
+				f'A janela rotaciona entre scans, entao a cauda e coberta nos proximos.'})
 
 	# Build cmd
 	cmd = 'naabu -json -exclude-cdn'
@@ -2142,6 +2179,145 @@ def nmap(
 	return vulns
 
 
+def _deep_udp_select_hosts(hosts, scan, scan_id):
+	"""Escolhe quais hosts recebem a varredura UDP. Devolve (selecionados, quantos ficaram).
+
+	Por que existe: cada host custa horas e o deep_port_worker tem concorrencia 4, entao
+	um scan com 200 subdominios enfileira trabalho para semanas — foi assim que a
+	deep_port_queue chegou a 344 tarefas.
+
+	Um teto simples seria pior que o problema: get_subdomains termina em order_by('name')
+	(common_func.py), entao cortar os N primeiros varreria SEMPRE os mesmos nomes
+	alfabeticos e NUNCA a cauda (vpn.*, www.*) — em nenhum scan, jamais. Nao e "pode-se
+	perder um host interessante": e um ponto cego reproduzivel que a UI mostra como
+	"nenhuma porta UDP". Por isso: (1) ordena por sinal de valor ja disponivel no banco
+	neste ponto (port_scan roda depois do http crawl), e (2) ROTACIONA a janela entre
+	scans, de modo que a cauda seja coberta nos scans seguintes.
+	"""
+	if not hosts:
+		return [], 0
+	cap = DEEP_UDP_MAX_HOSTS
+	if not cap or cap <= 0 or len(hosts) <= cap:
+		return list(hosts), 0
+
+	alive = set()
+	try:
+		alive = set(
+			Subdomain.objects
+			.filter(name__in=hosts, scan_history=scan, http_status__gt=0)
+			.values_list('name', flat=True))
+	except Exception as e:   # noqa: BLE001 - priorizacao e best-effort; nunca derruba o scan
+		logger.warning(f'deep udp: priorizacao indisponivel ({e}); ordenando so por nome')
+	# Chave estavel: host que respondeu HTTP primeiro, nome como desempate deterministico.
+	ordered = sorted(hosts, key=lambda h: (0 if h in alive else 1, h))
+
+	# Rotaciona a janela para que scans sucessivos cubram fatias diferentes.
+	windows = -(-len(ordered) // cap)
+	offset = ((scan_id or 0) % windows) * cap
+	rotated = ordered[offset:] + ordered[:offset]
+	return rotated[:cap], len(ordered) - cap
+
+
+def _deep_udp_broker():
+	"""Conexao com o redis do BROKER, para o lock single-flight do udp_port_scan.
+
+	Nao usa django.core.cache de proposito: o cache do Django e LocMemCache
+	(settings.py), que e por-PROCESSO — nao enxergaria um clone rodando em outro
+	worker, que e exatamente o caso que este lock existe para impedir.
+	"""
+	url = os.environ.get('CELERY_BROKER')
+	if not url:
+		return None
+	try:
+		from redis import Redis
+		return Redis.from_url(url, socket_connect_timeout=5, socket_timeout=5)
+	except Exception as e:   # noqa: BLE001
+		logger.warning(f'deep udp lock: broker indisponivel ({e}); seguindo sem lock')
+		return None
+
+
+# Libera o lock apenas se o valor ainda for NOSSO token. Sem o compare-and-delete, uma
+# copia que termina depois do TTL expirar apagaria o lock de outra copia legitima.
+_DEEP_UDP_UNLOCK_LUA = (
+	"if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) "
+	"else return 0 end")
+
+
+def _deep_udp_lock_key(scan_id, host):
+	return f'suricatoos:deep_udp_lock:{scan_id}:{host}'
+
+
+def _deep_udp_lock_acquire(scan_id, host, token, ttl):
+	"""Single-flight por (scan_id, host). FAIL-OPEN: erro de broker nao bloqueia o scan.
+
+	O incidente de 2026-07 teve 4 copias da MESMA task id rodando `nmap -sU` ao mesmo
+	tempo, saturando permanentemente os 4 slots do deep_port_worker. Perdas de conexao
+	com o redis reentregam a mensagem ('Restoring N unacknowledged message(s)') e uma
+	nova copia comeca enquanto a anterior ainda roda. O lock e a defesa correta porque
+	independe do mecanismo exato da reentrega — que, registre-se, permanece sem prova
+	(com acks_late=False uma task ja iniciada ja esta ackada; o redis nunca reiniciou).
+	"""
+	r = _deep_udp_broker()
+	if r is None:
+		return True
+	try:
+		return bool(r.set(_deep_udp_lock_key(scan_id, host), token, nx=True, ex=int(ttl)))
+	except Exception as e:   # noqa: BLE001
+		logger.warning(f'deep udp lock: falha ao adquirir ({e}); seguindo sem lock')
+		return True
+
+
+def _deep_udp_lock_release(scan_id, host, token):
+	r = _deep_udp_broker()
+	if r is None:
+		return
+	try:
+		r.eval(_DEEP_UDP_UNLOCK_LUA, 1, _deep_udp_lock_key(scan_id, host), token)
+	except Exception as e:   # noqa: BLE001
+		logger.warning(f'deep udp lock: falha ao liberar ({e}); expira sozinho pelo TTL')
+
+
+def _deep_udp_still_relevant(scan_id):
+	"""A varredura ainda vale a pena? Devolve (bool, motivo).
+
+	NAO exige scan_status == RUNNING. O fan-out e fire-and-forget — `group(...)
+	.apply_async()` nunca e aguardado — e report() fecha o scan enquanto as varreduras
+	seguem na fila; exigir RUNNING descartaria em silencio tudo a partir do 5o host.
+	Os criterios sao: o scan sumiu, foi abortado, ou e velho demais.
+
+	Este guard e a UNICA autoridade que existe sobre estas tasks: elas rodam com
+	ctx['track']=False, entao create_scan_activity() retorna cedo e o celery_id nunca
+	entra em ScanHistory.celery_ids — o hang_monitor, que revoga exatamente celery_ids,
+	e incapaz de mata-las. Foi assim que a varredura do scan 49 seguiu viva por 24 dias.
+	"""
+	if not scan_id:
+		return True, ''
+	scan = ScanHistory.objects.filter(id=scan_id).first()
+	if not scan:
+		return False, f'scan {scan_id} nao existe mais'
+	if scan.scan_status == ABORTED_TASK:
+		return False, f'scan {scan_id} foi abortado'
+	started = scan.start_scan_date
+	if started:
+		age = (timezone.now() - started).total_seconds()
+		if age > DEEP_UDP_STALE_AFTER:
+			return False, (f'scan {scan_id} comecou ha {int(age / 3600)}h '
+				f'(teto {int(DEEP_UDP_STALE_AFTER / 3600)}h)')
+	return True, ''
+
+
+def _deep_udp_chunks():
+	"""A faixa 1-65535 em blocos crescentes. Os primeiros contem quase todo servico
+	UDP real, entao o resultado util aparece cedo mesmo se os ultimos forem cortados."""
+	out = []
+	start = 1
+	while start <= 65535:
+		end = min(start + DEEP_UDP_CHUNK_PORTS - 1, 65535)
+		out.append((start, end))
+		start = end + 1
+	return out
+
+
 @app.task(name='udp_port_scan', queue='deep_port_queue', base=SuricatoosTask, bind=True,
 		soft_time_limit=port_scan_ceiling('deep') + 3600, time_limit=scan_time_limit('deep'))
 def udp_port_scan(self, host=None, ctx={}, description=None):
@@ -2158,27 +2334,80 @@ def udp_port_scan(self, host=None, ctx={}, description=None):
 	"""
 	if not host:
 		return {}
+
+	# 1) Guard de relevancia: esta varredura ainda faz sentido?
+	relevant, why = _deep_udp_still_relevant(self.scan_id)
+	if not relevant:
+		logger.warning(f'Deep UDP scan on {host}: descartada — {why}')
+		return {host: []}
+
+	# 2) Lock single-flight: no maximo uma varredura por (scan_id, host) a qualquer momento.
+	token = str(getattr(self.request, 'id', '') or f'{os.getpid()}-{time.time()}')
+	chunks = _deep_udp_chunks()
+	lock_ttl = len(chunks) * (DEEP_UDP_CHUNK_TIMEOUT + 300) + 900
+	if not _deep_udp_lock_acquire(self.scan_id, host, token, lock_ttl):
+		logger.warning(
+			f'Deep UDP scan on {host}: ja existe uma varredura em andamento para este '
+			f'(scan {self.scan_id}, host) — recusando a duplicata')
+		return {host: []}
+
 	config = self.yaml_configuration.get(PORT_SCAN) or {}
 	rate_limit = _safe_int(
 		config.get(NAABU_RATE) or self.yaml_configuration.get(RATE_LIMIT, DEFAULT_RATE_LIMIT),
 		DEFAULT_RATE_LIMIT)
-	# host is already validated to hostname/IP chars by build_udp_nmap_cmd; safe in a filename.
-	xml_file = f'{self.results_dir}/{host}_udp_port_scan.xml'
-	cmd = build_udp_nmap_cmd(
-		host, 'deep', out_file=xml_file, max_rate=rate_limit if rate_limit > 0 else None)
-	if not cmd:
-		logger.error(f'Could not build UDP nmap command for host {host!r}')
-		return {}
-	logger.warning(f'Deep UDP full-range scan starting on {host} (this can run for days)')
-	run_command(
-		cmd,
-		shell=True,
-		history_file=self.history_file,
-		scan_id=self.scan_id,
-		activity_id=self.activity_id,
-		timeout=port_scan_ceiling('deep'))
 
-	open_ports = parse_nmap_xml_open_ports(xml_file)
+	open_ports = []
+	try:
+		logger.warning(
+			f'Deep UDP sweep em {host}: {len(chunks)} bloco(s) de '
+			f'{DEEP_UDP_CHUNK_PORTS} portas, ate {DEEP_UDP_CHUNK_TIMEOUT}s cada')
+		timed_out_run = 0
+		for idx, (lo, hi) in enumerate(chunks, 1):
+			# Reavalia a relevancia a cada bloco: uma varredura de horas nao pode seguir
+			# depois de o scan ser abortado (o caso do scan 49, vivo por 24 dias).
+			relevant, why = _deep_udp_still_relevant(self.scan_id)
+			if not relevant:
+				logger.warning(f'Deep UDP scan on {host}: interrompida no bloco {idx} — {why}')
+				break
+			# host ja foi validado a caracteres de hostname/IP por build_udp_nmap_cmd.
+			xml_file = f'{self.results_dir}/{host}_udp_port_scan_{lo}-{hi}.xml'
+			cmd = build_udp_nmap_cmd(
+				host, 'deep', out_file=xml_file,
+				max_rate=rate_limit if rate_limit > 0 else None,
+				port_range=f'{lo}-{hi}',
+				max_retries=DEEP_UDP_MAX_RETRIES or None)
+			if not cmd:
+				logger.error(f'Could not build UDP nmap command for host {host!r}')
+				break
+			started_at = time.time()
+			run_command(
+				cmd,
+				shell=True,
+				history_file=self.history_file,
+				scan_id=self.scan_id,
+				activity_id=self.activity_id,
+				timeout=DEEP_UDP_CHUNK_TIMEOUT)
+			elapsed = time.time() - started_at
+			# Cada bloco e um nmap que TERMINA, entao o -oX dele e parseavel na hora — e
+			# o que ja foi confirmado fica salvo mesmo se os blocos seguintes forem cortados.
+			found = parse_nmap_xml_open_ports(xml_file)
+			open_ports.extend(found)
+			if elapsed >= DEEP_UDP_CHUNK_TIMEOUT:
+				timed_out_run += 1
+				logger.warning(
+					f'Deep UDP {host} bloco {lo}-{hi}: estourou {DEEP_UDP_CHUNK_TIMEOUT}s '
+					f'({timed_out_run} consecutivo(s))')
+				if DEEP_UDP_MAX_TIMED_OUT_CHUNKS and timed_out_run >= DEEP_UDP_MAX_TIMED_OUT_CHUNKS:
+					logger.warning(
+						f'Deep UDP scan on {host}: {timed_out_run} blocos consecutivos '
+						f'estourados — alvo provavelmente faz rate-limit de ICMP; desistindo '
+						f'apos o bloco {idx}/{len(chunks)}')
+					break
+			else:
+				timed_out_run = 0
+	finally:
+		_deep_udp_lock_release(self.scan_id, host, token)
+
 	if not open_ports:
 		logger.info(f'Deep UDP scan on {host}: no open UDP ports found')
 		return {host: []}
@@ -5577,60 +5806,227 @@ def _read_lines_until_dead(process, wd, poll=1.0):
 			break
 
 
+def _pipeline_queues():
+	"""Filas cuja orfandade REALMENTE trava um scan em andamento.
+
+	Derivada de `.queue` dos objetos-task (nao de strings redigitadas, que silenciariam
+	quando alguem renomeasse uma fila). Exclui de proposito:
+	  * deep_port_queue — o fan-out UDP e fire-and-forget (`group(...).apply_async()`
+	    nunca e aguardado) e a fila e profunda por design; nada do pipeline espera por ela;
+	  * send_*/geo_localize/query_whois — notificacao e enriquecimento, nao bloqueiam fase;
+	  * initiate_scan_queue — se ela estivesse orfa o scan nem teria comecado.
+	"""
+	skip_exact = {'deep_port_queue', 'initiate_scan_queue', 'geo_localize_queue',
+		'query_whois_queue', 'query_reverse_whois_queue', 'query_ip_history_queue'}
+	out = set()
+	for task in app.tasks.values():
+		q = getattr(task, 'queue', None)
+		if not q or q in skip_exact or q.startswith('send_'):
+			continue
+		out.add(q)
+	return out
+
+
+def _inspect_cluster():
+	"""Foto do cluster. Levanta RuntimeError quando a foto e incompleta.
+
+	Resposta PARCIAL tem que ser tratada como "nao sei", nao como prova: se 3 de 5 workers
+	respondem dentro do timeout, as filas dos 2 ausentes somem de `consumed` e pareceriam
+	orfas — CRITICAL e hold num cluster saudavel. Isso dispararia justamente nos dois
+	momentos mais provaveis: no boot (o hang_monitor roda no shared_worker; se ele sobe
+	primeiro, os outros ainda nao responderam) e sob carga.
+
+	O `ping()` e feito POR ULTIMO de proposito: um worker que respondeu ao ping mas nao ao
+	active_queues (anterior) PROVA que a foto anterior estava incompleta.
+	"""
+	inspector = app.control.inspect(timeout=HANG_MONITOR_INSPECT_TIMEOUT)
+	queues = inspector.active_queues()
+	active = inspector.active()
+	reserved = inspector.reserved()
+	roster = inspector.ping()
+	if active is None or reserved is None or queues is None or not roster:
+		raise RuntimeError('nenhum worker respondeu ao broadcast de controle do celery')
+	stragglers = set(roster) - set(queues)
+	if stragglers:
+		raise RuntimeError(
+			f'resposta parcial; sem active_queues de {sorted(stragglers)}')
+	consumed = set()
+	for qlist in queues.values():
+		for q in qlist or []:
+			name = q.get('name') if isinstance(q, dict) else None
+			if name:
+				consumed.add(name)
+	live_ids = set()
+	for worker_tasks in (*active.values(), *reserved.values()):
+		for t in worker_tasks or []:
+			tid = t.get('id') if isinstance(t, dict) else None
+			if tid:
+				live_ids.add(tid)
+	return {'consumed': consumed, 'live_ids': live_ids, 'workers': sorted(roster)}
+
+
+def _queue_depth(queue_name):
+	"""Quantas mensagens estacionadas na fila. None = nao sei (nunca 0 por engano).
+
+	A profundidade e a evidencia FORTE: "fila sem consumidor" nao diz se a mensagem
+	sobreviveu, mas mensagem estacionada prova que existe trabalho recuperavel.
+	"""
+	try:
+		with app.connection_for_read() as conn:
+			conn.ensure_connection(max_retries=1, timeout=5,
+				interval_start=0, interval_step=0)
+			return conn.default_channel._size(queue_name)
+	except Exception:   # noqa: BLE001 - broker exotico/erro -> UNKNOWN, jamais 0
+		return None
+
+
+def _fit(msg, limit=300):
+	"""ScanHistory.error_message e CharField(max_length=300): um valor maior viraria erro
+	de banco DENTRO do abort, ou seja, o abort falharia por causa da mensagem."""
+	msg = str(msg)
+	return msg if len(msg) <= limit else msg[:limit - 1] + '…'
+
+
 @app.task(name='hang_monitor', bind=False, queue='hang_monitor_queue')
 def hang_monitor():
-	"""Backstop safety net: auto-abort scans that have silently wedged.
+	"""Rede de seguranca: aborta scans que travaram de verdade — e SO esses.
 
-	Even with the per-tool watchdog, the interruptible reader and the bounded
-	orchestration barriers, an unforeseen wedge could still leave a scan stuck in
-	RUNNING_TASK with no task making progress (the scan-#28 failure mode, where a
-	scan sat silent for 35h). This periodic celery-beat task finds such scans —
-	RUNNING_TASK whose newest ScanActivity (or, lacking any, the scan start) is
-	older than HANG_MONITOR_STALE_AFTER — and aborts them so they self-heal with no
-	operator: it revokes the scan's celery_ids, flips RUNNING activities to ABORTED
-	and sets the scan to ABORTED_TASK. Idempotent; safe to run frequently.
+	Antes desta versao o monitor tinha uma unica pergunta ("teve ScanActivity nova?") e
+	uma unica resposta (abortar), gravando `Auto-aborted by hang monitor`. Em 22/07/2026
+	um OOM matou o coordinator_worker e o container seguiu `Up`: a coordinator_queue ficou
+	sem consumidor, todo scan parava apos o `Http crawl` e o monitor abortou os scans 66,
+	67 e 68 sem que a mensagem apontasse para a causa. O monitor acertava o diagnostico de
+	"parou" e errava por completo o de "por que".
+
+	Tabela de decisao (o probe do cluster e feito UMA vez por varredura):
+
+	  A  alguma celery_id do scan viva (active/reserved)  -> nao aborta, sem prazo
+	  B  probe indisponivel OU parcial                    -> UNKNOWN: segura (limitado)
+	  C  fila do pipeline orfa E profundidade > 0         -> infra recuperavel: segura
+	  D  fila do pipeline orfa E profundidade == 0        -> fase PERDIDA: aborta ja
+	  E  todas servidas E alguma fila com profundidade >0 -> BACKLOG, nao cunha: segura
+	  F  todas servidas, todas vazias, nada vivo          -> cunha genuina: aborta
+
+	O caso E e o conserto principal: uma fila COM consumidor mas saturada (worker ocupado,
+	greenlets todos em uso, worker recem-subido) e indistinguivel de cunha para o monitor
+	antigo, que abortava. Ele tambem elimina a corrida pos-restart — quando os workers
+	voltam, o id da nova fase so entra em celery_ids dentro de create_scan_activity, e uma
+	varredura caindo nessa janela abortaria justamente o scan que estava se recuperando.
+
+	O caso D existe porque `acks_late=False` (settings.py) e deliberado: a task de um
+	worker morto e DESCARTADA, nao reentregue. Fila orfa e vazia significa que a fase se
+	foi junto com o worker — segurar o scan prometeria uma retomada que nao viria.
 	"""
 	cutoff = timezone.now() - timedelta(seconds=HANG_MONITOR_STALE_AFTER)
+	infra_cutoff = timezone.now() - timedelta(seconds=HANG_MONITOR_INFRA_ABORT_AFTER)
 	aborted = 0
+
+	# Probe UMA vez por varredura — nao por scan. Calcular orfas/profundidades dentro do
+	# laco custaria N x M idas ao redis e contradiria o proprio desenho.
+	probe = None
+	probe_error = ''
+	try:
+		probe = _inspect_cluster()
+	except Exception as e:   # noqa: BLE001
+		probe_error = str(e)
+		logger.warning(f'hang_monitor: probe do cluster indisponivel ({e})')
+
+	pipeline_queues = _pipeline_queues()
+	orphan_queues, depths = set(), {}
+	if probe is not None:
+		orphan_queues = pipeline_queues - probe['consumed']
+		depths = {q: _queue_depth(q) for q in pipeline_queues}
+		if orphan_queues:
+			logger.critical(
+				f'hang_monitor: FALHA DE INFRAESTRUTURA — fila(s) do pipeline SEM '
+				f'CONSUMIDOR: {sorted(orphan_queues)}. Workers vivos: {probe["workers"]}. '
+				f'Profundidades: { {q: depths.get(q) for q in sorted(orphan_queues)} }. '
+				f'ATENCAO ao remediar: os 5 workers sao jobs de background de UM bash em '
+				f'celery-entrypoint.sh, entao NAO da para reiniciar so um. '
+				f'`docker compose restart celery` derruba os outros 4 e, com '
+				f'acks_late=False, TODA task em voo e PERDIDA (nao reenfileirada) — os '
+				f'scans em execucao vao precisar ser re-rodados. As fases estacionadas '
+				f'nestas filas (profundidade > 0) sobrevivem e retomam sozinhas. '
+				f'Reinicie preferencialmente sem scans ativos.')
+
+	# Precedencia deliberada: profundidade>0 vence, depois desconhecida, e so entao 0.
+	# Assim uma profundidade que nao consegui medir nunca e lida como "fila vazia".
+	def _worst_depth(queues):
+		vals = [depths.get(q) for q in queues]
+		if any(v is not None and v > 0 for v in vals):
+			return 'nonempty'
+		if any(v is None for v in vals):
+			return 'unknown'
+		return 'empty'
+
+	backlog_queues = {q for q in pipeline_queues if (depths.get(q) or 0) > 0}
+
 	for scan in ScanHistory.objects.filter(scan_status=RUNNING_TASK):
 		last_activity = (
 			ScanActivity.objects
 			.filter(scan_of=scan)
 			.order_by('-time')
 			.first())
-		# Progress reference: the newest activity, or the scan start if none yet.
 		ref = last_activity.time if last_activity else scan.start_scan_date
 		if ref and ref > cutoff:
-			continue   # made progress within the budget — leave it alone
-		# Before aborting, check if any of this scan's tasks are still alive in the
-		# cluster (active or prefetched/reserved). Queue saturation can delay a phase
-		# start for hours with no new ScanActivity — identical to a genuine wedge from
-		# hang_monitor's perspective. An active/reserved task proves the scan is still
-		# progressing; skip the abort. On inspect failure, prefer false-safe (skip).
+			# Fez progresso. Se estava segurado, o estado transitorio acabou: limpa a
+			# mensagem, senao ela sobrevive ate o fim e vira "a causa" de um desfecho
+			# com o qual nada tem a ver.
+			if scan.error_message and scan.error_message.startswith(HANG_MONITOR_HOLD_PREFIX):
+				scan.error_message = None
+				scan.save(update_fields=['error_message'])
+			continue
+
+		# --- caso A: alguma task do scan viva no cluster ---
 		scan_ids = set(scan.celery_ids or [])
-		if scan_ids:
-			try:
-				inspector = app.control.inspect(timeout=2.0)
-				active = inspector.active() or {}
-				reserved = inspector.reserved() or {}
-				live_ids = set()
-				for worker_tasks in (*active.values(), *reserved.values()):
-					for t in worker_tasks:
-						live_ids.add(t['id'])
-				if scan_ids & live_ids:
-					logger.info(
-						f'hang_monitor: scan {scan.id} appears stale but has '
-						f'{len(scan_ids & live_ids)} task(s) active/reserved in cluster '
-						f'— skipping (queue saturation, not a genuine wedge)')
-					continue
-			except Exception as e:   # noqa: BLE001
+		if probe is not None and scan_ids and (scan_ids & probe['live_ids']):
+			logger.info(
+				f'hang_monitor: scan {scan.id} parece parado mas tem '
+				f'{len(scan_ids & probe["live_ids"])} task(s) viva(s) no cluster — '
+				f'seguindo (nao e cunha)')
+			continue
+
+		hold_reason = None
+		if probe is None:
+			# --- caso B ---
+			hold_reason = f'probe do cluster indisponivel ({probe_error})'
+		elif orphan_queues:
+			if _worst_depth(orphan_queues) == 'empty':
+				# --- caso D: fase perdida junto com o worker; segurar seria mentir ---
+				hold_reason = None
+				reason = _fit(
+					f'Fase perdida com o worker morto: fila(s) {sorted(orphan_queues)} sem '
+					f'consumidor e sem mensagem estacionada (acks_late=False descarta). '
+					f'Re-rode o scan depois de restaurar os workers.')
+			else:
+				# --- caso C ---
+				hold_reason = (
+					f'fila(s) {sorted(orphan_queues)} sem consumidor, com mensagem '
+					f'estacionada — retoma sozinho quando o worker voltar')
+		elif backlog_queues:
+			# --- caso E ---
+			hold_reason = (
+				f'aguardando fila(s) com backlog {sorted(backlog_queues)} — ha consumidor, '
+				f'so nao chegou a vez')
+		else:
+			# --- caso F: cunha genuina ---
+			reason = 'Auto-aborted by hang monitor (no scan activity within budget)'
+
+		if hold_reason:
+			if ref and ref > infra_cutoff:
+				msg = _fit(f'{HANG_MONITOR_HOLD_PREFIX}: {hold_reason}')
+				if scan.error_message != msg:
+					scan.error_message = msg
+					scan.save(update_fields=['error_message'])
 				logger.warning(
-					f'hang_monitor: scan {scan.id} — cluster inspect failed ({e}); '
-					f'skipping abort (prefer false-safe over false-abort)')
+					f'hang_monitor: scan {scan.id} segurado (nao abortado) — {hold_reason}')
 				continue
+			# Segurar nao pode virar "nunca abortar".
+			reason = _fit(
+				f'Aborted after {int(HANG_MONITOR_INFRA_ABORT_AFTER / 3600)}h held: {hold_reason}')
+
 		logger.warning(
-			f'hang_monitor: scan {scan.id} stuck in RUNNING since {ref} '
-			f'(> {HANG_MONITOR_STALE_AFTER}s without progress); auto-aborting')
+			f'hang_monitor: scan {scan.id} parado desde {ref}; abortando — {reason}')
 		try:
 			for task_id in (scan.celery_ids or []):
 				try:
@@ -5641,7 +6037,7 @@ def hang_monitor():
 				status=ABORTED_TASK, time=timezone.now())
 			scan.scan_status = ABORTED_TASK
 			scan.stop_scan_date = timezone.now()
-			scan.error_message = 'Auto-aborted by hang monitor (no scan activity within budget)'
+			scan.error_message = reason
 			scan.save()
 			create_scan_activity(scan.id, 'Scan auto-aborted (hang monitor)', ABORTED_TASK)
 			aborted += 1

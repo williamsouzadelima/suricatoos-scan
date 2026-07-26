@@ -355,6 +355,18 @@ CELERY_TASK_TIME_LIMIT = (
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_WORKER_MAX_TASKS_PER_CHILD = env.int("CELERY_WORKER_MAX_TASKS_PER_CHILD", default=50)
 CELERY_WORKER_MAX_MEMORY_PER_CHILD = env.int("CELERY_WORKER_MAX_MEMORY_PER_CHILD", default=350000)  # KB (~350MB)
+# Explicitando a decisao ja descrita acima: uma task cujo worker morreu e DESCARTADA,
+# nunca reenfileirada. Implicita, um futuro acks_late=True transformaria cada OOM kill
+# numa tempestade de reentregas na deep_port_queue.
+#
+# visibility_timeout fica NO DEFAULT (3600s) DE PROPOSITO. E tentador aumenta-lo para
+# "evitar reentrega" da varredura UDP de horas, mas isso PIORA o incidente de 2026-07:
+# quando o OOM mata um worker e o bash pai sobrevive, o container nao reinicia, logo o
+# restore de shutdown nunca roda — e o restore_visible de 1h passa a ser o UNICO caminho
+# de recuperacao das mensagens reservadas dos workers gevent. Subir o timeout viraria
+# isso em semanas. A defesa contra duplicata e o lock single-flight em udp_port_scan.
+CELERY_TASK_ACKS_LATE = False
+CELERY_TASK_REJECT_ON_WORKER_LOST = False
 
 # Periodic backstop: sweep for silently-wedged scans (RUNNING with no recent
 # activity) and auto-abort them. django_celery_beat's DatabaseScheduler syncs this

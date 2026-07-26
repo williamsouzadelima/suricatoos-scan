@@ -224,6 +224,39 @@ try:
 except (TypeError, ValueError):
     HANG_MONITOR_STALE_AFTER = scale_timer(9000)
 
+# Prazo do "hold": quando a parada e atribuivel a INFRA (fila do pipeline sem consumidor,
+# ou backlog, ou o probe do cluster indisponivel), o hang_monitor NAO aborta de imediato —
+# segura o scan para que ele retome sozinho quando o worker voltar. Mas segurar nao pode
+# virar "nunca abortar": passado este prazo, aborta citando a causa.
+#
+# Isto tambem fecha um buraco pre-existente: o `except: continue` do guard de liveness
+# fazia um inspect quebrado permanentemente significar que o monitor NUNCA abortava nada.
+try:
+    _raw = os.environ.get('HANG_MONITOR_INFRA_ABORT_AFTER')
+    if _raw not in (None, ''):
+        HANG_MONITOR_INFRA_ABORT_AFTER = int(_raw)
+    else:
+        HANG_MONITOR_INFRA_ABORT_AFTER = 24 * 3600
+except (TypeError, ValueError):
+    HANG_MONITOR_INFRA_ABORT_AFTER = 24 * 3600
+# Segurar por MENOS tempo que o prazo normal seria incoerente (abortaria mais cedo
+# justamente no caso em que o scan e recuperavel).
+HANG_MONITOR_INFRA_ABORT_AFTER = max(HANG_MONITOR_INFRA_ABORT_AFTER, HANG_MONITOR_STALE_AFTER)
+
+# Timeout do broadcast de controle do celery. Curto: o hang_monitor roda no shared_worker
+# e nao pode ficar pendurado num cluster degradado.
+try:
+    _raw = os.environ.get('HANG_MONITOR_INSPECT_TIMEOUT')
+    HANG_MONITOR_INSPECT_TIMEOUT = float(_raw) if _raw not in (None, '') else 5.0
+except (TypeError, ValueError):
+    HANG_MONITOR_INSPECT_TIMEOUT = 5.0
+
+# Prefixo do error_message gravado durante um hold. Existe para poder ser LIMPO depois:
+# o hold e transitorio, e um scan que retoma e depois falha por outro motivo nao pode
+# exibir "bloqueado por infra" como causa — seria reintroduzir a atribuicao errada de
+# causa que esta mudanca existe para eliminar.
+HANG_MONITOR_HOLD_PREFIX = 'HELD BY HANG MONITOR'
+
 # amass
 AMASS_DEFAULT_WORDLIST_PATH = (
     'wordlist/default_wordlist/deepmagic.com-prefixes-top50000.txt'
@@ -255,6 +288,56 @@ FFUF_DEFAULT_FOLLOW_REDIRECT = False
 
 # naabu
 NAABU_DEFAULT_PORTS = ['top-100']
+
+# ---------------------------------------------------------------------------
+# Deep-tier UDP sweep (udp_port_scan, na deep_port_queue).
+#
+# Contexto (incidente de 2026-07): a deep_port_queue acumulou 344 tarefas de scans ja
+# encerrados e os 4 slots do worker ficaram ocupados pela MESMA task id, reentregue
+# apos perdas de conexao com o redis — cada copia rodando `nmap -sU -p 1-65535` por
+# DIAS contra host de cliente, semanas depois do scan ter terminado.
+#
+# A faixa e varrida em BLOCOS. E tentador usar `--host-timeout` sobre a faixa cheia,
+# mas o nmap NAO grava resultado parcial: um host que estoura o host-timeout produz
+# `<host timedout="true">` SEM elemento `<ports>`, e parse_nmap_xml_open_ports devolve
+# []. Como um -sU de faixa cheia contra alvo que faz rate-limit de ICMP
+# port-unreachable (a razao de durar dias) estoura qualquer prazo, o tier deep viraria
+# "rapido e sempre vazio" — indistinguivel de "nenhuma porta UDP" na UI. Fatiando, cada
+# bloco e um nmap que TERMINA, tem seu proprio -oX e e salvo assim que acaba: o que os
+# blocos anteriores confirmaram ja esta no banco.
+def _deep_udp_int(name, default):
+    try:
+        _raw = os.environ.get(name)
+        return int(_raw) if _raw not in (None, '') else default
+    except (TypeError, ValueError):
+        return default
+
+
+DEEP_UDP_CHUNK_PORTS = _deep_udp_int('DEEP_UDP_CHUNK_PORTS', 8192)      # 8 blocos cobrem 1-65535
+DEEP_UDP_CHUNK_TIMEOUT = _deep_udp_int('DEEP_UDP_CHUNK_TIMEOUT', 2700)  # 45min/bloco -> ~6h/host
+# Blocos consecutivos que podem estourar antes de desistir do host (evita gastar 6h num
+# alvo que so faz rate-limit). 0 = nunca desiste.
+DEEP_UDP_MAX_TIMED_OUT_CHUNKS = _deep_udp_int('DEEP_UDP_MAX_TIMED_OUT_CHUNKS', 3)
+# ATENCAO: 0 mantem o default do nmap (10) DE PROPOSITO. udp_port_scan descarta tudo que
+# nao seja exatamente 'open' (open|filtered e jogado fora), entao baixar retries reduz
+# DIRETAMENTE achados verdadeiros. So mexa depois de medir contra uma porta UDP conhecida.
+DEEP_UDP_MAX_RETRIES = _deep_udp_int('DEEP_UDP_MAX_RETRIES', 0)
+DEEP_UDP_MAX_HOSTS = _deep_udp_int('DEEP_UDP_MAX_HOSTS', 25)            # 0 = sem teto
+
+# Orcamento de drenagem da fila, derivado — e nao um 48h fixo, que viraria armadilha no
+# proprio knob oferecido: subir DEEP_UDP_MAX_HOSTS faria o guard comer a propria cauda
+# em silencio. 4 = DEEP_PORT_CONCURRENCY (concorrencia do deep_port_worker).
+_DEEP_UDP_CHUNKS = -(-65535 // max(1, DEEP_UDP_CHUNK_PORTS))
+_DEEP_UDP_DRAIN = (
+    -(-max(1, DEEP_UDP_MAX_HOSTS) // 4) * (_DEEP_UDP_CHUNKS * DEEP_UDP_CHUNK_TIMEOUT))
+# Idade a partir da qual a varredura e considerada irrelevante (o scan que a pediu ja
+# acabou ha muito). Relevancia NAO e "scan ainda RUNNING": o fan-out e fire-and-forget
+# (`group(...).apply_async()` nunca e aguardado) e report() fecha o scan enquanto as
+# varreduras seguem na fila — exigir RUNNING descartaria em silencio tudo a partir do
+# 5o host.
+DEEP_UDP_STALE_AFTER = max(48 * 3600, 2 * _DEEP_UDP_DRAIN)
+# TTL da mensagem no broker: alem disso o celery a descarta sozinho, sem nem entregar.
+DEEP_UDP_MESSAGE_EXPIRES = DEEP_UDP_STALE_AFTER + 24 * 3600
 
 # nuclei
 NUCLEI_DEFAULT_TEMPLATES_PATH = '/root/nuclei-templates'

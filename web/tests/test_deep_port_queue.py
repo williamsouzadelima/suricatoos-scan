@@ -17,9 +17,12 @@ class DeepPortQueueRoutingTests(unittest.TestCase):
     def test_udp_task_routed_to_dedicated_queue(self):
         self.assertEqual(udp_port_scan.queue, 'deep_port_queue')
 
-    def test_tcp_port_scan_stays_on_main_queue(self):
-        # The fast/medium TCP path is unchanged: still the memory-bounded main queue.
-        self.assertEqual(port_scan.queue, 'main_scan_queue')
+    def test_tcp_port_scan_runs_on_the_coordinator_queue(self):
+        # port_scan e um orquestrador: fica na coordinator_queue (gevent), nao no
+        # main_scan_queue prefork, para nao segurar um slot escasso enquanto espera os
+        # filhos. Este teste afirmava 'main_scan_queue' e estava DEFASADO — falhava
+        # desde que a task foi movida.
+        self.assertEqual(port_scan.queue, 'coordinator_queue')
 
     def test_udp_task_has_multi_day_limits(self):
         # The per-task limits override the global 2h CELERY hard limit (belt-and-
