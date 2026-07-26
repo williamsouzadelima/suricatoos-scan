@@ -49,6 +49,28 @@ services:
     # left as a buffer. Hangs are handled by the per-tool watchdog + Celery time limits.
     mem_limit: 2g
     entrypoint: /usr/src/app/celery-entrypoint.sh
+    # O supervisor do entrypoint faz shutdown quente (SIGTERM -> grace -> SIGKILL) com
+    # WORKER_SHUTDOWN_GRACE, clampado em 45s. Este valor precisa ser MAIOR que aquele,
+    # senao o docker manda SIGKILL no meio do shutdown e produz a desconexao abrupta
+    # do redis que o trap existe para evitar.
+    stop_grace_period: 60s
+    healthcheck:
+      # `sh <script>`: nao depende do bit de execucao, que o mount :ro nao garante.
+      test: ["CMD", "/bin/sh", "/usr/src/app/celery-healthcheck.sh"]
+      # 10s e nao 30s: o supervisor derruba o container em ate ~45s apos a morte de um
+      # worker. Com 30s x 3 retries o container so viraria `unhealthy` depois de ja ter
+      # reiniciado — ou seja, o healthcheck NUNCA reportaria a morte que existe para ver.
+      interval: 10s
+      timeout: 10s
+      retries: 3
+      # CURTO de proposito. Um start_period longo NAO servia aqui: ele reseta a cada
+      # restart e so termina antes da hora se um probe PASSAR, entao num crashloop (onde o
+      # probe sempre reprova) o container ficava `health: starting` para SEMPRE e nunca
+      # `unhealthy` — suprimindo o unico sinal externo novo, exatamente no incidente que
+      # ele existe para expor. Verificado empiricamente contra o Docker.
+      # Quem cobre o preambulo legitimo agora e o marcador `booting` que o entrypoint
+      # escreve, e que o healthcheck sabe distinguir de um boot travado.
+      start_period: 60s
     # command: celery -A Suricatoos worker --autoscale=${MAX_CONCURRENCY},${MIN_CONCURRENCY} -l INFO
     volumes:
       - ./web:/usr/src/app:ro
@@ -81,6 +103,13 @@ services:
       - COORDINATOR_CONCURRENCY=${COORDINATOR_CONCURRENCY:-30}
       # Backstop deadline for every fan-out barrier (see definitions.py). 0 disables.
       - ORCHESTRATION_BARRIER_TIMEOUT=${ORCHESTRATION_BARRIER_TIMEOUT:-7200}
+      # Supervisao dos workers (celery-entrypoint.sh). A morte de UM worker derruba o
+      # container para que o `restart: always` recrie os 5 — ver o comentario extenso
+      # no entrypoint sobre o incidente de 2026-07-22.
+      - WORKER_SHUTDOWN_GRACE=${WORKER_SHUTDOWN_GRACE:-30}
+      - WORKER_CRASHLOOP_WINDOW=${WORKER_CRASHLOOP_WINDOW:-3600}
+      - WORKER_CRASHLOOP_THRESHOLD=${WORKER_CRASHLOOP_THRESHOLD:-5}
+      - WORKER_CRASHLOOP_BACKOFF_MAX=${WORKER_CRASHLOOP_BACKOFF_MAX:-300}
       - GITGUARDIAN_API_KEY=${GITGUARDIAN_API_KEY}
     depends_on:
       - db

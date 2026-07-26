@@ -160,10 +160,14 @@
 								</div>
 							</div>
 						</div>
-						{% if history.scan_status == 0 %}
+						{# Antes isto era gateado por scan_status == 0 (FAILED), entao um scan
+						   SEGURADO (RUNNING) ou ABORTADO nunca mostrava o motivo. #}
 						{% if history.error_message %}
-							<p class="text-danger">{% blocktrans with error_message=history.error_message %}Scan failed due to ERROR: {{ error_message }}{% endblocktrans %}</p>
-						{% endif %}
+							{% if history.scan_status == 1 %}
+							<p class="text-warning">{{ history.error_message }}</p>
+							{% else %}
+							<p class="text-danger">{{ history.error_message }}</p>
+							{% endif %}
 						{% endif %}
 						<h6 class="font-13 text-muted text-uppercase"><i class="fe-settings"></i> {% trans "Scan Configurations" %}</h6>
 						<span>{% trans "Starting Path:" %} {% if history.cfg_starting_point_path %} {{history.cfg_starting_point_path}} {% else %}/ {% endif %}</span><i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Scan path where the scan began' %}"></i><br>

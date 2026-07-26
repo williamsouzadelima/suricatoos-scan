@@ -146,6 +146,19 @@ class HangMonitorTests(TestCase):
         self.Domain, self.EngineType, self.ScanHistory = Domain, EngineType, ScanHistory
         self.domain = Domain.objects.create(name='example.com')
         self.engine = EngineType.objects.create(engine_name='t', yaml_configuration='{}')
+        # O hang_monitor agora consulta o cluster ANTES de decidir. Sem broker no ambiente
+        # de teste o probe falharia e tudo cairia no caso B (segura, nao aborta), o que
+        # mascararia os cenarios que estes testes descrevem. Aqui o cluster e SAUDAVEL —
+        # toda fila do pipeline servida e vazia — ou seja, o caso F (cunha genuina), que e
+        # exatamente o cenario para o qual estes testes foram escritos.
+        from Suricatoos.tasks import _pipeline_queues
+        probe = patch('Suricatoos.tasks._inspect_cluster', return_value={
+            'consumed': _pipeline_queues(), 'live_ids': set(), 'workers': ['w1']})
+        depth = patch('Suricatoos.tasks._queue_depth', return_value=0)
+        probe.start()
+        depth.start()
+        self.addCleanup(probe.stop)
+        self.addCleanup(depth.stop)
 
     def _scan(self, status, start_ago_s, celery_ids=None):
         return self.ScanHistory.objects.create(
