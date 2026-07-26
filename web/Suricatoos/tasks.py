@@ -4641,6 +4641,22 @@ def http_crawl(
 		)
 		# logger.debug(urls)
 
+	# Alvos que o httpx EFETIVAMENTE recebia antes do loteamento: `input_path` ja foi
+	# escrito acima, ANTES da filtragem abaixo, e o comando usava `-l input_path`. Ou seja,
+	# `excluded_paths` nunca chegava ao httpx neste caminho.
+	#
+	# Os lotes saem DESTA lista, e nao da filtrada, para que o loteamento seja
+	# ESTRITAMENTE neutro em comportamento. Fazer os lotes saírem da lista filtrada parece
+	# uma correcao — `excluded_paths` passaria a valer —, mas nao e: exclude_urls_by_patterns
+	# casa o padrao contra a string INTEIRA, e subdomain_discovery passa HOSTNAMES NUS
+	# (tasks.py, http_crawl(urls, ..., is_ran_from_subdomain_scan=True)). O padrao default
+	# `.*\.ico` casaria com `www.icons.example.com`, e um operador que digitasse `admin`
+	# para pular /admin eliminaria `admin.example.com` do crawl inteiro — perda de cobertura
+	# silenciosa, sem http_status nem is_alive, sumindo de todo get_http_urls(is_alive=True)
+	# a jusante. Fazer `excluded_paths` valer de verdade exige casar contra o PATH da URL, e
+	# e mudanca de comportamento propria — nao pode vir de carona num conserto de memoria.
+	crawl_targets = list(urls)
+
 	# exclude urls by pattern
 	if self.excluded_paths:
 		urls = exclude_urls_by_patterns(self.excluded_paths, urls)
@@ -4660,24 +4676,126 @@ def http_crawl(
 
 	# Run command
 	cmd += f' -cl -ct -rt -location -td -websocket -cname -asn -cdn -probe -random-agent'
-	cmd += f' -t {threads}' if threads > 0 else ''
 	cmd += f' --http-proxy {proxy}' if proxy else ''
 	# shell=False: keep only no-whitespace header-shaped values (no quotes), so each
 	# stays one argv token and cannot smuggle an httpx flag.
 	cmd += _shell_false_headers(custom_headers)
 	cmd += f' -json'
-	cmd += f' -u {urls[0]}' if len(urls) == 1 else f' -l {input_path}'
 	cmd += f' -x {method}' if method and re.match(r'^[A-Z]+$', str(method)) else ''
 	cmd += f' -silent'
 	if follow_redirect:
 		cmd += ' -fr'
+	base_cmd = cmd
+
+	# LOTEAMENTO DA ENTRADA.
+	#
+	# O httpx guarda estado por alvo (corpo da resposta para titulo/tech, cadeia de
+	# redirect, CNAME, ASN) e recebia a lista INTEIRA numa unica invocacao. Com ~950
+	# alvos chegou a 1.96GB de RSS e estourou o `mem_limit: 2g` do container: foi o
+	# gatilho do OOM de 2026-07-22, que levou junto o coordinator_worker e produziu 3
+	# dias de scans auto-abortados, e de novo em 26/07 (dessa vez matando so o httpx).
+	# Quem morre junto e sorteio do OOM killer — por isso o consumo tem que ser limitado
+	# na origem, e nao apenas sobrevivido pela supervisao do container.
+	#
+	# Seguro porque o httpx NAO correlaciona alvos entre si: N lotes de M alvos produzem
+	# as mesmas linhas que uma invocacao de N*M. Cada lote tambem passa a ter seu proprio
+	# watchdog, entao um alvo patologico nao consome mais o orcamento da lista toda.
+	#
+	# MUDANCA DE COMPORTAMENTO DELIBERADA: os lotes saem de `urls`, que ja passou por
+	# exclude_urls_by_patterns. Antes o `-l` apontava para o arquivo escrito ANTES dessa
+	# filtragem, entao `excluded_paths` era ignorado na pratica pelo httpx. Agora e
+	# respeitado — que e o que a opcao sempre prometeu.
+	batch_size = HTTP_CRAWL_BATCH_SIZE if HTTP_CRAWL_BATCH_SIZE > 0 else len(crawl_targets)
+	batches = [crawl_targets[i:i + batch_size]
+			   for i in range(0, len(crawl_targets), batch_size)]
+	if len(batches) > 1:
+		logger.info(
+			f'http_crawl: {len(urls)} alvo(s) em {len(batches)} lote(s) de ate '
+			f'{batch_size} — limita o pico de memoria do httpx')
+
+	# ORCAMENTO DE TEMPO — o invariante que o loteamento quase quebrou.
+	#
+	# O watchdog do stream_command vale POR COMANDO. Com a lista inteira numa unica
+	# invocacao isso respeitava o invariante documentado em definitions.py:185:
+	# watchdog 5100s < soft 5400s < hard 7200s. Lotear multiplicaria o teto pelo numero
+	# de lotes (7 lotes -> 35700s), e a propria task seria SIGKILLada pelo celery no meio
+	# do caminho — perdendo os lotes restantes e, pior, derrubando a fase que a chamou
+	# (http_crawl roda DENTRO de subdomain_discovery). Seria trocar um problema de
+	# memoria por um de tempo.
+	#
+	# Por isso o orcamento TOTAL continua sendo o de antes, repartido entre os lotes, com
+	# um prazo global que interrompe de forma VISIVEL em vez de deixar o celery matar.
+	# `0` e o sentinela oficial de "sem watchdog" (definitions.py; scale_timer preserva o 0;
+	# _arm_command_watchdog trata <=0 como sem limite). Somar 0 a agora produziria um prazo
+	# JA VENCIDO e o crawl retornaria sem sondar UM alvo sequer — regressao estrita, porque
+	# antes esse mesmo valor apenas desarmava o watchdog. Pior: com `endpoint_ids` vazio, o
+	# `if filter_ids:` de remove_duplicate_endpoints e falsy e a limpeza rodaria SEM filtro,
+	# sobre os endpoints do scan inteiro.
+	# Mesmo molde de join_group_with_timeout, neste arquivo: sentinela tratado + monotonic
+	# (relogio de parede pode dar salto de NTP e encurtar o orcamento em silencio).
+	crawl_deadline = (
+		time.monotonic() + DEFAULT_COMMAND_EXEC_TIMEOUT
+		if DEFAULT_COMMAND_EXEC_TIMEOUT and DEFAULT_COMMAND_EXEC_TIMEOUT > 0 else None)
+
+	def _stream_batches():
+		"""Encadeia os lotes num unico fluxo de linhas, preservando o `cmd` de cada um."""
+		for idx, batch in enumerate(batches, 1):
+			if crawl_deadline is None:
+				batch_timeout = 0          # sentinela preservado: sem watchdog, como antes
+			else:
+				remaining = crawl_deadline - time.monotonic()
+				# `< 1` e nao `<= 0`: abaixo de 1s o int() abaixo truncaria para 0, que e
+				# justamente o sentinela "sem watchdog" — o ultimo lote rodaria ILIMITADO,
+				# exatamente a regressao que este orcamento existe para impedir.
+				if remaining < 1:
+					logger.warning(
+						f'http_crawl: orcamento de {DEFAULT_COMMAND_EXEC_TIMEOUT}s esgotado; '
+						f'{len(batches) - idx + 1} lote(s) nao processado(s). O que ja foi '
+						f'coletado esta salvo.')
+					return
+				# Fatia DINAMICA: o tempo que os lotes rapidos nao usaram flui para os
+				# seguintes, em vez de ficar ocioso enquanto um lote lento morre na sua
+				# fatia fixa. O teto total continua sendo o orcamento de uma invocacao.
+				share = max(60, int(remaining // (len(batches) - idx + 1)))
+				batch_timeout = max(1, int(min(share, remaining)))
+			# Inline com -u SO quando o crawl inteiro e de um alvo — o gatilho original.
+			# Estendê-lo a "qualquer lote de 1" o tornaria alcancavel por lote-resto de
+			# URLs vindas do banco/gau, e uma aspa nessas URLs estoura o shlex.split e
+			# derruba o http_crawl inteiro.
+			if len(batches) == 1 and len(batch) == 1:
+				target = f' -u {batch[0]}'
+				batch_path = None
+			else:
+				batch_path = input_path if len(batches) == 1 else f'{input_path}.{idx}'
+				with open(batch_path, 'w') as bf:
+					bf.write('\n'.join(batch))
+				target = f' -l {batch_path}'
+			# Threads pelo tamanho do LOTE, nao da lista toda: nao adianta 30 threads
+			# para 5 alvos.
+			batch_threads = min(threads, len(batch)) if threads > 0 else 0
+			batch_cmd = base_cmd + (f' -t {batch_threads}' if batch_threads > 0 else '') + target
+			if len(batches) > 1:
+				logger.info(f'http_crawl: lote {idx}/{len(batches)} ({len(batch)} alvo(s))')
+			try:
+				for line in stream_command(
+						batch_cmd,
+						history_file=history_file,
+						scan_id=self.scan_id,
+						activity_id=self.activity_id,
+						timeout=batch_timeout):
+					yield batch_cmd, line
+			finally:
+				# Apaga o arquivo do lote assim que ele termina: a limpeza no fim da task
+				# so remove `input_path` e deixaria N arquivos `.1..N` no results_dir.
+				if batch_path and batch_path != input_path:
+					try:
+						os.remove(batch_path)
+					except OSError:
+						pass
+
 	results = []
 	endpoint_ids = []
-	for line in stream_command(
-			cmd,
-			history_file=history_file,
-			scan_id=self.scan_id,
-			activity_id=self.activity_id):
+	for cmd, line in _stream_batches():
 
 		if not line or not isinstance(line, dict):
 			continue
@@ -4806,8 +4924,13 @@ def http_crawl(
 		endpoint.save()
 		endpoint_ids.append(endpoint.id)
 
-	if should_remove_duplicate_endpoints:
-		# Remove 'fake' alive endpoints that are just redirects to the same page
+	if should_remove_duplicate_endpoints and endpoint_ids:
+		# Remove 'fake' alive endpoints that are just redirects to the same page.
+		#
+		# O `and endpoint_ids` nao e cosmetico: remove_duplicate_endpoints faz
+		# `if filter_ids:`, e lista VAZIA e falsy — o filtro seria ignorado e a limpeza
+		# rodaria sobre os endpoints do SCAN INTEIRO, apagando o que outras fases
+		# produziram. Se este crawl nao gerou endpoint nenhum, nao ha nada para deduplicar.
 		remove_duplicate_endpoints(
 			self.scan_id,
 			self.domain_id,

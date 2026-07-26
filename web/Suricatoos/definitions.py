@@ -286,6 +286,25 @@ FFUF_DEFAULT_MATCH_HTTP_STATUS = [200, 204]
 FFUF_DEFAULT_RECURSIVE_LEVEL = 2
 FFUF_DEFAULT_FOLLOW_REDIRECT = False
 
+# http_crawl: tamanho do lote de alvos por invocacao do httpx.
+#
+# O httpx guarda estado POR ALVO (corpo da resposta para titulo/tech, cadeia de redirect,
+# CNAME, ASN, headers) e a invocacao era UNICA para a lista inteira. Com ~950 alvos ele
+# chegou a 1.96GB de RSS e estourou o `mem_limit: 2g` do container do celery — foi o
+# gatilho do OOM de 2026-07-22 (que levou junto o coordinator_worker e causou 3 dias de
+# scans abortados) e de novo em 2026-07-26 (que dessa vez matou so o httpx). Quem morre
+# junto e sorteio do OOM killer, entao o consumo TEM que ser limitado na origem.
+#
+# Lotear e seguro porque o httpx NAO correlaciona alvos entre si: N lotes de M alvos
+# produzem exatamente as mesmas linhas que uma invocacao de N*M. O custo e o startup do
+# processo por lote (desprezivel perto de uma sondagem HTTP).
+# 0 desliga o loteamento (uma invocacao so, comportamento anterior).
+try:
+    _raw = os.environ.get('HTTP_CRAWL_BATCH_SIZE')
+    HTTP_CRAWL_BATCH_SIZE = int(_raw) if _raw not in (None, '') else 150
+except (TypeError, ValueError):
+    HTTP_CRAWL_BATCH_SIZE = 150
+
 # naabu
 NAABU_DEFAULT_PORTS = ['top-100']
 
