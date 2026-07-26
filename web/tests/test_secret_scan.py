@@ -22,7 +22,7 @@ from rest_framework.test import APIRequestFactory
 
 from Suricatoos.tasks import (redact_secret, save_leaked_secret,
                               run_gitleaks_scan, run_ggshield_scan,
-                              spiderfoot_scan, secret_scan)
+                              secret_scan)
 from api.serializers import LeakedSecretSerializer
 from api.views import LeakedSecretViewSet
 from dashboard.models import ApiCredential, GitGuardianAPIKey
@@ -313,59 +313,6 @@ class TestGgshieldParsing(TestCase):
             json.dump({'scans': []}, f)
         run_ggshield_scan(self.fake_self, self.tmp)
         self.assertFalse(os.path.exists(report))
-
-
-class TestSpiderFootMapping(TestCase):
-    def setUp(self):
-        self.domain = Domain.objects.create(name='example.com')
-        self.engine = EngineType.objects.create(
-            engine_name='t', yaml_configuration='osint: {}')
-        self.scan = ScanHistory.objects.create(
-            domain=self.domain, scan_type=self.engine,
-            start_scan_date=timezone.now())
-        self.tmp = tempfile.mkdtemp()
-        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
-        self.ctx = {
-            'track': False,
-            'yaml_configuration': {'osint': {}},
-            'results_dir': self.tmp,
-            'scan_history_id': self.scan.id,
-            'domain_id': self.domain.id,
-        }
-
-    # geo_localize is patched so save_ip_address() doesn't enqueue a real Celery
-    # task (which would try to reach Redis and stall the test with retries).
-    @patch('Suricatoos.tasks.geo_localize')
-    @patch('Suricatoos.tasks.run_command')
-    def test_events_are_mapped_to_existing_models(self, mock_run, mock_geo):
-        events = [
-            {'type': 'EMAILADDR', 'data': 'admin@example.com'},
-            {'type': 'IP_ADDRESS', 'data': '203.0.113.5'},
-            {'type': 'HUMAN_NAME', 'data': 'John Doe'},
-        ]
-        with open(f'{self.tmp}/spiderfoot.json', 'w') as f:
-            json.dump(events, f)
-
-        spiderfoot_scan(
-            config={}, host=self.domain.name, scan_history_id=self.scan.id,
-            activity_id=None, results_dir=self.tmp, ctx=self.ctx)
-
-        self.assertTrue(Email.objects.filter(address='admin@example.com').exists())
-        self.assertTrue(IpAddress.objects.filter(address='203.0.113.5').exists())
-        self.assertTrue(Employee.objects.filter(name='John Doe').exists())
-
-    @patch('Suricatoos.tasks.run_command')
-    def test_malicious_preset_falls_back_to_passive(self, mock_run):
-        # An out-of-allowlist spiderfoot preset must not reach the shell command.
-        with open(f'{self.tmp}/spiderfoot.json', 'w') as f:
-            json.dump([], f)
-        spiderfoot_scan(
-            config={'spiderfoot_preset': 'passive; rm -rf /'},
-            host=self.domain.name, scan_history_id=self.scan.id,
-            activity_id=None, results_dir=self.tmp, ctx=self.ctx)
-        cmd = mock_run.call_args.args[0]
-        self.assertIn('-u passive ', cmd)
-        self.assertNotIn('rm -rf', cmd)
 
 
 class TestLeakedSecretAPI(TestCase):

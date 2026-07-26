@@ -117,8 +117,7 @@
       \ - emails\n  - metainfo\n  - employees\n  dorks:\n  - login_pages\n  - admin_panels\n
       \ - config_files\n  - exposed_documents\n  - git_exposed\n  - db_files\n  -
       cloud_buckets\n  - jenkins\n  - wordpress_files\n  - php_error\n  - struts_rce\n
-      \ - code_sharing\n  intensity: normal\n  documents_limit: 100\n  enable_spiderfoot:
-      true\n  spiderfoot_preset: passive\ndir_file_fuzz:\n  auto_calibration: true\n
+      \ - code_sharing\n  intensity: normal\n  documents_limit: 100\ndir_file_fuzz:\n  auto_calibration: true\n
       \ enable_http_crawl: true\n  rate_limit: 150\n  extensions:\n  - php\n  - asp\n
       \ - aspx\n  - json\n  - yml\n  - yaml\n  - config\n  - conf\n  - env\n  - bak\n
       \ - sql\n  - git\n  - log\n  - txt\n  follow_redirect: false\n  max_time: 600\n
@@ -151,7 +150,7 @@
       30\n  threads: 8\n  passive: false\n  enable_nmap: true\nosint:\n  discover:\n
       \ - emails\n  - metainfo\n  dorks:\n  - login_pages\n  - admin_panels\n  - config_files\n
       \ - exposed_documents\n  - git_exposed\n  - db_files\n  intensity: normal\n
-      \ documents_limit: 50\n  enable_spiderfoot: true\n  spiderfoot_preset: passive\ndir_file_fuzz:\n
+      \ documents_limit: 50\ndir_file_fuzz:\n
       \ auto_calibration: true\n  enable_http_crawl: true\n  rate_limit: 30\n  extensions:\n
       \ - php\n  - asp\n  - aspx\n  - json\n  - yml\n  - yaml\n  - config\n  - conf\n
       \ - env\n  - bak\n  - sql\n  - git\n  - log\n  - txt\n  follow_redirect: false\n
@@ -202,7 +201,7 @@
       \ false\n  enable_nmap: true\nosint:\n  discover:\n  - emails\n  - metainfo\n\
       \  - employees\n  dorks:\n  - login_pages\n  - admin_panels\n  - config_files\n\
       \  - exposed_documents\n  - git_exposed\n  intensity: normal\n  documents_limit:\
-      \ 50\n  enable_spiderfoot: true\n  spiderfoot_preset: passive\ndir_file_fuzz:\n\
+      \ 50\ndir_file_fuzz:\n\
       \  auto_calibration: true\n  enable_http_crawl: true\n  rate_limit: 150\n  extensions:\n\
       \  - php\n  - json\n  - yml\n  - config\n  - conf\n  - env\n  - bak\n  - sql\n\
       \  - git\n  - txt\n  follow_redirect: false\n  max_time: 0\n  match_http_status:\n\
@@ -232,8 +231,7 @@
       \  - emails\n  - metainfo\n  - employees\n  dorks:\n  - login_pages\n  - admin_panels\n\
       \  - dashboard_pages\n  - config_files\n  - exposed_documents\n  - git_exposed\n\
       \  - db_files\n  - jenkins\n  - wordpress_files\n  - php_error\n  - code_sharing\n\
-      \  - cloud_buckets\n  intensity: normal\n  documents_limit: 100\n  enable_spiderfoot:\
-      \ true\n  spiderfoot_preset: all\ndir_file_fuzz:\n  auto_calibration: true\n\
+      \  - cloud_buckets\n  intensity: normal\n  documents_limit: 100\ndir_file_fuzz:\n  auto_calibration: true\n\
       \  enable_http_crawl: true\n  rate_limit: 150\n  extensions:\n  - html\n  -\
       \ php\n  - asp\n  - aspx\n  - json\n  - yml\n  - yaml\n  - config\n  - conf\n\
       \  - cnf\n  - env\n  - bak\n  - sql\n  - git\n  - gz\n  - log\n  - db\n  - txt\n\

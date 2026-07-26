@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Smoke test for the secret-scanning feature (gitleaks / ggshield / SpiderFoot).
+# Smoke test for the secret-scanning feature (gitleaks / ggshield).
 #
 # Brings up the stack, runs the secret-scan unit tests inside the worker
 # container (where Django and all dependencies are installed), verifies the
@@ -46,9 +46,9 @@ say "Verifying fixtures loaded (new tools + secret_scan in default engines)..."
 $DC exec -T "$SVC" python3 manage.py shell -c "
 from scanEngine.models import InstalledExternalTool, EngineType
 tools = set(InstalledExternalTool.objects.values_list('name', flat=True))
-for t in ['gitleaks', 'ggshield', 'spiderfoot']:
+for t in ['gitleaks', 'ggshield']:
     assert t in tools, f'tool {t} not registered'
-print('  tools registered:', sorted(t for t in tools if t in {'gitleaks','ggshield','spiderfoot'}))
+print('  tools registered:', sorted(t for t in tools if t in {'gitleaks','ggshield'}))
 fs = EngineType.objects.filter(engine_name='Full Scan').first()
 assert fs and 'secret_scan' in fs.tasks, 'secret_scan missing from Full Scan engine'
 print('  Full Scan engine tasks include secret_scan:', 'secret_scan' in fs.tasks)
@@ -61,7 +61,7 @@ $DC exec -T "$SVC" python3 manage.py test tests.test_secret_scan -v 2
 say "Automated checks passed. Manual end-to-end check (UI):"
 cat <<'EOF'
   1. Scan Engines -> Add: confirm the YAML editor now shows a `secret_scan:` block
-     and `enable_spiderfoot` under `osint`.
+     under `secret_scan`.
   2. (Optional, for ggshield) Settings -> API: set the GitGuardian key.
   3. Run a scan with "Full Scan" or "Suricatoos Recommended" against a target that
      exposes a fake secret (e.g. an AWS-looking key in a reachable .js/.env).

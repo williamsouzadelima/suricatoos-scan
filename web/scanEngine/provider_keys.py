@@ -10,7 +10,7 @@ temp file).
 Vault page — each ``key`` MUST match subfinder's provider id in
 provider-config.yaml. Several of these (shodan, censys, virustotal,
 securitytrails, github, fullhunt, quake, zoomeye, intelx) are also consumed by
-OneForAll / theHarvester / SpiderFoot, so one key improves multiple scan stages.
+OneForAll / theHarvester, so one key improves multiple scan stages.
 """
 import json
 import os
@@ -37,8 +37,8 @@ SUBFINDER_UI_PROVIDERS = [
 
 # OSINT keys consumed by theHarvester (emails / people / threat-intel). These go
 # into theHarvester's nested api-keys.yaml — a different file/shape from subfinder.
-# HIBP / Dehashed are NOT theHarvester sources (they belong to SpiderFoot / the
-# credential vault), so they are intentionally absent here.
+# HIBP / Dehashed nao sao fontes do theHarvester; alimentavam o SpiderFoot, removido —
+# por isso sairam tambem do registro do vault (dashboard/providers.py).
 THEHARVESTER_UI_PROVIDERS = [
     {'key': 'rocketreach', 'label': 'RocketReach', 'url': 'https://rocketreach.co/api',
      'description': _("People / professional-email lookups.")},

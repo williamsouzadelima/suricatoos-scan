@@ -92,35 +92,6 @@ def join_group_with_timeout(job, label, timeout=None, poll=5):
 	return True
 
 
-# The SpiderFoot package is NOT pip-installed — it lives at SPIDERFOOT_DIR
-# (/usr/src/github/spiderfoot, a shared volume) and is normally invoked as a
-# subprocess. Add it to sys.path and import SpiderFootDb under a guard so a host
-# WITHOUT that volume (e.g. the test container) keeps tasks.py importable —
-# SpiderFootDb is then None and seeding is a graceful no-op. The celery worker
-# (where spiderfoot_scan actually runs) HAS the volume, so it gets the real class.
-# Keeping SpiderFootDb at module scope makes it patchable in tests
-# (mock.patch.object(tasks, 'SpiderFootDb')).
-if SPIDERFOOT_DIR not in sys.path:
-    sys.path.insert(0, SPIDERFOOT_DIR)
-try:
-    from spiderfoot import SpiderFootDb
-except Exception:   # noqa: BLE001 - package or its deps absent in this environment
-    SpiderFootDb = None
-
-
-def seed_spiderfoot_config(cfg):
-    """Persist vault-sourced API keys into spiderfoot.db so the CLI scan loads them.
-    Returns True on write, False on empty/missing-package/failure (never raises into a scan)."""
-    if not cfg or SpiderFootDb is None:
-        return False
-    try:
-        SpiderFootDb({'__database': SPIDERFOOT_DB_PATH}, init=True).configSet(cfg)
-        return True
-    except Exception as e:   # noqa: BLE001 - seeding must never break a scan
-        logger.warning(f'spiderfoot: could not seed API keys into config: {e}')
-        return False
-
-
 def is_valid_domain(name):
 	"""Validate a domain, allowing underscore-prefixed DNS labels (_dmarc, _domainkey, SRV)."""
 	if not name:
@@ -278,7 +249,7 @@ def initiate_scan(
 		#						 	   		         	  	  screenshot
 		#													  waf_detection
 		# Serialize subdomain_discovery -> osint (was a parallel group): on a small box
-		# running both at scan start let amass-active + spiderfoot/theHarvester contend for
+		# running both at scan start let amass-active + theHarvester contend for
 		# RAM simultaneously (the scan-#19 wedge). Sequencing halves peak memory at kickoff.
 		workflow = chain(
 			subdomain_discovery.si(ctx=ctx, description='Subdomain discovery'),
@@ -1154,18 +1125,6 @@ def osint_discovery(config, host, scan_history_id, activity_id, results_dir, ctx
 	if 'employees' in osint_lookup:
 		ctx['track'] = False
 		_task = theHarvester.si(
-			config=config,
-			host=host,
-			scan_history_id=scan_history_id,
-			activity_id=activity_id,
-			results_dir=results_dir,
-			ctx=ctx
-		)
-		grouped_tasks.append(_task)
-
-	if config.get(ENABLE_SPIDERFOOT, DEFAULT_ENABLE_SPIDERFOOT):
-		ctx['track'] = False
-		_task = spiderfoot_scan.si(
 			config=config,
 			host=host,
 			scan_history_id=scan_history_id,
@@ -3448,7 +3407,6 @@ def add_gpt_description_db(title, path, description, impact, remediation, refere
 # Allowlists for user-editable OSINT / secret-scan config values that get
 # interpolated into shell commands. Anything outside these sets is rejected and
 # the safe default is used, so a malicious engine YAML cannot inject commands.
-SPIDERFOOT_PRESETS = {'passive', 'footprint', 'investigate', 'all'}
 GITLEAKS_MODES = {'dir', 'git'}
 
 
@@ -3542,54 +3500,21 @@ def _shell_false_headers(headers):
 	return (' ' + ' '.join(parts)) if parts else ''
 
 
-# SpiderFoot emits hundreds of event LABELS; route the high-value families to
-# OsintResult buckets by keyword (robust to new/renamed event types) and drop the
-# raw/noise dumps. Emails/hosts/IPs are handled by the typed models before this.
-SF_DROP = {
-	'Raw Data from RIRs/APIs', 'Raw DNS Records', 'Affiliate Description - Category',
-	'Hash',
-}
-
-
-def _sf_bucket(event_type):
-	"""Map a SpiderFoot event label to (bucket, is_malicious, severity), or None to
-	skip. Keyword-based so SpiderFoot's many event names still route correctly."""
-	t = event_type or ''
-	tl = t.lower()
-	if t in SF_DROP:
-		return None
-	if 'malicious' in tl or 'blacklisted' in tl:
-		return (OsintResult.BUCKET_MALICIOUS, True, 3)   # high
-	if 'co-hosted' in tl:
-		return (OsintResult.BUCKET_COHOSTED, False, 0)
-	if 'code repository' in tl:
-		return (OsintResult.BUCKET_CODE_REPOS, False, 2)  # medium
-	if t.startswith('Affiliate'):
-		return (OsintResult.BUCKET_AFFILIATES, False, 0)
-	if 'bgp as' in tl or 'netblock' in tl:
-		return (OsintResult.BUCKET_NETBLOCK_ASN, False, 0)
-	if ('dns ' in tl or 'name server' in tl or 'mx records' in tl
-			or t in ('Web Server', 'SSL Certificate - Raw Data', 'Domain Whois')):
-		return (OsintResult.BUCKET_INFRA_DNS, False, 0)
-	if t in ('Physical Location', 'Country Name'):
-		return (OsintResult.BUCKET_GEO, False, 0)
-	if 'web analytics' in tl or 'web framework' in tl or 'software used' in tl:
-		return (OsintResult.BUCKET_WEB_TECH, False, 0)
-	if t in ('Company Name', 'Domain Name - Organisation'):
-		return (OsintResult.BUCKET_ORG, False, 0)
-	return None
-
-
-def save_osint_result(scan_history, bucket, event_type, data, source='spiderfoot',
+def save_osint_result(scan_history, bucket, event_type, data, source='osint',
 		extra=None, is_malicious=False, severity=0,
 		module=None, parent=None, confidence=None, generated=None):
-	"""Idempotently persist a generic OSINT finding (de-dup per scan/bucket/type/data)."""
+	"""Idempotently persist a generic OSINT finding (de-dup per scan/bucket/type/data).
+
+	O default de `source` era 'spiderfoot'. Trocado para 'osint' generico junto com a
+	remocao da integracao: quem chama passa a origem explicitamente (o theHarvester ja
+	passava, tasks.py `save_osint_result(..., source='theharvester', ...)`), e uma linha
+	nova nao pode nascer rotulada com o nome de uma ferramenta que nao existe mais.
+	As 92 linhas historicas com source='spiderfoot' ficam intactas — sao proveniencia real.
+	"""
 	if not data:
 		return None, False
-	# SpiderFoot wraps source links in <SFURL>..</SFURL> and bundles multi-line blobs;
-	# flatten that markup so the value reads cleanly in the UI.
-	data = str(data).replace('<SFURL>', ' ').replace('</SFURL>', '')
-	data = ' '.join(data.split()).strip()
+	# Alguns produtores mandam blob multi-linha; achatar para o valor ler bem na UI.
+	data = ' '.join(str(data).split()).strip()
 	if not data:
 		return None, False
 	discovered = timezone.now()
@@ -3610,108 +3535,6 @@ def save_osint_result(scan_history, bucket, event_type, data, source='spiderfoot
 			'confidence': confidence, 'discovered_date': discovered,
 		})
 	return obj, created
-
-
-@app.task(name='spiderfoot_scan', queue='spiderfoot_queue', bind=False)
-def spiderfoot_scan(config, host, scan_history_id, activity_id, results_dir, ctx={}):
-	"""Run SpiderFoot OSINT headless (no web UI) and map discovered events to
-	existing models (emails, subdomains, IPs, employees). Opt-in via the
-	osint.enable_spiderfoot config flag.
-	"""
-	scan_history = ScanHistory.objects.get(pk=scan_history_id)
-	seeded = seed_spiderfoot_config(build_spiderfoot_config())
-	if seeded:
-		logger.info('spiderfoot: seeded API keys from the credential vault')
-	# str() so a list/dict YAML value fails the allowlist safely instead of raising.
-	preset = str(config.get(SPIDERFOOT_PRESET, 'passive'))
-	if preset not in SPIDERFOOT_PRESETS:
-		logger.warning(f'spiderfoot: unknown preset {preset!r}, falling back to passive')
-		preset = 'passive'
-	out = f'{results_dir}/spiderfoot.json'
-	history_file = f'{results_dir}/commands.txt'
-	# -q keeps stdout as pure JSON; redirect to file (shell=True because of '>').
-	# host/out are quoted so a crafted target or path can't inject shell commands.
-	cmd = (
-		f'python3 {SPIDERFOOT_EXEC_PATH} -s {shlex.quote(str(host))} '
-		f'-u {preset} -o json -q > {shlex.quote(out)}'
-	)
-	run_command(
-		cmd,
-		shell=True,
-		history_file=history_file,
-		scan_id=scan_history_id,
-		activity_id=activity_id,
-		timeout=SPIDERFOOT_EXEC_TIMEOUT)
-	try:
-		with open(out) as f:
-			events = json.load(f) or []
-	except Exception as e:
-		logger.exception(e)
-		return []
-	# sf.py -o json emits the human-readable event LABEL in "type" (e.g.
-	# "Internet Name"), not the internal id ("INTERNET_NAME"). Match on the labels
-	# and keep the internal ids too, so a future SpiderFoot output change still maps.
-	# Affiliate emails are the bulk of real email intel (plain 'Email Address' is
-	# usually empty), so capture both. Hosts/IPs feed the typed models in-scope.
-	SF_EMAILS = {'Email Address', 'Affiliate - Email Address', 'EMAILADDR', 'AFFILIATE_EMAILADDR'}
-	SF_HOSTS = {'Domain Name', 'Internet Name', 'DOMAIN_NAME', 'INTERNET_NAME',
-	            'Internet Name - Unresolved'}
-	SF_IPS = {'IP Address', 'IPv6 Address', 'IP_ADDRESS', 'IPV6_ADDRESS'}
-	SF_NAMES = {'Human Name', 'HUMAN_NAME'}
-	SF_URLS = {'Linked URL - Internal'}
-	saved = 0
-	intel = 0
-	dropped = Counter()
-	for ev in events:
-		etype = ev.get('type')
-		data = ev.get('data')
-		if not data:
-			continue
-		try:
-			if etype in SF_EMAILS:
-				save_email(data, scan_history=scan_history)
-				saved += 1
-			elif etype in SF_HOSTS:
-				save_subdomain(data, ctx=ctx)
-				saved += 1
-			elif etype in SF_IPS:
-				save_ip_address(data)
-				saved += 1
-			elif etype in SF_NAMES:
-				save_employee(data, designation='spiderfoot', scan_history=scan_history)
-				saved += 1
-			elif etype in SF_URLS:
-				save_endpoint(data, ctx=ctx)
-				saved += 1
-			else:
-				# Rich intel (malicious/blacklist, repos, infra/DNS, affiliates,
-				# co-hosted, netblock/ASN, geo, web tech) -> OsintResult bucket.
-				route = _sf_bucket(etype)
-				if not route:
-					dropped[etype] += 1
-					continue
-				bucket, is_mal, sev = route
-				save_osint_result(
-					scan_history, bucket, etype, data,
-					is_malicious=is_mal, severity=sev,
-					module=ev.get('module'), parent=ev.get('source'),
-					generated=ev.get('generated'))
-				intel += 1
-		except Exception as e:
-			logger.warning(f'spiderfoot: could not save {etype}={data}: {e}')
-	n_dropped = sum(dropped.values())
-	logger.info(
-		f'spiderfoot: processed {len(events)} event(s), saved {saved} typed + {intel} intel for {host}; '
-		f'{n_dropped} dropped (top: {dropped.most_common(3)})')
-	return events
-
-
-#--------------------------------#
-# VULNERABILITY VALIDATION        #
-#--------------------------------#
-
-# A re-test URL must stay a single shlex token (no whitespace/quote/backslash) and be http(s).
-SAFE_RETEST_URL_RE = re.compile(r"\Ahttps?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+\Z")
 
 
 def _validation_target_url(url, allow_private=True):
@@ -6705,6 +6528,16 @@ def save_vulnerability(**vuln_data):
 		if tag:
 			vuln.tags.add(tag)
 			vuln.save()
+
+	# Taxonomia: separa reconhecimento de vulnerabilidade. Feito AQUI, e nao no
+	# get_or_create, por dois motivos: (a) as tags — que sao o insumo da classificacao —
+	# so existem depois do laco acima; (b) incluir finding_class no lookup do
+	# get_or_create faria um achado ja gravado com outra classe virar linha DUPLICADA.
+	# Reavaliado a cada ocorrencia para que uma mudanca de regra alcance achado antigo.
+	new_class = classify_finding(vuln_data.get('severity'), tags)
+	if vuln.finding_class != new_class:
+		vuln.finding_class = new_class
+		vuln.save(update_fields=['finding_class'])
 
 	# Save CVEs
 	for cve_id in cve_ids or []:

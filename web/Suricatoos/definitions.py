@@ -113,7 +113,7 @@ USER_AGENT = 'user_agent'
 DELAY = 'delay'
 PROVIDERS = 'providers'
 
-# Suricatoos — secret scanning (secret_scan engine) + spiderfoot OSINT keys
+# Suricatoos — secret scanning (secret_scan engine)
 SECRET_SCAN = 'secret_scan'
 RUN_GITLEAKS = 'run_gitleaks'
 RUN_GGSHIELD = 'run_ggshield'
@@ -122,9 +122,6 @@ GGSHIELD = 'ggshield'
 GITLEAKS_MODE = 'gitleaks_mode'
 SCAN_PATH = 'scan_path'
 SECRET_SCAN_TARGETS = 'targets'
-ENABLE_SPIDERFOOT = 'enable_spiderfoot'
-SPIDERFOOT = 'spiderfoot'
-SPIDERFOOT_PRESET = 'spiderfoot_preset'
 
 ###############################################################################
 # Scan DEFAULTS
@@ -139,19 +136,9 @@ DEFAULT_SCAN_INTENSITY = 'normal'
 # Tools DEFAULTS
 ###############################################################################
 
-# Suricatoos — secret scan / spiderfoot OSINT defaults
-SPIDERFOOT_DIR = '/usr/src/github/spiderfoot'
-SPIDERFOOT_EXEC_PATH = '/usr/src/github/spiderfoot/sf.py'
-import os as _os
-SPIDERFOOT_DB_PATH = _os.path.join(
-    _os.environ.get('SPIDERFOOT_DATA', _os.path.expanduser('~/.spiderfoot')),
-    'spiderfoot.db')
+# Suricatoos — secret scan defaults
 DEFAULT_RUN_GITLEAKS = True
 DEFAULT_RUN_GGSHIELD = False
-# On by default so OSINT scans actually surface SpiderFoot data. Uses the
-# 'passive' preset (no active probing). Set osint.enable_spiderfoot: false in an
-# engine's YAML to opt out (e.g. to keep that engine's scans faster).
-DEFAULT_ENABLE_SPIDERFOOT = True
 # Secrets are reported at critical severity (4 in NUCLEI_REVERSE_SEVERITY_MAP).
 SECRET_DEFAULT_SEVERITY = 4
 
@@ -170,7 +157,7 @@ DEFAULT_VALIDATION_ALLOW_PRIVATE = True
 
 # Wall-clock ceiling (seconds) for ANY external tool spawned via run_command /
 # stream_command. A watchdog kills the whole process group on expiry so a tool that
-# never returns (amass-active brute, spiderfoot, theHarvester) can't wedge its Celery
+# never returns (amass-active brute, theHarvester) can't wedge its Celery
 # task forever (the diagnosed scan-#19 hang). Generous global backstop (raise it if huge
 # nuclei/ffuf scopes legitimately exceed it); per-tool callers pass a tighter value. 0
 # disables. Overridable via the COMMAND_EXEC_TIMEOUT env. When the env is set the
@@ -185,10 +172,9 @@ try:
         DEFAULT_COMMAND_EXEC_TIMEOUT = scale_timer(5100)  # seconds; ~85min; watchdog < soft 5400s < hard 7200s
 except (TypeError, ValueError):
     DEFAULT_COMMAND_EXEC_TIMEOUT = scale_timer(5100)
-# Tighter caps for the known hang-prone OSINT tools (run on the gevent pool, where
-# Celery's SIGALRM hard limit does NOT apply — the watchdog is the only guard there).
+# Tighter cap for theHarvester, hang-prone e rodando no pool gevent, onde o hard limit
+# SIGALRM do Celery NAO se aplica — o watchdog do run_command e a unica protecao ali.
 THEHARVESTER_EXEC_TIMEOUT = scale_timer(600)
-SPIDERFOOT_EXEC_TIMEOUT = scale_timer(900)
 
 # Orchestration barrier backstop. Several scan tasks fan out a group/chord of child
 # tasks and then block until the children finish (`while not job.ready()` / `.get()`).
@@ -304,6 +290,39 @@ try:
     HTTP_CRAWL_BATCH_SIZE = int(_raw) if _raw not in (None, '') else 150
 except (TypeError, ValueError):
     HTTP_CRAWL_BATCH_SIZE = 150
+
+# ---------------------------------------------------------------------------
+# TAXONOMIA DO ACHADO — separar reconhecimento de vulnerabilidade.
+#
+# Medido em producao (26/07/2026, 12.096 achados): 97,3% eram `info`, e o achado de
+# MAIOR volume era "RDAP WHOIS" (3.923) — uma consulta WHOIS. O 3o era "WAF Detection"
+# (1.532), que e uma coisa BOA. Isso e inventario e reconhecimento gravado na tabela de
+# vulnerabilidades: enquanto for, toda contagem, dashboard, relatorio e rating mente, e
+# os 2 achados criticos reais ficam soterrados sob 11.766 linhas de fato de ambiente.
+#
+# A classificacao NAO precisa de heuristica nova: o proprio nuclei ja marca isso nas
+# tags do template. Verificado contra a base real — a regra abaixo separa 8.048 de
+# inventario e 3.448 de higiene sem capturar UM UNICO achado de severidade media ou
+# maior, e preserva os 10 alta/critica e os 247 media+ do lado de vulnerabilidade.
+FINDING_CLASS_VULNERABILITY = 'vulnerability'
+FINDING_CLASS_HYGIENE = 'hygiene'
+FINDING_CLASS_INVENTORY = 'inventory'
+
+# Fato sobre o ambiente: "existe um WAF", "a tecnologia e X", "o registro CAA e Y".
+# Nao ha o que remediar — e inventario, e pertence ao ativo, nao ao backlog de risco.
+FINDING_TAGS_INVENTORY = frozenset({
+    'discovery', 'tech', 'osint', 'enum', 'passive', 'whois', 'rdap',
+})
+# Boa pratica ausente: cabecalho de seguranca faltando, SRI ausente. E real e vale
+# reportar, mas nao e exploravel por si — misturado com CVE, achata a prioridade.
+FINDING_TAGS_HYGIENE = frozenset({
+    'misconfig', 'compliance', 'headers',
+})
+# Piso de seguranca: a classificacao por tag NUNCA rebaixa um achado de severidade
+# media ou maior. As tags do nuclei sao inconsistentes (o proprio "RDAP WHOIS" carrega
+# a tag `vuln`), entao um template severo que um dia venha marcado `discovery` seria
+# escondido em silencio. Hoje o piso nao descarta nada — ele protege o amanha.
+FINDING_CLASS_SEVERITY_FLOOR = 2   # 2 = medium na escala do reNgine
 
 # naabu
 NAABU_DEFAULT_PORTS = ['top-100']

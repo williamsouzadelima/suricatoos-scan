@@ -509,6 +509,29 @@ class Vulnerability(models.Model):
 	validated_date = models.DateTimeField(null=True, blank=True)
 	validation_evidence = models.TextField(null=True, blank=True)
 
+	# Taxonomia do achado: o scanner grava RECONHECIMENTO na mesma tabela que
+	# vulnerabilidade. Medido em 26/07/2026 sobre 12.096 achados: 97,3% eram `info` e o
+	# de maior volume era "RDAP WHOIS" (3.923 linhas) — uma consulta WHOIS. O 3o era
+	# "WAF Detection", que e uma coisa boa. Sem separar, toda contagem/dashboard/relatorio
+	# mente e os 2 criticos reais ficam soterrados.
+	#
+	# Default `vulnerability` de proposito: a coluna nasce sem mudar contagem nenhuma. A
+	# reclassificacao dos dados existentes e um passo EXPLICITO (manage.py classify_findings),
+	# e os consumidores passam a filtrar por classe numa mudanca propria — nao de carona.
+	CLASS_VULNERABILITY = 'vulnerability'   # exploravel / risco de fato
+	CLASS_HYGIENE = 'hygiene'               # boa pratica ausente (header, SRI)
+	CLASS_INVENTORY = 'inventory'           # fato de ambiente (WHOIS, WAF, tech, CAA)
+	FINDING_CLASS_CHOICES = (
+		(CLASS_VULNERABILITY, 'Vulnerability'),
+		(CLASS_HYGIENE, 'Hygiene'),
+		(CLASS_INVENTORY, 'Inventory'),
+	)
+	finding_class = models.CharField(
+		max_length=20,
+		choices=FINDING_CLASS_CHOICES,
+		default=CLASS_VULNERABILITY,
+		db_index=True)
+
 	# used for subscans
 	vuln_subscan_ids = models.ManyToManyField('SubScan', related_name='vuln_subscan_ids', blank=True)
 
@@ -733,7 +756,7 @@ class LeakedSecret(models.Model):
 
 
 class OsintResult(models.Model):
-	"""Generic OSINT intelligence (mainly from SpiderFoot) that doesn't fit the
+	"""Generic OSINT intelligence (theHarvester e afins) that doesn't fit the
 	typed OSINT models (Email/Employee/Dork/Metadata). One row per finding,
 	grouped by `bucket`, exposed read-only via the API. Mirrors the flat
 	LeakedSecret pattern instead of exploding into one model per event family."""
@@ -765,12 +788,12 @@ class OsintResult(models.Model):
 	target_domain = models.ForeignKey(Domain, on_delete=models.CASCADE, null=True, blank=True)
 	source = models.CharField(max_length=50, null=True, blank=True)
 	bucket = models.CharField(max_length=50, choices=BUCKET_CHOICES, null=True, blank=True)
-	# the raw SpiderFoot event label, e.g. "Malicious IP Address"
+	# rotulo cru do evento da ferramenta de origem, ex.: "Malicious IP Address"
 	event_type = models.CharField(max_length=200, null=True, blank=True)
 	data = models.CharField(max_length=2000, null=True, blank=True)
-	# optional context (e.g. SpiderFoot module / parent event)
+	# contexto opcional (ex.: modulo da ferramenta / evento pai)
 	extra = models.CharField(max_length=2000, null=True, blank=True)
-	# provenance / capture fields (populated from SpiderFoot event metadata)
+	# proveniencia / captura (preenchidos a partir dos metadados do evento)
 	module = models.CharField(max_length=120, null=True, blank=True)
 	parent = models.CharField(max_length=500, null=True, blank=True)
 	confidence = models.IntegerField(null=True, blank=True)

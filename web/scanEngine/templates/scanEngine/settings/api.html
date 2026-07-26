@@ -50,25 +50,6 @@
               {% endfor %}
 
               <hr>
-              <div class="mb-3">
-                <label class="form-label">{% trans "Add custom SpiderFoot key (module:option)" %}</label>
-                <div class="row g-2">
-                  <div class="col-md-6">
-                    <input type="text" class="form-control" name="custom_option" placeholder="sfp_module:api_key">
-                  </div>
-                  <div class="col-md-6 position-relative">
-                    <input type="password" class="form-control" name="custom_key" placeholder="{% trans 'key' %}">
-                    <div class="position-absolute top-50 end-0 translate-middle-y pe-2" style="cursor: pointer;" data-password="false">
-                      <span class="password-eye"></span>
-                    </div>
-                  </div>
-                </div>
-                {% for c in custom_rows %}
-                <div class="mt-2 text-muted small">{{ c.option }} — {{ c.masked }}</div>
-                {% endfor %}
-              </div>
-
-              <hr>
               <h5 class="mt-2">{% trans "Extra subdomain sources (subfinder-only)" %}</h5>
               <p class="text-muted">{% trans "subfinder passive sources that aren't in the vault above. Keys you set in the vault (Shodan, VirusTotal, SecurityTrails, Censys, BinaryEdge, FullHunt, IntelX) already feed subfinder automatically — these are the remaining subfinder-only sources." %}</p>
               {% for p in subfinder_providers %}

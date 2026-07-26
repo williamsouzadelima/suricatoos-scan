@@ -141,7 +141,6 @@ class LiveConstantsRegressionTests(unittest.TestCase):
         self.assertEqual(d.DIR_FUZZ_TIME_BUDGET, BASE_BUDGET)
         self.assertEqual(d.DIR_FUZZ_MIN_PER_HOST, 30)
         self.assertEqual(d.THEHARVESTER_EXEC_TIMEOUT, 600)
-        self.assertEqual(d.SPIDERFOOT_EXEC_TIMEOUT, 900)
         self.assertEqual(d.DEFAULT_COMMAND_EXEC_TIMEOUT, BASE_WATCHDOG)
         # ORCHESTRATION_BARRIER_TIMEOUT is set verbatim by docker-compose (7200);
         # default also 7200, so either way it resolves to 7200 here.

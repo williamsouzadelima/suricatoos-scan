@@ -382,21 +382,3 @@
     is_github_cloned: false
     github_clone_path: null
     subdomain_gathering_command: null
-- model: scanEngine.installedexternaltool
-  pk: 20
-  fields:
-    logo_url: null
-    name: spiderfoot
-    description: SpiderFoot is an open source OSINT automation tool that integrates
-      with 100+ data sources to gather intelligence on IPs, domains, emails and more.
-    github_url: https://github.com/smicallef/spiderfoot
-    license_url: https://github.com/smicallef/spiderfoot/blob/master/LICENSE
-    version_lookup_command: cat /usr/src/github/spiderfoot/VERSION
-    update_command: 'git pull'
-    install_command: git clone https://github.com/smicallef/spiderfoot /usr/src/github/spiderfoot
-    version_match_regex: (\d+\.)?(\d+\.)?(\*|\d+)
-    is_default: true
-    is_subdomain_gathering: false
-    is_github_cloned: true
-    github_clone_path: /usr/src/github/spiderfoot
-    subdomain_gathering_command: null
