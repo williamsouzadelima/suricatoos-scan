@@ -84,6 +84,11 @@ services:
       - ./secrets:/certs:ro
     environment:
       - DEBUG=0
+      # Loop reNgine->OpenVAS (ADR-0006). Vinha sendo ligado por PATCH LOCAL no
+      # docker-compose do host de producao, o que fazia o working tree do deploy divergir
+      # do repo para sempre. Agora e variavel com default seguro: quem quer o push poe
+      # SURICATOOS_SCANNER_PUSH_ENABLED=True no .env, sem tocar neste arquivo.
+      - SURICATOOS_SCANNER_PUSH_ENABLED=${SURICATOOS_SCANNER_PUSH_ENABLED:-False}
       - CELERY_BROKER=redis://:${REDIS_PASSWORD}@redis:6379/0
       - PYTHONDONTWRITEBYTECODE=1
       - SURICATOOS_LOG_TO_STDOUT=1
@@ -161,6 +166,11 @@ services:
     image: suricatoos/web:latest
     environment:
       - DEBUG=0
+      # Loop reNgine->OpenVAS (ADR-0006). Vinha sendo ligado por PATCH LOCAL no
+      # docker-compose do host de producao, o que fazia o working tree do deploy divergir
+      # do repo para sempre. Agora e variavel com default seguro: quem quer o push poe
+      # SURICATOOS_SCANNER_PUSH_ENABLED=True no .env, sem tocar neste arquivo.
+      - SURICATOOS_SCANNER_PUSH_ENABLED=${SURICATOOS_SCANNER_PUSH_ENABLED:-False}
       - CELERY_BROKER=redis://:${REDIS_PASSWORD}@redis:6379/0
       - PYTHONDONTWRITEBYTECODE=1
       - SURICATOOS_LOG_TO_STDOUT=1
