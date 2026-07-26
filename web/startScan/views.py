@@ -78,7 +78,7 @@ def detail_scan(request, id, slug):
     endpoints = EndPoint.objects.filter(scan_history=scan)
     # exclude validator-flagged false positives so the scan-detail counts/list match
     # the PDF report (create_report) — no 247-vs-245 drift.
-    vulns = Vulnerability.objects.filter(scan_history=scan).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+    vulns = Vulnerability.objects.filter(scan_history=scan).user_facing()
     vulns_tags = VulnerabilityTags.objects.filter(vuln_tags__in=vulns)
     ip_addresses = IpAddress.objects.filter(ip_addresses__in=subdomains)
     geo_isos = CountryISO.objects.filter(ipaddress__in=ip_addresses)
@@ -202,6 +202,9 @@ def detail_scan(request, id, slug):
         'unknown_count': unknown_count,
         'total_vulnerability_count': total_count,
         'total_leaked_secret_count': scan.get_leaked_secret_count(),
+        # Higiene: boa pratica ausente (cabecalho, SRI, cookie sem Secure, CORS). Real e
+        # reportavel, mas NAO exploravel — aba propria, nunca somada ao total de risco.
+        'total_hygiene_count': scan.get_hygiene_count(),
         'total_vul_ignore_info_count': total_count_ignore_info,
         'vulnerability_list': vulns.order_by('-severity').all(),
         'scan_history_active': 'active',
@@ -1066,10 +1069,12 @@ def create_report(request, id):
     # Validation gating: never put validator-flagged false positives in a report; with
     # ?confirmed_only keep ONLY findings the validator re-confirmed (drops needs_review/error too).
     confirmed_only = 'confirmed_only' in request.GET
+    # user_facing(): o PDF conta o MESMO que a UI e a API. Sem isto o painel diria 600
+    # e o relatorio entregue ao cliente diria 12.018 — pior que o estado anterior.
     base_vulns = (
         Vulnerability.objects
         .filter(scan_history=scan)
-        .exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+        .user_facing()
     )
     if confirmed_only:
         base_vulns = base_vulns.filter(validation_status=Vulnerability.VALIDATION_CONFIRMED)
@@ -1131,6 +1136,12 @@ def create_report(request, id):
         'unique_vulnerabilities': unique_vulns,
         'all_vulnerabilities': vulns,
         'all_vulnerabilities_count': vulns.count(),
+        # Higiene em secao PROPRIA: boa pratica ausente e real e reportavel (o cliente
+        # quer ver cabecalho faltando e cookie sem Secure), mas nao e exploravel. Somada
+        # ao risco, 2.903 "Missing Security Headers" soterravam as 10 criticas de verdade.
+        'hygiene_findings': (
+            Vulnerability.objects.filter(scan_history=scan).hygiene()
+            .order_by('name', 'subdomain__name')),
         # Per-severity counts derived from the SAME filtered queryset as the detail list, so
         # the summary badges match it (excludes false positives, honours ?confirmed_only /
         # ignore_info_vuln). Don't use scan.get_*_vulnerability_count here — those are unfiltered.

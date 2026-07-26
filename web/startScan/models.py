@@ -107,14 +107,14 @@ class ScanHistory(models.Model):
 		)
 
 	def _real_vulnerabilities(self):
-		"""Vulns counted in every user-facing total: excludes validator-flagged false
-		positives, matching the PDF report gate (create_report in web/startScan/views.py).
-		Keeps the app's counts identical to the report (no 247-vs-245 drift)."""
-		return (
-			Vulnerability.objects
-			.filter(scan_history__id=self.id)
-			.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
-		)
+		"""Vulns contadas em todo total visivel ao usuario: exclui falso positivo do
+		re-teste E o que nao e vulnerabilidade (inventario/higiene). Mesma definicao do
+		gate do PDF (create_report), para nao haver deriva entre app e relatorio."""
+		return Vulnerability.objects.filter(scan_history__id=self.id).user_facing()
+
+	def get_hygiene_count(self):
+		"""Higiene deste scan — contada e exibida SEPARADO, nunca somada ao risco."""
+		return Vulnerability.objects.filter(scan_history__id=self.id).hygiene().count()
 
 	def get_vulnerability_count(self):
 		return self._real_vulnerabilities().count()
@@ -274,7 +274,7 @@ class Subdomain(models.Model):
 		# PDF report gate (create_report) and the ScanHistory totals — no FP drift.
 		vulns = (Vulnerability.objects
 			.filter(subdomain__name=self.name)
-			.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE))
+			.user_facing())
 		if self.scan_history:
 			vulns = vulns.filter(scan_history=self.scan_history)
 		return vulns
@@ -284,7 +284,7 @@ class Subdomain(models.Model):
 		vulns = (Vulnerability.objects
 			.filter(subdomain__name=self.name)
 			.exclude(severity=0)
-			.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE))
+			.user_facing())
 		if self.scan_history:
 			vulns = vulns.filter(scan_history=self.scan_history)
 		return vulns
@@ -439,7 +439,39 @@ class GPTVulnerabilityReport(models.Model):
 		return self.title
 
 
+class VulnerabilityQuerySet(models.QuerySet):
+	"""Consultas de Vulnerability com uma definicao UNICA de "o que conta".
+
+	Existia antes espalhado: ~8 lugares (dashboard, api/views, api/serializers, tasks,
+	models) repetiam `.exclude(validation_status=FALSE_POSITIVE)` a mao. Com a taxonomia
+	entrando, cada um desses lugares precisaria aprender TAMBEM a filtrar por classe — e
+	bastaria esquecer um para o painel dizer 600 e o PDF dizer 12.018, que e pior que o
+	estado anterior. Centralizar aqui torna a regra uma coisa so.
+	"""
+
+	def real(self):
+		"""Exclui o que o re-teste marcou como falso positivo."""
+		return self.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+
+	def user_facing(self):
+		"""O que conta como VULNERABILIDADE em qualquer superficie de usuario.
+
+		Medido em 26/07/2026 sobre 12.096 achados: 8.048 eram inventario (o de maior
+		volume era "RDAP WHOIS", uma consulta WHOIS; o 3o era "WAF Detection", que e uma
+		coisa boa) e 3.448 eram higiene. Sobram 600, com as 247 de severidade media+ e as
+		10 alta/critica intactas. Contar as outras 11.496 fazia todo numero mentir e
+		soterrava os achados que importam.
+		"""
+		return self.real().filter(finding_class=Vulnerability.CLASS_VULNERABILITY)
+
+	def hygiene(self):
+		"""Boa pratica ausente (cabecalho, SRI, cookie sem Secure, CORS). Real e
+		reportavel, mas nao exploravel — vive em secao propria, nao na contagem de risco."""
+		return self.real().filter(finding_class=Vulnerability.CLASS_HYGIENE)
+
+
 class Vulnerability(models.Model):
+	objects = VulnerabilityQuerySet.as_manager()
 	id = models.AutoField(primary_key=True)
 	scan_history = models.ForeignKey(ScanHistory, on_delete=models.CASCADE, null=True, blank=True)
 	source = models.CharField(max_length=200, null=True, blank=True)

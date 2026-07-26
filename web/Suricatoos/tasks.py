@@ -3284,7 +3284,7 @@ def nuclei_individual_severity_module(self, cmd, severity, enable_http_crawl, sh
 	if send_status:
 		# exclude validator-flagged false positives so the notification counts match the
 		# report/app (assumes validate_vulnerabilities ran earlier in the pipeline).
-		vulns = Vulnerability.objects.filter(scan_history__id=self.scan_id).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+		vulns = Vulnerability.objects.filter(scan_history__id=self.scan_id).user_facing()
 		info_count = vulns.filter(severity=0).count()
 		low_count = vulns.filter(severity=1).count()
 		medium_count = vulns.filter(severity=2).count()

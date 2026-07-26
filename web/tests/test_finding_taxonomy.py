@@ -15,6 +15,8 @@ Run with:  python3 manage.py test tests.test_finding_taxonomy
 """
 import unittest
 
+from django.test import TestCase
+
 from Suricatoos.common_func import classify_finding
 from Suricatoos.definitions import (FINDING_CLASS_VULNERABILITY, FINDING_CLASS_HYGIENE,
                                     FINDING_CLASS_INVENTORY)
@@ -121,3 +123,121 @@ class ModeloTests(unittest.TestCase):
         campo = Vulnerability._meta.get_field('finding_class')
         self.assertEqual(campo.default, Vulnerability.CLASS_VULNERABILITY)
         self.assertTrue(campo.db_index, 'sera filtrado em toda listagem')
+
+
+class UserFacingQuerysetTests(TestCase):
+    """A definicao UNICA de "o que conta como vulnerabilidade".
+
+    Antes, ~10 lugares (dashboard, api/views, api/serializers, tasks, models, o gate do
+    PDF) repetiam `.exclude(validation_status=FALSE_POSITIVE)` a mao. Com a taxonomia,
+    cada um teria de aprender TAMBEM a filtrar por classe — e bastaria esquecer um para o
+    painel dizer 600 e o relatorio entregue ao cliente dizer 12.018, que e pior que nao
+    ter feito nada.
+    """
+
+    def setUp(self):
+        from targetApp.models import Domain
+        from scanEngine.models import EngineType
+        from startScan.models import ScanHistory, Vulnerability
+        from django.utils import timezone
+        self.V = Vulnerability
+        dom = Domain.objects.create(name='example.com')
+        eng = EngineType.objects.create(engine_name='t', yaml_configuration='{}')
+        self.scan = ScanHistory.objects.create(
+            domain=dom, scan_type=eng, start_scan_date=timezone.now(), scan_status=2)
+
+        def mk(nome, classe, sev=0, status='confirmed'):
+            return Vulnerability.objects.create(
+                scan_history=self.scan, target_domain=dom, name=nome, severity=sev,
+                finding_class=classe, validation_status=status, http_url='http://x/')
+
+        self.vuln = mk('XSS', Vulnerability.CLASS_VULNERABILITY, sev=2)
+        self.hyg = mk('Missing Security Headers', Vulnerability.CLASS_HYGIENE)
+        self.inv = mk('RDAP WHOIS', Vulnerability.CLASS_INVENTORY)
+        self.fp = mk('Falso positivo', Vulnerability.CLASS_VULNERABILITY,
+                     sev=2, status='false_positive')
+
+    def test_user_facing_conta_so_vulnerabilidade_real(self):
+        nomes = set(self.V.objects.user_facing().values_list('name', flat=True))
+        self.assertEqual(nomes, {'XSS'})
+
+    def test_user_facing_exclui_inventario_e_higiene(self):
+        ids = set(self.V.objects.user_facing().values_list('id', flat=True))
+        self.assertNotIn(self.hyg.id, ids)
+        self.assertNotIn(self.inv.id, ids)
+
+    def test_user_facing_continua_excluindo_falso_positivo(self):
+        # A taxonomia nao pode ter feito a exclusao de FP regredir.
+        self.assertNotIn(self.fp.id, set(self.V.objects.user_facing().values_list('id', flat=True)))
+
+    def test_hygiene_isola_o_balde_proprio(self):
+        nomes = set(self.V.objects.hygiene().values_list('name', flat=True))
+        self.assertEqual(nomes, {'Missing Security Headers'})
+
+    def test_contagens_do_scan_usam_a_mesma_definicao(self):
+        self.assertEqual(self.scan.get_vulnerability_count(), 1)
+        self.assertEqual(self.scan.get_hygiene_count(), 1)
+        self.assertEqual(self.scan.get_medium_vulnerability_count(), 1)
+        self.assertEqual(self.scan.get_info_vulnerability_count(), 0)
+
+
+class NenhumSiteReimplementaOFiltroTests(unittest.TestCase):
+    def test_ninguem_repete_o_exclude_a_mao(self):
+        # Trava de regressao: um site novo que copie o `.exclude(validation_status=...)`
+        # em vez de usar `.user_facing()` volta a divergir do resto silenciosamente.
+        import os
+        raiz = os.path.join(os.path.dirname(__file__), '..')
+        alvo = 'exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)'
+        infratores = []
+        for base, _dirs, arqs in os.walk(raiz):
+            if any(p in base for p in ('/tests', '/migrations', '__pycache__', '/node_modules')):
+                continue
+            for a in arqs:
+                if not a.endswith('.py'):
+                    continue
+                caminho = os.path.join(base, a)
+                with open(caminho, errors='ignore') as f:
+                    for n, linha in enumerate(f, 1):
+                        if alvo in linha and 'def real' not in linha:
+                            # a unica ocorrencia legitima e dentro do proprio helper
+                            if 'return self.exclude' in linha:
+                                continue
+                            infratores.append(f'{os.path.relpath(caminho, raiz)}:{n}')
+        self.assertEqual(infratores, [], f'usar .user_facing() nestes: {infratores}')
+
+
+class SuperficiesDeUsuarioTests(TestCase):
+    """A higiene tem superfície PRÓPRIA — não some, nem conta como risco."""
+
+    def test_api_aceita_filtro_por_classe(self):
+        import inspect
+        from api import views
+        src = inspect.getsource(views.VulnerabilityViewSet.get_queryset)
+        self.assertIn("finding_class", src)
+        self.assertIn("base.hygiene()", src)
+        self.assertIn("base.user_facing()", src)
+
+    def test_api_nao_expoe_inventario_por_parametro(self):
+        # Só `hygiene` tem superfície; qualquer outro valor cai em user_facing().
+        # Sem isso, `?finding_class=inventory` reabriria por query os 8.048 que a
+        # taxonomia tirou da contagem.
+        import inspect
+        from api import views
+        src = inspect.getsource(views.VulnerabilityViewSet.get_queryset)
+        self.assertNotIn("CLASS_INVENTORY", src)
+
+    def test_relatorio_tem_secao_propria_de_higiene(self):
+        import os
+        base = os.path.join(os.path.dirname(__file__), '..')
+        with open(os.path.join(base, 'templates/report/default.html')) as f:
+            html = f.read()
+        self.assertIn('hygiene_findings', html)
+        self.assertIn('hygiene-summary', html)
+
+    def test_pagina_do_scan_tem_aba_de_higiene(self):
+        import os
+        base = os.path.join(os.path.dirname(__file__), '..')
+        with open(os.path.join(base, 'startScan/templates/startScan/detail_scan.html')) as f:
+            html = f.read()
+        self.assertIn('total_hygiene_count', html)
+        self.assertIn('finding_class=hygiene', html)

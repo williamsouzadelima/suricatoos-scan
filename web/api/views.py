@@ -785,7 +785,7 @@ class UniversalSearch(APIView):
 			Q(http_url__icontains=query) |
 			Q(name__icontains=query) |
 			Q(description__icontains=query)
-		).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE).distinct()
+		).user_facing().distinct()
 		vulnerability_data = VulnerabilitySerializer(vulnerability, many=True).data
 		response['results']['vulnerabilities'] = vulnerability_data
 
@@ -816,9 +816,9 @@ class FetchMostCommonVulnerability(APIView):
 			# counts match the PDF report and the rest of the app.
 			if project_slug:
 				project = Project.objects.get(slug=project_slug)
-				vulnerabilities = Vulnerability.objects.filter(target_domain__project=project).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+				vulnerabilities = Vulnerability.objects.filter(target_domain__project=project).user_facing()
 			else:
-				vulnerabilities = Vulnerability.objects.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+				vulnerabilities = Vulnerability.objects.user_facing()
 
 
 			if scan_history_id:
@@ -1133,7 +1133,7 @@ class FetchSubscanResults(APIView):
 			subscan_results = IpSerializer(ips_in_subscan, many=True).data
 
 		elif task_name == 'vulnerability_scan':
-			vulns_in_subscan = Vulnerability.objects.filter(vuln_subscan_ids__in=subscan).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+			vulns_in_subscan = Vulnerability.objects.filter(vuln_subscan_ids__in=subscan).user_facing()
 			subscan_results = VulnerabilitySerializer(vulns_in_subscan, many=True).data
 
 		elif task_name == 'fetch_url':
@@ -2601,7 +2601,7 @@ class SubdomainDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 			return Coalesce(Subquery(
 				Vulnerability.objects
 				.filter(subdomain__name=OuterRef('name'), scan_history=OuterRef('scan_history'), severity=sev)
-				.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+				.user_facing()
 				.values('subdomain__name').annotate(c=Count('id')).values('c'),
 				output_field=IntegerField()), 0)
 		self.queryset = self.queryset.annotate(
@@ -3222,13 +3222,21 @@ class VulnerabilityViewSet(viewsets.ReadOnlyModelViewSet):
 		subdomain_name = req.query_params.get('subdomain')
 		vulnerability_name = req.query_params.get('vulnerability_name')
 		slug = self.request.GET.get('project', None)
+		# `finding_class=hygiene` serve a aba propria de Higiene, que reusa exatamente
+		# esta DataTable. Qualquer outro valor (ou ausencia) devolve VULNERABILIDADE —
+		# inventario nao tem superficie de usuario e nao deve ser alcancavel por
+		# parametro, para nao reabrir por query o que a taxonomia tirou da contagem.
+		finding_class = req.query_params.get('finding_class')
 
-		# exclude validator-flagged false positives so the Vulnerabilities DataTable
-		# row count matches the PDF report (create_report) and the rest of the app.
-		if slug:
-			vulnerabilities = Vulnerability.objects.filter(scan_history__domain__project__slug=slug).exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+		# user_facing(): exclui falso positivo do re-teste E o que nao e vulnerabilidade.
+		# Definicao unica em VulnerabilityQuerySet — DataTable, dashboard, API e PDF contam
+		# a mesma coisa.
+		base = (Vulnerability.objects.filter(scan_history__domain__project__slug=slug)
+		        if slug else Vulnerability.objects)
+		if finding_class == Vulnerability.CLASS_HYGIENE:
+			vulnerabilities = base.hygiene()
 		else:
-			vulnerabilities = Vulnerability.objects.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+			vulnerabilities = base.user_facing()
 
 		if scan_id:
 			qs = (
