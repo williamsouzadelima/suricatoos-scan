@@ -207,6 +207,12 @@ class Subdomain(models.Model):
 	waf = models.ManyToManyField('Waf', related_name='waf', blank=True)
 	attack_surface = models.TextField(null=True, blank=True)
 
+	class Meta:
+		# Onda 3 (#20): name é lookup/order quente (DataTables de subdomínio ordena por name,
+		# e filter(name=)/filter(subdomain__name=) em vários caminhos).
+		indexes = [
+			models.Index(fields=['name'], name='subdomain_name_idx'),
+		]
 
 	def __str__(self):
 		return str(self.name)
@@ -505,6 +511,17 @@ class Vulnerability(models.Model):
 
 	# used for subscans
 	vuln_subscan_ids = models.ManyToManyField('SubScan', related_name='vuln_subscan_ids', blank=True)
+
+	class Meta:
+		# Onda 3 (#20): campos quentes. O DataTable de vuln ordena por -severity e
+		# ~15 querysets base fazem .exclude(validation_status=FALSE_POSITIVE). Índices
+		# compostos cobrem o padrão escopo+severity (target_domain/scan_history + severity).
+		indexes = [
+			models.Index(fields=['severity'], name='vuln_severity_idx'),
+			models.Index(fields=['validation_status'], name='vuln_valstatus_idx'),
+			models.Index(fields=['target_domain', 'severity'], name='vuln_domain_sev_idx'),
+			models.Index(fields=['scan_history', 'severity'], name='vuln_scan_sev_idx'),
+		]
 
 	def __str__(self):
 		cve_str = ', '.join(f'`{cve.name}`' for cve in self.cve_ids.all())

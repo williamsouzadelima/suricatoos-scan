@@ -452,6 +452,11 @@ def report(ctx={}, description=None):
 	engine_id = ctx.get('engine_id')
 	scan = ScanHistory.objects.filter(pk=scan_id).first()
 	subscan = SubScan.objects.filter(pk=subscan_id).first()
+	if not scan:
+		# Sem ScanHistory não há o que reportar; seguir estouraria AttributeError e o
+		# link_error re-invocaria report() num laço. Falha limpa.
+		logger.error(f'report: ScanHistory {scan_id} não encontrado — nada a reportar')
+		return
 
 	# Get failed tasks
 	tasks = ScanActivity.objects.filter(scan_of=scan).all()
@@ -464,21 +469,24 @@ def report(ctx={}, description=None):
 	status = SUCCESS_TASK if failed_count == 0 else FAILED_TASK
 	status_h = 'SUCCESS' if failed_count == 0 else 'FAILED'
 
-	# Update scan / subscan status
+	# Update scan / subscan status. Um subscan NÃO pode mexer no stop_scan_date/status do
+	# ScanHistory pai — senão cada subscan "reencerra" o scan pai (data errada na UI).
 	if subscan:
 		subscan.stop_scan_date = timezone.now()
 		subscan.status = status
 		subscan.save()
 	else:
 		scan.scan_status = status
-	scan.stop_scan_date = timezone.now()
-	# O "hold" do hang_monitor e transitorio: se o scan retomou e chegou ate aqui, aquela
-	# mensagem nao e a causa deste desfecho. Sem esta limpeza um scan que foi segurado,
-	# retomou e concluiu dentro da janela da beat carregaria a string para sempre e a UI
-	# atribuiria a causa errada — exatamente o que o hang_monitor passou a evitar.
-	if scan.error_message and scan.error_message.startswith(HANG_MONITOR_HOLD_PREFIX):
-		scan.error_message = None
-	scan.save()
+		# Indentado DENTRO do else pela main: fora dele, cada subscan reencerrava o
+		# ScanHistory pai com data errada na UI — o que o comentario acima ja proibia.
+		scan.stop_scan_date = timezone.now()
+		# O "hold" do hang_monitor e transitorio: se o scan retomou e chegou ate aqui, aquela
+		# mensagem nao e a causa deste desfecho. Sem esta limpeza um scan que foi segurado,
+		# retomou e concluiu dentro da janela da beat carregaria a string para sempre e a UI
+		# atribuiria a causa errada — exatamente o que o hang_monitor passou a evitar.
+		if scan.error_message and scan.error_message.startswith(HANG_MONITOR_HOLD_PREFIX):
+			scan.error_message = None
+		scan.save()
 
 	# Send scan status notif
 	send_scan_notif.delay(
@@ -590,12 +598,21 @@ def poll_scanner_jobs():
 			job.gvm_report_id = data.get('gvm_report_id') or job.gvm_report_id
 			job.last_polled = timezone.now()
 			if job.state == 'COMPLETED' and not job.imported:
-				n = import_openvas_findings(job.scan_history, data.get('findings') or [])
-				job.findings_imported = n
-				job.imported = True
-				job.state = 'IMPORTED'
-				job.completed_at = timezone.now()
-				logger.info(f'poll_scanner_jobs: job {job.id} importou {n} vuln(s) OpenVAS')
+				try:
+					n = import_openvas_findings(job.scan_history, data.get('findings') or [])
+					job.findings_imported = n
+					job.imported = True
+					job.state = 'IMPORTED'
+					job.completed_at = timezone.now()
+					job.error = None
+					logger.info(f'poll_scanner_jobs: job {job.id} importou {n} vuln(s) OpenVAS')
+				except Exception as e:
+					# Import falhou: NÃO deixa a exceção subir (senão um job envenenado aborta o
+					# ciclo inteiro, congela o last_polled de TODOS os jobs e vira um falso
+					# "beat parado"). Persiste COMPLETED+erro — o job re-tenta no próximo beat e
+					# fica visível como 'import_failing' (loop_health), com diagnóstico correto.
+					job.error = f'import: {str(e)[:1000]}'
+					logger.error(f'poll_scanner_jobs: job {job.id} import falhou: {e}')
 			job.save()
 	finally:
 		cache.delete('poll_scanner_jobs_lock')
@@ -609,44 +626,57 @@ def import_openvas_findings(scan_history, findings):
 
 	ip_map = scanner_bridge.build_ip_subdomain_map(scan_history)
 	target_domain = scan_history.domain
-	count = 0
+	seen = set()  # pks distintos: 2 achados que casam a mesma chave = 1 vuln (não infla)
 	for f in findings:
-		host = (f.get('host') or '').strip()
+		# Um achado malformado (cvss não-numérico, campo inesperado) NÃO pode abortar o
+		# lote inteiro — senão rows parciais persistem, o job trava em COMPLETED e os
+		# achados reais restantes acabam expirando. Isola cada achado.
 		try:
-			host = str(ipaddress.ip_address(host))  # canoniza p/ casar as chaves do ip_map
-		except ValueError:
-			pass
-		subdomain = ip_map.get(host)
-		if subdomain is None:
-			logger.warning(f'import_openvas_findings: host fora de escopo {host!r} — quarentena')
+			host = (f.get('host') or '').strip()
+			try:
+				host = str(ipaddress.ip_address(host))  # canoniza p/ casar as chaves do ip_map
+			except ValueError:
+				pass
+			subdomain = ip_map.get(host)
+			if subdomain is None:
+				logger.warning(f'import_openvas_findings: host fora de escopo {host!r} — quarentena')
+				continue
+			oid = (f.get('oid') or '')[:100]
+			port = f.get('port') or ''
+			name = (f.get('name') or oid or 'OpenVAS finding')[:2500]
+			# cvss_to_rengine tolera não-numérico (→0); o cvss_score precisa do mesmo
+			# cuidado — float('n/a') estouraria e derrubaria o lote.
+			cvss = f.get('cvss_base')
+			try:
+				cvss_score = float(cvss) if cvss not in (None, '') else None
+			except (TypeError, ValueError):
+				cvss_score = None
+			vuln, _ = Vulnerability.objects.update_or_create(
+				scan_history=scan_history,
+				source=scanner_bridge.SOURCE_OPENVAS,
+				type=oid,
+				http_url=f'{host}:{port}'[:10000],
+				name=name,
+				defaults={
+					'subdomain': subdomain,
+					'target_domain': target_domain,
+					'severity': scanner_bridge.cvss_to_rengine(cvss),
+					'cvss_score': cvss_score,
+					'cvss_metrics': (f.get('cvss_vector') or '')[:500],
+					'description': f.get('summary') or '',
+					'impact': f.get('impact') or '',
+					'remediation': f.get('solution') or '',
+					'discovered_date': timezone.now(),
+					'open_status': True,
+				})
+			for cve in f.get('cves') or []:
+				obj, _ = CveId.objects.get_or_create(name=cve[:50])
+				vuln.cve_ids.add(obj)
+			seen.add(vuln.pk)
+		except Exception as e:
+			logger.warning(f'import_openvas_findings: achado ignorado ({e}): {str(f)[:200]}')
 			continue
-		oid = (f.get('oid') or '')[:100]
-		port = f.get('port') or ''
-		name = (f.get('name') or oid or 'OpenVAS finding')[:2500]
-		cvss = f.get('cvss_base') or 0.0
-		vuln, _ = Vulnerability.objects.update_or_create(
-			scan_history=scan_history,
-			source=scanner_bridge.SOURCE_OPENVAS,
-			type=oid,
-			http_url=f'{host}:{port}'[:10000],
-			name=name,
-			defaults={
-				'subdomain': subdomain,
-				'target_domain': target_domain,
-				'severity': scanner_bridge.cvss_to_rengine(cvss),
-				'cvss_score': float(cvss) if cvss else None,
-				'cvss_metrics': (f.get('cvss_vector') or '')[:500],
-				'description': f.get('summary') or '',
-				'impact': f.get('impact') or '',
-				'remediation': f.get('solution') or '',
-				'discovered_date': timezone.now(),
-				'open_status': True,
-			})
-		for cve in f.get('cves') or []:
-			obj, _ = CveId.objects.get_or_create(name=cve[:50])
-			vuln.cve_ids.add(obj)
-		count += 1
-	return count
+	return len(seen)
 
 
 @app.task(name='import_sensor_findings', bind=False, queue='send_notif_queue')
@@ -6192,6 +6222,18 @@ def run_command(
 	finally:
 		if _timer:
 			_timer.cancel()
+		# Se saímos por exceção (ex.: SoftTimeLimitExceeded, erro de decode) antes do
+		# wait/kill acima, o watchdog já foi cancelado e o grupo de processo ficaria
+		# órfão (nmap/tool rodando indefinidamente). Encerra o grupo incondicionalmente.
+		if popen.poll() is None:
+			try:
+				os.killpg(os.getpgid(popen.pid), signal.SIGKILL)
+			except Exception:
+				pass
+			try:
+				popen.wait(timeout=10)
+			except Exception:
+				pass
 	return_code = popen.returncode
 	if _wd['timed_out']:
 		logger.error(f'run_command: timed out after {timeout}s, killed process group: {cmd}')

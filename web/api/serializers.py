@@ -91,10 +91,21 @@ class DomainSerializer(serializers.ModelSerializer):
 			return None
 
 	def get_organization(self, obj):
-		if Organization.objects.filter(domains__id=obj.id).exists():
-			return [org.name for org in Organization.objects.filter(domains__id=obj.id)]
+		# Onda 3 (#19): usa o prefetch_related('domains') do viewset (0 query/linha) em vez de
+		# dois Organization.objects.filter(domains__id=...). obj.domains é o reverse de
+		# Organization.domains (related_name='domains') → as Organizations deste domínio.
+		# Mesmo output (lista de nomes, ou None quando não há organização).
+		orgs = list(obj.domains.all())
+		if orgs:
+			return [org.name for org in orgs]
 
 	def get_most_recent_scan(self, obj):
+		# Onda 3 (#19): usa a annotation recent_scan_id (Max scanhistory id) quando o viewset a
+		# adiciona (0 query/linha) — mesmo valor que get_recent_scan_id() (maior id = mais
+		# recente). hasattr distingue "anotado" (int, ou None se o domínio não tem scan) de
+		# "não anotado" (serializer usado em outro lugar → cai no método, compatível).
+		if hasattr(obj, 'recent_scan_id'):
+			return obj.recent_scan_id
 		return obj.get_recent_scan_id()
 
 	def get_insert_date(self, obj):
@@ -938,29 +949,38 @@ class SubdomainSerializer(serializers.ModelSerializer):
 			.exists()
 		)
 
+	@staticmethod
+	def _annotated_or(subdomain, attr, prop_name, scan_scoped=True):
+		# Onda 3b (#16): usa a Subquery annotation do viewset (0 query) quando presente. Para os
+		# counts escopados por scan (severity/endpoint) só quando o subdomínio tem scan_history —
+		# onde a annotation casa a property exatamente; senão (ou sem annotation) cai na property.
+		if (not scan_scoped or subdomain.scan_history_id is not None) and hasattr(subdomain, attr):
+			return getattr(subdomain, attr)
+		return getattr(subdomain, prop_name)
+
 	def get_endpoint_count(self, subdomain):
-		return subdomain.get_endpoint_count
+		return self._annotated_or(subdomain, 'endpoint_count', 'get_endpoint_count')
 
 	def get_info_count(self, subdomain):
-		return subdomain.get_info_count
+		return self._annotated_or(subdomain, 'info_count', 'get_info_count')
 
 	def get_low_count(self, subdomain):
-		return subdomain.get_low_count
+		return self._annotated_or(subdomain, 'low_count', 'get_low_count')
 
 	def get_medium_count(self, subdomain):
-		return subdomain.get_medium_count
+		return self._annotated_or(subdomain, 'medium_count', 'get_medium_count')
 
 	def get_high_count(self, subdomain):
-		return subdomain.get_high_count
+		return self._annotated_or(subdomain, 'high_count', 'get_high_count')
 
 	def get_critical_count(self, subdomain):
-		return subdomain.get_critical_count
+		return self._annotated_or(subdomain, 'critical_count', 'get_critical_count')
 
 	def get_directories_count(self, subdomain):
 		return subdomain.get_directories_count
 
 	def get_subscan_count(self, subdomain):
-		return subdomain.get_subscan_count
+		return self._annotated_or(subdomain, 'subscan_count', 'get_subscan_count', scan_scoped=False)
 
 	def get_todos_count(self, subdomain):
 		return len(subdomain.get_todos.filter(is_done=False))

@@ -52,6 +52,16 @@ class ReadOnlyResultViewSetsTests(TestCase):
         resp = self.client.get('/api/listTargets/')
         self.assertEqual(resp.status_code, 200)
 
+    def test_eager_loaded_lists_return_200(self):
+        # Onda 3 (#16/#17/#19): as querysets ganharam select_related/prefetch_related. Um nome
+        # de relação errado dispararia FieldError (HTTP 500). O select_related constrói os JOINs
+        # na montagem do queryset — exercitado mesmo em base vazia — então este smoke pega erros
+        # de nome de relação nos endpoints otimizados.
+        for route in ('/api/listVulnerability/', '/api/listDatatableSubdomain/',
+                      '/api/listSubdomains/', '/api/listTargets/'):
+            resp = self.client.get(route)
+            self.assertEqual(resp.status_code, 200, f'GET {route} deveria ser 200, veio {resp.status_code}')
+
 
 class ChangeVulnStatusRbacTests(TestCase):
     """A01-3: change_vuln_status must require PERM_MODIFY_SCAN_RESULTS."""
@@ -66,3 +76,57 @@ class ChangeVulnStatusRbacTests(TestCase):
         # vuln id (so a 302 here specifically proves the control is in place).
         resp = self.client.post('/scan/toggle/vuln_status/999999', follow=False)
         self.assertEqual(resp.status_code, 302, 'expected RBAC redirect, got %s' % resp.status_code)
+
+
+class SubdomainCountAnnotationTests(TestCase):
+    """Onda 3b (#16): as Subquery annotations de contagem do SubdomainDatatableViewSet devem
+    reproduzir EXATAMENTE as properties do model que elas substituem (incl. excluir
+    FALSE_POSITIVE). Testa o endpoint real (viewset annotation + serializer) contra a property
+    (fonte da verdade) e valores concretos."""
+
+    def setUp(self):
+        self.user = get_user_model().objects.create_user(username='cnt_tester', password='x-irrelevant')
+        self.client = APIClient()
+        self.client.force_authenticate(self.user)
+
+    def test_severity_counts_match_property_and_exclude_false_positive(self):
+        from django.utils import timezone
+        from targetApp.models import Domain
+        from scanEngine.models import EngineType
+        from startScan.models import ScanHistory, Subdomain, Vulnerability
+
+        domain = Domain.objects.create(name='fixture.example')
+        engine = EngineType.objects.create(engine_name='e', yaml_configuration='')
+        sh = ScanHistory.objects.create(start_scan_date=timezone.now(), domain=domain, scan_type=engine)
+        sub = Subdomain.objects.create(name='a.fixture.example', scan_history=sh, target_domain=domain)
+        for sev in (0, 1, 2, 2, 3, 4, 4):
+            Vulnerability.objects.create(name=f'v{sev}', severity=sev, subdomain=sub,
+                                         scan_history=sh, target_domain=domain)
+        # uma false-positive (sev crítico) que AMBAS property e annotation devem excluir
+        Vulnerability.objects.create(name='fp', severity=4, subdomain=sub, scan_history=sh,
+                                     target_domain=domain,
+                                     validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+
+        resp = self.client.get(f'/api/listDatatableSubdomain/?scan_id={sh.id}')
+        self.assertEqual(resp.status_code, 200)
+        # O envelope varia: sem os params de DataTables (draw/start/length) o paginador
+        # devolve a lista pura; com paginação vem {'data': [...]} (ou {'results': [...]}).
+        payload = resp.data
+        if isinstance(payload, dict):
+            rows_src = payload.get('data') or payload.get('results') or []
+        else:
+            rows_src = payload
+        rows = [r for r in rows_src if r['name'] == sub.name]
+        self.assertEqual(len(rows), 1, 'o subdomínio do fixture deve aparecer na página')
+        row = rows[0]
+        # a annotation (via endpoint) deve bater com a property (fonte da verdade)...
+        self.assertEqual(row['info_count'], sub.get_info_count)
+        self.assertEqual(row['low_count'], sub.get_low_count)
+        self.assertEqual(row['medium_count'], sub.get_medium_count)
+        self.assertEqual(row['high_count'], sub.get_high_count)
+        self.assertEqual(row['critical_count'], sub.get_critical_count)
+        # ...e com os valores concretos (FALSE_POSITIVE excluído): info/low/medium/high/critical
+        self.assertEqual(
+            [row['info_count'], row['low_count'], row['medium_count'], row['high_count'], row['critical_count']],
+            [1, 1, 2, 1, 2],
+        )

