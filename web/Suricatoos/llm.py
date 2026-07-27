@@ -154,6 +154,21 @@ class LLMFPJudge:
 	EVIDENCE_KEYS = ('name', 'template_id', 'matcher_name', 'severity', 'tags',
 					 'cve_ids', 'http_url', 'extracted_results')
 
+	# Campos que DISCRIMINAM um achado real de um falso-positivo. `name`, `severity` e
+	# `http_url` nao entram: eles descrevem o que foi TENTADO, nao o que o alvo
+	# respondeu.
+	#
+	# Medido em producao em 27/07/2026: os 234 XSS do dalfox tinham ZERO dos quatro
+	# campos abaixo — nem response, nem extracted_results, nem matcher_name, nem
+	# template_id. O prompt resultante era literalmente tres linhas (nome, severidade,
+	# URL), e o modelo respondeu "The response body contains a specific exploited
+	# payload indicative of XSS" com confidence 1.00. Nao havia response body algum no
+	# prompt: ele inventou a evidencia.
+	#
+	# Um juiz que alucina e pior que nenhum juiz — um veredito "real" com confianca
+	# 1.00 fabricada e mais dificil de desconfiar do que um campo vazio.
+	DISCRIMINATING_KEYS = ('response', 'extracted_results', 'matcher_name', 'template_id')
+
 	def __init__(self, logger=None, model_name=None):
 		self.model_name = model_name or DEFAULT_JUDGE_MODEL
 		self.logger = logger
@@ -172,7 +187,15 @@ class LLMFPJudge:
 
 	def judge(self, evidence):
 		"""evidence: dict with EVIDENCE_KEYS (+ optional 'response').
-		Returns {verdict, confidence, reason}; needs_review on any LLM error."""
+		Returns {verdict, confidence, reason}; needs_review on any LLM error
+		E TAMBEM quando nao ha evidencia discriminante — ver DISCRIMINATING_KEYS."""
+		# Porta de evidencia: sem nada que discrimine, nao se pergunta ao modelo. Ele
+		# nao responde "nao sei" — preenche a lacuna e devolve um veredito confiante.
+		# Tambem economiza ~8s de inferencia por achado que nunca teve como ser julgado.
+		if not any(evidence.get(k) for k in self.DISCRIMINATING_KEYS):
+			return {'verdict': 'needs_review', 'confidence': 0.0,
+					'reason': 'insufficient_evidence: apenas nome/severidade/URL '
+							  'disponiveis — nada que discrimine real de falso-positivo'}
 		prompt = self._build_prompt(evidence)
 		try:
 			llm = Ollama(base_url=OLLAMA_INSTANCE, model=self.model_name)
