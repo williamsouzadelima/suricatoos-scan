@@ -24,6 +24,14 @@ ENABLED = dict(
     SURICATOOS_SCANNER_KEY="/certs/score-hub.key",
 )
 
+# Os testes de "loop desligado" precisam declarar isto EXPLICITAMENTE. Antes eles
+# confiavam no default do ambiente, e no host de producao do score o loop esta
+# genuinamente ligado (SURICATOOS_SCANNER_PUSH_ENABLED=True, integracao ADR-0006) —
+# entao a suite falhava LA e passava em todo lugar mais. Suite que da alarme falso
+# treina a ignorar alarme: 7 erros reais em test_vulnerability_validation ficaram
+# escondidos atras de "ah, esses ja falham" ate alguem ler o traceback.
+DISABLED = dict(SURICATOOS_SCANNER_PUSH_ENABLED=False)
+
 
 class LoopHealthBase(TestCase):
     def setUp(self):
@@ -57,6 +65,7 @@ class LoopHealthBase(TestCase):
 
 
 class DisabledAndHealthy(LoopHealthBase):
+    @override_settings(**DISABLED)
     def test_disabled_is_ok(self):
         r = self.report()
         self.assertEqual(r["status"], "ok")
@@ -222,6 +231,7 @@ class RegressionCoverage(LoopHealthBase):
         self.assertNotIn("poll_stalled", c)
         self.assertIn("submit_stuck", c)
 
+    @override_settings(**DISABLED)
     def test_disabled_suppresses_staleness(self):
         # Loop desligado: um job in-flight stale NÃO é anomalia (não alarma).
         self.mk_job(state="RUNNING", request_id="r",
