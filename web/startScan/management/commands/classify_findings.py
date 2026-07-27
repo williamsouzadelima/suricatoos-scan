@@ -56,7 +56,7 @@ class Command(BaseCommand):
 
         for vuln in qs.iterator(chunk_size=500):
             tags = [t.name for t in vuln.tags.all()]
-            novo = classify_finding(vuln.severity, tags)
+            novo = classify_finding(vuln.severity, tags, vuln.template_id)
             antes[vuln.finding_class] += 1
             depois[novo] += 1
             exemplos.setdefault(novo, Counter())[vuln.name[:60]] += 1

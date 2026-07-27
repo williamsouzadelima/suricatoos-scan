@@ -241,3 +241,121 @@ class SuperficiesDeUsuarioTests(TestCase):
             html = f.read()
         self.assertIn('total_hygiene_count', html)
         self.assertIn('finding_class=hygiene', html)
+
+
+# ---------------------------------------------------------------------------
+# Curadoria por template_id
+#
+# As 36 familias abaixo sao o residuo REAL medido em producao em 27/07/2026: 375
+# achados que a regra por tag deixou em `vulnerability` por falta de sinal. A
+# contagem de cada uma esta no comentario para que a proxima pessoa saiba o peso do
+# que esta mexendo — mover `form-detection` mexe em 84 linhas.
+CASOS_CURADOS = [
+    # (template_id, severidade real, classe esperada, ocorrencias em prod)
+    ('form-detection', 0, FINDING_CLASS_INVENTORY, 84),
+    ('ssl-dns-names', 0, FINDING_CLASS_INVENTORY, 33),
+    ('addeventlistener-detect', 0, FINDING_CLASS_INVENTORY, 16),
+    ('wildcard-tls', 0, FINDING_CLASS_INVENTORY, 16),
+    ('azure-domain-tenant', 0, FINDING_CLASS_INVENTORY, 15),
+    ('robots-txt', 0, FINDING_CLASS_INVENTORY, 7),
+    ('snmpv3-detect', 0, FINDING_CLASS_INVENTORY, 7),
+    ('wordpress-readme-file', 0, FINDING_CLASS_INVENTORY, 2),
+    ('wp-license-file', 0, FINDING_CLASS_INVENTORY, 1),
+    ('old-copyright', 0, FINDING_CLASS_INVENTORY, 1),
+    ('options-method', 0, FINDING_CLASS_HYGIENE, 75),
+    ('deprecated-tls', 0, FINDING_CLASS_HYGIENE, 33),
+    ('iis-shortname-detect', 0, FINDING_CLASS_HYGIENE, 28),
+    ('http-trace', 0, FINDING_CLASS_HYGIENE, 7),
+    ('expired-ssl', 1, FINDING_CLASS_HYGIENE, 5),
+    ('self-signed-ssl', 1, FINDING_CLASS_HYGIENE, 5),
+    ('mismatched-ssl-certificate', 0, FINDING_CLASS_HYGIENE, 5),
+    ('vscode-launch', 1, FINDING_CLASS_HYGIENE, 2),
+    ('wordpress-xmlrpc-listmethods', 0, FINDING_CLASS_HYGIENE, 2),
+    ('makefile-exposure', 1, FINDING_CLASS_HYGIENE, 2),
+    ('editor-exposure', 1, FINDING_CLASS_HYGIENE, 2),
+    ('htaccess-config', 0, FINDING_CLASS_HYGIENE, 2),
+    ('exposed-gitignore', 0, FINDING_CLASS_HYGIENE, 2),
+    ('untrusted-root-certificate', 1, FINDING_CLASS_HYGIENE, 1),
+    ('wordpress-directory-listing', 0, FINDING_CLASS_HYGIENE, 1),
+    ('drupal-directory-listing', 1, FINDING_CLASS_HYGIENE, 1),
+    ('wp-xmlrpc-pingback-detection', 0, FINDING_CLASS_HYGIENE, 1),
+    ('wp-user-enum', 1, FINDING_CLASS_HYGIENE, 1),
+    ('generic-tokens', -1, FINDING_CLASS_VULNERABILITY, 6),
+    ('git-logs-exposure', 0, FINDING_CLASS_VULNERABILITY, 3),
+    ('jwt-token', -1, FINDING_CLASS_VULNERABILITY, 2),
+    ('host-header-injection', 0, FINDING_CLASS_VULNERABILITY, 2),
+    ('credentials-disclosure', -1, FINDING_CLASS_VULNERABILITY, 2),
+    ('xff-403-bypass', 0, FINDING_CLASS_VULNERABILITY, 1),
+    ('request-based-interaction', 0, FINDING_CLASS_VULNERABILITY, 1),
+    ('phpinfo-files', 1, FINDING_CLASS_VULNERABILITY, 1),
+]
+
+
+class CuradoriaPorTemplateTests(unittest.TestCase):
+    def test_todas_as_familias_reais_classificam_como_curado(self):
+        for tpl, sev, esperado, n in CASOS_CURADOS:
+            with self.subTest(template=tpl, ocorrencias=n):
+                self.assertEqual(
+                    classify_finding(sev, [], tpl), esperado,
+                    f'{tpl} ({n} ocorrencias em prod) deveria ser {esperado}')
+
+    def test_conjuntos_disjuntos(self):
+        # Um template em duas classes seria sobrescrito EM SILENCIO ao montar o dict.
+        from Suricatoos.definitions import (FINDING_TEMPLATES_INVENTORY,
+                                            FINDING_TEMPLATES_HYGIENE,
+                                            FINDING_TEMPLATES_VULNERABILITY)
+        pares = [
+            ('inventory/hygiene', FINDING_TEMPLATES_INVENTORY, FINDING_TEMPLATES_HYGIENE),
+            ('inventory/vuln', FINDING_TEMPLATES_INVENTORY, FINDING_TEMPLATES_VULNERABILITY),
+            ('hygiene/vuln', FINDING_TEMPLATES_HYGIENE, FINDING_TEMPLATES_VULNERABILITY),
+        ]
+        for rotulo, a, b in pares:
+            with self.subTest(par=rotulo):
+                self.assertEqual(a & b, frozenset(), f'template duplicado em {rotulo}')
+
+    def test_curadoria_vence_a_tag(self):
+        # `options-method` viria como vulnerability pela ausencia de tag util; a
+        # curadoria manda. E o inverso: um pino nao pode ser rebaixado por tag.
+        self.assertEqual(classify_finding(0, ['vuln'], 'options-method'),
+                         FINDING_CLASS_HYGIENE)
+        self.assertEqual(classify_finding(0, ['misconfig', 'headers'], 'generic-tokens'),
+                         FINDING_CLASS_VULNERABILITY)
+
+    def test_piso_de_severidade_vence_a_curadoria(self):
+        # A propriedade de seguranca do modulo: nem uma entrada escrita a mao esconde
+        # um achado de severidade media+. Se `form-detection` um dia vier como high,
+        # ele aparece — a curadoria nao tem poder de ocultar risco.
+        for sev in (2, 3, 4):
+            with self.subTest(sev=sev):
+                self.assertEqual(classify_finding(sev, [], 'form-detection'),
+                                 FINDING_CLASS_VULNERABILITY)
+
+    def test_template_id_normalizado(self):
+        for variante in ('FORM-DETECTION', '  form-detection  ', 'Form-Detection'):
+            with self.subTest(variante=variante):
+                self.assertEqual(classify_finding(0, [], variante),
+                                 FINDING_CLASS_INVENTORY)
+
+    def test_template_desconhecido_cai_na_regra_por_tag(self):
+        # Template novo e ruidoso nao e escondido: continua vulnerability ate ser curado.
+        self.assertEqual(classify_finding(0, [], 'template-que-nao-existe'),
+                         FINDING_CLASS_VULNERABILITY)
+        self.assertEqual(classify_finding(0, ['discovery'], 'template-que-nao-existe'),
+                         FINDING_CLASS_INVENTORY)
+
+    def test_sem_template_id_preserva_comportamento_anterior(self):
+        # Fontes que nao sao nuclei (dalfox, bridge do scanner) nao mandam template_id.
+        for tpl in (None, '', '   '):
+            with self.subTest(tpl=tpl):
+                self.assertEqual(classify_finding(0, ['discovery'], tpl),
+                                 FINDING_CLASS_INVENTORY)
+                self.assertEqual(classify_finding(0, [], tpl),
+                                 FINDING_CLASS_VULNERABILITY)
+
+    def test_pinos_nao_mudam_contagem_hoje(self):
+        # Os 8 pinos ja sao vulnerability pela regra atual; existem para travar o futuro.
+        # Se este teste falhar, algum pino virou redundante OU a regra base mudou.
+        from Suricatoos.definitions import FINDING_TEMPLATES_VULNERABILITY
+        for tpl in FINDING_TEMPLATES_VULNERABILITY:
+            with self.subTest(template=tpl):
+                self.assertEqual(classify_finding(0, [], tpl), FINDING_CLASS_VULNERABILITY)

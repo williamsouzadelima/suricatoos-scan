@@ -324,6 +324,95 @@ FINDING_TAGS_HYGIENE = frozenset({
 # escondido em silencio. Hoje o piso nao descarta nada — ele protege o amanha.
 FINDING_CLASS_SEVERITY_FLOOR = 2   # 2 = medium na escala do reNgine
 
+# ---------------------------------------------------------------------------
+# Curadoria por template — a camada que a regra por tag nao alcanca.
+#
+# A regra por tag resolve o volume (8.145 de inventario, 3.488 de higiene), mas deixa
+# um residuo que ela nao consegue julgar: templates SEM tag util, ou com tag generica
+# demais. Medido em producao em 27/07/2026: 375 achados em 36 familias continuavam em
+# `vulnerability` so por falta de sinal — "Form Detection" (84) e "Allowed Options
+# Method" (75) na mesma lista que "Credentials Disclosure".
+#
+# A chave e o `template_id` do nuclei, NAO o nome de exibicao: o id e o identificador
+# canonico do template e sobrevive a mudanca de titulo upstream. Verificado que esta
+# populado em 100% dos 375.
+#
+# Tres conjuntos em vez de um dict para que o agrupamento fique legivel E para que
+# duplicata entre classes seja detectavel — num dict literal ela seria silenciosamente
+# sobrescrita. `test_curadoria_conjuntos_disjuntos` trava isso.
+#
+# MANUTENCAO: template novo e ruidoso nao quebra nada, so continua em `vulnerability`
+# ate alguem cura-lo aqui. O erro seguro e o de omissao.
+
+# Fato sobre o ambiente. Nao ha o que remediar: "existe um formulario nesta pagina",
+# "o certificado cobre estes nomes", "o tenant Azure e este".
+FINDING_TEMPLATES_INVENTORY = frozenset({
+    'form-detection',            # 84 — existe um <form> na pagina
+    'ssl-dns-names',             # 33 — os SANs do certificado
+    'addeventlistener-detect',   # 16 — a pagina registra listener de DOM
+    'wildcard-tls',              # 16 — cert curinga (ver NOTA 1)
+    'azure-domain-tenant',       # 15 — tenant ID do Azure, fato de OSINT
+    'robots-txt',                #  7 — o arquivo existe
+    'snmpv3-detect',             #  7 — fingerprint de versao
+    'wordpress-readme-file',     #  2 — fingerprint de versao do WP
+    'wp-license-file',           #  1 — idem
+    'old-copyright',             #  1 — data de copyright antiga; puramente informativo
+})
+
+# Boa pratica ausente ou exposicao menor: real, o cliente quer ver, mas nao e
+# exploravel por si so. Vai para a secao propria do relatorio, fora da nota de risco.
+FINDING_TEMPLATES_HYGIENE = frozenset({
+    'options-method',              # 75 — metodo OPTIONS habilitado
+    'deprecated-tls',              # 33 — TLS obsoleto negociavel
+    'iis-shortname-detect',        # 28 — enumeracao 8.3 do IIS (ver NOTA 2)
+    'http-trace',                  #  7 — TRACE habilitado / XST (ver NOTA 3)
+    'expired-ssl',                 #  5 — certificado expirado
+    'self-signed-ssl',             #  5 — certificado autoassinado
+    'mismatched-ssl-certificate',  #  5 — CN/SAN nao casa com o host
+    'vscode-launch',               #  2 — launch.json servido
+    'wordpress-xmlrpc-listmethods',#  2 — xmlrpc expondo lista de metodos
+    'makefile-exposure',           #  2 — Makefile servido
+    'editor-exposure',             #  2 — .editorconfig servido
+    'htaccess-config',             #  2 — .htaccess servido (ver NOTA 4)
+    'exposed-gitignore',           #  2 — .gitignore servido
+    'untrusted-root-certificate',  #  1 — raiz nao confiavel
+    'wordpress-directory-listing', #  1 — listagem de diretorio
+    'drupal-directory-listing',    #  1 — idem
+    'wp-xmlrpc-pingback-detection',#  1 — pingback (amplificacao/SSRF)
+    'wp-user-enum',                #  1 — enumeracao de usuario via REST
+})
+
+# PINOS. Estes ja sao `vulnerability` hoje — listar aqui nao muda contagem nenhuma.
+# O valor e travar: se um dia o template vier tagueado `misconfig`, a regra por tag
+# rebaixaria um vazamento de credencial para higiene EM SILENCIO. O pino impede.
+FINDING_TEMPLATES_VULNERABILITY = frozenset({
+    'generic-tokens',            # 6 — token/segredo exposto
+    'git-logs-exposure',         # 3 — .git servido = codigo-fonte
+    'jwt-token',                 # 2 — JWT exposto
+    'host-header-injection',     # 2 — exploravel
+    'credentials-disclosure',    # 2 — credencial exposta
+    'xff-403-bypass',            # 1 — bypass de autorizacao
+    'request-based-interaction', # 1 — interacao OOB (classe SSRF)
+    'phpinfo-files',             # 1 — phpinfo vaza ambiente, caminhos, extensoes
+})
+
+# NOTAS — os julgamentos discutiveis, registrados para poderem ser revistos:
+#  1. wildcard-tls como inventario: certificado curinga amplia o raio de um
+#     comprometimento, mas e escolha de arquitetura deliberada e comum, nao pratica
+#     ausente. Defensavel move-lo para higiene.
+#  2. iis-shortname-detect como higiene: e divulgacao de informacao que HABILITA
+#     enumeracao de arquivos; parte do mercado reporta como low/medium. O nuclei manda
+#     como info. Se o cliente for IIS-pesado, reconsiderar.
+#  3. http-trace como higiene: XST esta majoritariamente mitigado por navegador moderno.
+#  4. htaccess-config como higiene: se o conteudo for realmente servido, pode revelar
+#     regra de rewrite e config de auth — ai seria vulnerability. Depende do corpo.
+
+FINDING_TEMPLATE_CLASS = {
+    **{t: FINDING_CLASS_INVENTORY for t in FINDING_TEMPLATES_INVENTORY},
+    **{t: FINDING_CLASS_HYGIENE for t in FINDING_TEMPLATES_HYGIENE},
+    **{t: FINDING_CLASS_VULNERABILITY for t in FINDING_TEMPLATES_VULNERABILITY},
+}
+
 # naabu
 NAABU_DEFAULT_PORTS = ['top-100']
 

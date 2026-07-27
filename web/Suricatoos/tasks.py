@@ -6534,7 +6534,8 @@ def save_vulnerability(**vuln_data):
 	# so existem depois do laco acima; (b) incluir finding_class no lookup do
 	# get_or_create faria um achado ja gravado com outra classe virar linha DUPLICADA.
 	# Reavaliado a cada ocorrencia para que uma mudanca de regra alcance achado antigo.
-	new_class = classify_finding(vuln_data.get('severity'), tags)
+	new_class = classify_finding(
+		vuln_data.get('severity'), tags, vuln_data.get('template_id'))
 	if vuln.finding_class != new_class:
 		vuln.finding_class = new_class
 		vuln.save(update_fields=['finding_class'])

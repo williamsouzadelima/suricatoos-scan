@@ -1722,7 +1722,7 @@ def is_valid_nmap_command(cmd):
 	return True
 
 
-def classify_finding(severity, tags):
+def classify_finding(severity, tags, template_id=None):
 	"""Classifica um achado em vulnerability / hygiene / inventory.
 
 	Existe porque o scanner grava reconhecimento na mesma tabela que vulnerabilidade.
@@ -1734,9 +1734,15 @@ def classify_finding(severity, tags):
 	Verificado contra a base real — separa 8.048 de inventario e 3.448 de higiene sem
 	capturar nenhum achado de severidade media ou maior.
 
+	A tag nao resolve tudo: 375 achados em 36 familias ficavam em `vulnerability` so
+	por falta de sinal na tag. Para esses existe a curadoria por `template_id`
+	(FINDING_TEMPLATE_CLASS), que vence a tag por ser julgamento humano explicito —
+	mas continua ABAIXO do piso de severidade.
+
 	Args:
 		severity (int): severidade na escala do reNgine (-1 unknown .. 4 critical).
 		tags (iterable): tags do template; vazio para fontes que nao tageiam (dalfox).
+		template_id (str): id canonico do template do nuclei; None para outras fontes.
 
 	Returns:
 		str: uma das constantes FINDING_CLASS_*.
@@ -1744,12 +1750,19 @@ def classify_finding(severity, tags):
 	# Piso: nada de severidade media+ e rebaixado a inventario/higiene, por mais que a
 	# tag diga o contrario. As tags do nuclei sao inconsistentes — "RDAP WHOIS" carrega
 	# a tag `vuln` — entao confiar nelas para ESCONDER algo severo seria um risco mudo.
+	# Vale tambem sobre a curadoria: nem uma entrada escrita a mao rebaixa algo severo.
 	try:
 		sev = int(severity)
 	except (TypeError, ValueError):
 		sev = -1
 	if sev >= FINDING_CLASS_SEVERITY_FLOOR:
 		return FINDING_CLASS_VULNERABILITY
+
+	# Curadoria por template vence a tag: e julgamento humano explicito sobre um
+	# template especifico, contra um sinal generico e reconhecidamente inconsistente.
+	curado = FINDING_TEMPLATE_CLASS.get(str(template_id or '').strip().lower())
+	if curado:
+		return curado
 
 	# Sem tag (dalfox e o scanner bridge nao tageiam) -> nao ha base para rebaixar.
 	tag_set = {str(t).strip().lower() for t in (tags or []) if str(t).strip()}
