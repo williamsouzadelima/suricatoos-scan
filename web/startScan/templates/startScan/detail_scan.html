@@ -165,8 +165,7 @@
 								</div>
 							</div>
 						</div>
-						{# Antes isto era gateado por scan_status == 0 (FAILED), entao um scan
-						   SEGURADO (RUNNING) ou ABORTADO nunca mostrava o motivo. #}
+						{# Antes gateado por scan_status == 0 (FAILED): scan SEGURADO ou ABORTADO nao mostrava motivo. #}
 						{% if history.error_message %}
 							{% if history.scan_status == 1 %}
 							<p class="text-warning">{{ history.error_message }}</p>

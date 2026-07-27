@@ -675,10 +675,7 @@
       </article>
     {% endif %}
 
-    {# Higiene e Conformidade — secao PROPRIA, fora da contagem de risco.
-       Boa pratica ausente (cabecalho, SRI, cookie sem Secure, CORS) e real e o cliente
-       quer ver, mas nao e exploravel: somada ao risco, milhares de "Missing Security
-       Headers" soterravam os achados criticos de verdade. #}
+    {# Higiene e Conformidade: secao PROPRIA, fora da contagem de risco (nao e exploravel por si). #}
     {% if show_vuln and hygiene_findings %}
       <article style="page-break-before: always" class="summary">
         <h3 id="hygiene-summary" class="page_title">{% trans "Hygiene &amp; Compliance" %}</h3>

@@ -128,9 +128,7 @@
                 {% if scan_history.error_message %}</br><p class="text-danger">{% blocktrans with error_message=scan_history.error_message %}Scan Failed due to: {{ error_message }}{% endblocktrans %}</p>{% endif %}
                 {% elif scan_history.scan_status == 1 %}
                 <span class="badge badge-soft-info"><span class="spinner-border spinner-border-sm"></span> {% trans "In Progress" %}</span>
-                {# Um scan RUNNING pode estar SEGURADO pelo hang_monitor (fila sem consumidor,
-                   backlog). Sem isto o error_message so aparecia em scan_status == 0, entao o
-                   usuario via "In Progress" por horas sem nenhuma explicacao. #}
+                {# Scan RUNNING pode estar SEGURADO pelo hang_monitor; antes so scan_status==0 mostrava motivo. #}
                 {% if scan_history.error_message %}<br><p class="text-warning"><small>{{ scan_history.error_message }}</small></p>{% endif %}
                 {% elif scan_history.scan_status == 2 %}
                 <span class="badge badge-soft-success">{% trans "Successful" %}</span>
@@ -138,9 +136,7 @@
                 <span class="badge badge-soft-danger">{% trans "Aborted" %}</span>
                 <br>
                 <small class="text-muted">{% blocktrans with aborted_by=scan_history.aborted_by %}Aborted by: {{ aborted_by }}{% endblocktrans %}</small>
-                {# Scan ABORTADO tambem nao mostrava motivo algum — os scans 66/67/68 de
-                   22-24/07/2026 exibiram so o badge "Aborted", sem dizer que a causa era um
-                   worker morto. E exatamente a informacao que faltava. #}
+                {# Scan ABORTADO tambem nao mostrava motivo: 66/67/68 exibiram so o badge, sem dizer a causa. #}
                 {% if scan_history.error_message %}<br><p class="text-danger"><small>{{ scan_history.error_message }}</small></p>{% endif %}
                 {% else %}
                 <span class="badge badge-soft-danger">{% trans "Unknown" %}</span>
