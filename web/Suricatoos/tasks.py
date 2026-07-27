@@ -3537,6 +3537,14 @@ def save_osint_result(scan_history, bucket, event_type, data, source='osint',
 	return obj, created
 
 
+#--------------------------------#
+# VULNERABILITY VALIDATION        #
+#--------------------------------#
+
+# A re-test URL must stay a single shlex token (no whitespace/quote/backslash) and be http(s).
+SAFE_RETEST_URL_RE = re.compile(r"\Ahttps?://[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]+\Z")
+
+
 def _validation_target_url(url, allow_private=True):
 	"""Validate a stored finding URL before re-testing it.
 
