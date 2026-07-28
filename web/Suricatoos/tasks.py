@@ -94,20 +94,25 @@ def join_group_with_timeout(job, label, timeout=None, poll=5):
 			time.sleep(poll)
 		return True
 
-	deadline = time.monotonic() + timeout
-	concluidos = -1
-	while not job.ready():
-		# Sonda best-effort: se o backend falhar, NAO conta como progresso (senao um
-		# backend quebrado renovaria o prazo para sempre) nem encurta o prazo.
-		#
-		# O int() esta DENTRO do try de proposito. Esta funcao roda dentro da task da
-		# fase (port_scan, osint, nuclei_scan): qualquer excecao que escape daqui
-		# derruba a fase inteira. Um backend que devolva algo nao-numerico nao pode
-		# custar um scan — vira "sem progresso", que no pior caso revoga o grupo.
+	# Sonda best-effort: se o backend falhar, NAO conta como progresso (senao um
+	# backend quebrado renovaria o prazo para sempre) nem encurta o prazo.
+	#
+	# O int() esta DENTRO do try de proposito. Esta funcao roda dentro da task da
+	# fase (port_scan, osint, nuclei_scan): qualquer excecao que escape daqui
+	# derruba a fase inteira. Um backend que devolva algo nao-numerico nao pode
+	# custar um scan — vira "sem progresso", que no pior caso revoga o grupo.
+	def _concluidos(anterior):
 		try:
-			agora = int(job.completed_count())
+			return int(job.completed_count())
 		except Exception:   # noqa: BLE001 - probe do backend e best-effort
-			agora = concluidos
+			return anterior
+
+	deadline = time.monotonic() + timeout
+	# A PRIMEIRA leitura e linha de base, nao avanco: comecar em -1 faria a leitura
+	# inicial (mesmo que 0) parecer progresso e renovar o prazo de graca.
+	concluidos = _concluidos(0)
+	while not job.ready():
+		agora = _concluidos(concluidos)
 		if agora > concluidos:
 			concluidos = agora
 			deadline = time.monotonic() + timeout
