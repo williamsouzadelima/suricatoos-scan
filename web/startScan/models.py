@@ -116,6 +116,25 @@ class ScanHistory(models.Model):
 		"""Higiene deste scan — contada e exibida SEPARADO, nunca somada ao risco."""
 		return Vulnerability.objects.filter(scan_history__id=self.id).hygiene().count()
 
+	def get_truncated_command_count(self):
+		"""Ferramentas cortadas pelo watchdog neste scan — trabalho que NAO foi feito.
+
+		Um scan pode reportar SUCESSO tendo perdido varredura no meio. Medido em
+		28/07/2026: `naabu` cortado em 26 de 26 scans, `dalfox` em 13 de 13, `nuclei`
+		65 vezes em 12 scans. No scan 74 o dalfox morreu deixando 2 bytes de saida (um
+		`[`) e a fase reportou sucesso — zero XSS "encontrados" num alvo nunca varrido.
+
+		Derivado de Command em vez de gravado no ScanHistory de proposito: varias tasks
+		escrevem em paralelo e um contador no scan perderia incrementos por corrida.
+		O dado ja existia aqui; so nunca tinha sido mostrado.
+
+		Exclui o corte PREVISTO (subdivisao do sweep UDP) pelo marcador proprio.
+		"""
+		from Suricatoos.definitions import WATCHDOG_MARKER
+		return (Command.objects
+				.filter(scan_history__id=self.id, output__contains=WATCHDOG_MARKER)
+				.count())
+
 	def get_vulnerability_count(self):
 		return self._real_vulnerabilities().count()
 

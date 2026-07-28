@@ -172,6 +172,39 @@ try:
         DEFAULT_COMMAND_EXEC_TIMEOUT = scale_timer(5100)  # seconds; ~85min; watchdog < soft 5400s < hard 7200s
 except (TypeError, ValueError):
     DEFAULT_COMMAND_EXEC_TIMEOUT = scale_timer(5100)
+
+# DEFAULT_COMMAND_EXEC_TIMEOUT passou a ser orcamento de SILENCIO: cada linha de saida
+# o renova. Uma ferramenta so morre depois de ficar esse tempo INTEIRO sem produzir nada.
+#
+# Por que: medido em 28/07/2026, como tempo TOTAL ele cortava `naabu` em 26 de 26 scans,
+# `dalfox` em 13 de 13 e `nuclei` 65 vezes em 12 scans — e o scan reportava SUCESSO. No
+# scan 74 o dalfox morreu deixando 2 bytes (`[`), JSON aberto, zero XSS "encontrados".
+#
+# COMMAND_WATCHDOG_CEILING e a rede contra o caso oposto: ferramenta presa num laco que
+# cospe saida para sempre nunca ficaria em silencio e nunca morreria, segurando um slot
+# do prefork e travando a fila (a cunha do scan #28).
+#
+# O teto fica ABAIXO do hard limit do Celery (7200s) de proposito. Acima dele o Celery
+# mataria a task antes do watchdog e a ferramenta — que roda em sessao propria — ficaria
+# ORFA. Uma task com limite maior (o sweep UDP: 14 dias na deep_port_queue) passa o
+# proprio `timeout`, e `_arm_command_watchdog` respeita o maior dos dois.
+COMMAND_WATCHDOG_CEILING = scale_timer(6900)   # < soft 5400? nao: < hard 7200s, com folga
+# De quanto em quanto tempo o watchdog confere silencio/teto. Barato: so le um relogio.
+COMMAND_WATCHDOG_POLL = 30
+
+# Marcadores gravados em Command.output quando o watchdog corta. Sao a UNICA forma de
+# saber, depois, que um scan "concluido com sucesso" na verdade perdeu trabalho — antes
+# isso ficava so numa linha de log que ninguem le.
+#
+# O par existe porque nem todo corte e defeito: o sweep UDP subdivide o bloco JUSTAMENTE
+# quando o chunk estoura, entao esse corte e o desenho funcionando. Sem separar os dois,
+# a contagem de truncamento acusaria 14 cortes num scan perfeitamente saudavel.
+#
+# Os dois textos sao DISJUNTOS de proposito: se um fosse prefixo do outro, um
+# `output LIKE '%marcador%'` casaria os dois e a contagem misturaria desenho com defeito.
+WATCHDOG_MARKER = '[suricatoos] TRUNCADO pelo watchdog'
+WATCHDOG_MARKER_EXPECTED = '[suricatoos] bloco encerrado no prazo (subdivisao prevista)'
+
 # Tighter cap for theHarvester, hang-prone e rodando no pool gevent, onde o hard limit
 # SIGALRM do Celery NAO se aplica — o watchdog do run_command e a unica protecao ali.
 THEHARVESTER_EXEC_TIMEOUT = scale_timer(600)

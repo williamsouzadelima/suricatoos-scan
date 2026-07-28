@@ -2478,7 +2478,8 @@ def udp_port_scan(self, host=None, ctx={}, description=None):
 				history_file=self.history_file,
 				scan_id=self.scan_id,
 				activity_id=self.activity_id,
-				timeout=DEEP_UDP_CHUNK_TIMEOUT)
+				timeout=DEEP_UDP_CHUNK_TIMEOUT,
+				expected_timeout=True)
 			elapsed = time.time() - started_at
 			# O watchdog mata o grupo com SIGKILL e run_command devolve -9 — sinal preciso.
 			# O tempo decorrido fica so de rede de seguranca.
@@ -5829,20 +5830,73 @@ def remove_duplicate_endpoints(
 					ep.delete()
 				logger.warning(msg)
 
-def _arm_command_watchdog(proc, timeout):
-	"""Kill the whole process group if `timeout` seconds elapse.
+class _WatchdogHandle:
+	"""Alca cancelavel de um watchdog que se reagenda.
 
-	Returns (timer, state); state['timed_out'] flips True on fire. We spawn children
-	with start_new_session=True and SIGKILL the GROUP (amass spawns massdns helpers that
-	survive a bare proc.kill()). Uses threading.Timer, which under the gevent worker pool
-	becomes a cooperative greenlet timer that still fires while readline/wait yield — this
-	is the only guard that works there, since Celery's SIGALRM hard limit is a no-op on gevent.
+	Os chamadores continuam fazendo `_timer.cancel()`; o que muda e que por baixo
+	existe uma cadeia de threading.Timer em vez de um disparo unico.
 	"""
-	state = {'timed_out': False}
+
+	def __init__(self):
+		self._timer = None
+		self._cancelado = False
+
+	def arm(self, fn, delay):
+		if self._cancelado:
+			return
+		t = threading.Timer(delay, fn)
+		t.daemon = True
+		t.start()
+		self._timer = t
+
+	def cancel(self):
+		self._cancelado = True
+		if self._timer is not None:
+			try:
+				self._timer.cancel()
+			except Exception:   # noqa: BLE001 - cleanup best-effort
+				pass
+
+
+def _arm_command_watchdog(proc, timeout, ceiling=None, poll=COMMAND_WATCHDOG_POLL):
+	"""Mata o grupo de processos quando a ferramenta PARA DE PRODUZIR, nao quando
+	demora.
+
+	`timeout` passa a ser orcamento de SILENCIO: cada linha lida renova
+	(`_read_lines_until_dead` chama `_beat`). `ceiling` e o teto absoluto de
+	execucao, a rede contra uma ferramenta presa num laco que cospe saida para
+	sempre. Sem `ceiling`, o teto e o proprio `timeout` — o comportamento antigo.
+
+	Era tempo total, e o custo foi medido em producao em 28/07/2026: `naabu` cortado
+	em 26 de 26 scans, `dalfox` em 13 de 13, `nuclei` 65 vezes em 12 scans. Todos com
+	`stream_command: timed out after 5100s`. No scan 74 o dalfox morreu deixando 2
+	bytes de saida — um `[` — e a fase reportou SUCESSO. E o mesmo modo de falha que
+	fez 28 das 29 execucoes do SpiderFoot falharem em silencio.
+
+	O teto NAO pode passar do hard limit do Celery da task: um watchdog acima dele
+	deixaria a ferramenta (sessao propria) ORFA quando o Celery matasse a task. Por
+	isso quem chama deriva o teto de COMMAND_WATCHDOG_CEILING, e uma task de tier
+	deep que passa `timeout` maior (o sweep UDP, 14 dias na deep_port_queue) mantem
+	o proprio orcamento.
+
+	Returns (handle, state); state['timed_out'] vira True ao disparar e
+	state['reason'] diz QUAL dos dois limites disparou. Filhos nascem com
+	start_new_session=True e levamos SIGKILL no GRUPO (o amass gera massdns, que
+	sobrevive a um proc.kill() simples). Usa threading.Timer, que sob o pool gevent
+	vira timer cooperativo e ainda dispara enquanto readline/wait cedem — e a unica
+	guarda que funciona la, ja que o hard limit por SIGALRM do Celery e no-op no gevent.
+	"""
+	state = {'timed_out': False, 'reason': None, 'last_output': time.monotonic()}
 	if not timeout or timeout <= 0:
 		return None, state
-	def _kill():
+
+	inicio = time.monotonic()
+	teto = ceiling if (ceiling and ceiling > timeout) else timeout
+	handle = _WatchdogHandle()
+
+	def _kill(motivo):
 		state['timed_out'] = True
+		state['reason'] = motivo
 		try:
 			os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
 		except (ProcessLookupError, PermissionError, OSError):
@@ -5850,10 +5904,29 @@ def _arm_command_watchdog(proc, timeout):
 				proc.kill()
 			except Exception:
 				pass
-	timer = threading.Timer(timeout, _kill)
-	timer.daemon = True
-	timer.start()
-	return timer, state
+
+	def _check():
+		if proc.poll() is not None:
+			return                      # terminou sozinho; nada a fazer
+		agora = time.monotonic()
+		silencio = agora - state['last_output']
+		if silencio >= timeout:
+			_kill(f'sem saida por {int(silencio)}s (orcamento de silencio {int(timeout)}s)')
+			return
+		decorrido = agora - inicio
+		if decorrido >= teto:
+			_kill(f'teto absoluto de {int(teto)}s atingido ({int(decorrido)}s de execucao)')
+			return
+		handle.arm(_check, min(poll, timeout))
+
+	handle.arm(_check, min(poll, timeout))
+	return handle, state
+
+
+def _beat_watchdog(wd):
+	"""Registra que a ferramenta produziu saida — renova o orcamento de silencio."""
+	if wd is not None:
+		wd['last_output'] = time.monotonic()
 
 
 def _read_lines_until_dead(process, wd, poll=1.0):
@@ -5882,6 +5955,9 @@ def _read_lines_until_dead(process, wd, poll=1.0):
 			line = stdout.readline()
 			if not line:
 				break   # genuine EOF
+			# Saida = sinal de vida: renova o orcamento de SILENCIO do watchdog.
+			# Sem isto o watchdog volta a medir duracao e mata ferramenta saudavel.
+			_beat_watchdog(wd)
 			yield line
 		elif wd.get('timed_out') or process.poll() is not None:
 			# No data within the poll window AND the tool was killed or has
@@ -6142,7 +6218,8 @@ def run_command(
 		activity_id=None,
 		remove_ansi_sequence=False,
 		exec_cmd=None,
-		timeout=DEFAULT_COMMAND_EXEC_TIMEOUT
+		timeout=DEFAULT_COMMAND_EXEC_TIMEOUT,
+		expected_timeout=False
 	):
 	"""Run a given command using subprocess module.
 
@@ -6187,7 +6264,12 @@ def run_command(
 		cwd=cwd,
 		start_new_session=True,
 		universal_newlines=True)
-	_timer, _wd = _arm_command_watchdog(popen, timeout)
+	# Teto generoso SO para quem usa o orcamento global. Quem passou um valor apertado
+	# de proposito (chunk UDP 2700s, theHarvester 600s) mantem o limite exato: o
+	# _deep_udp_sweep calcula lock_ttl a partir de DEEP_UDP_CHUNK_TIMEOUT, e elevar o
+	# teto dele faria o lock expirar no meio do sweep — de volta as 4 copias concorrentes.
+	_ceiling = COMMAND_WATCHDOG_CEILING if timeout == DEFAULT_COMMAND_EXEC_TIMEOUT else None
+	_timer, _wd = _arm_command_watchdog(popen, timeout, ceiling=_ceiling)
 	output = ''
 	try:
 		# Interruptible read: breaks promptly if the watchdog kills the tool, so
@@ -6229,8 +6311,13 @@ def run_command(
 				pass
 	return_code = popen.returncode
 	if _wd['timed_out']:
-		logger.error(f'run_command: timed out after {timeout}s, killed process group: {cmd}')
-		output += f'\n[suricatoos] command timed out after {timeout}s and was killed'
+		_motivo = _wd.get('reason') or f'{timeout}s'
+		# `expected_timeout` marca o corte que E o desenho: o sweep UDP subdivide o
+		# bloco JUSTAMENTE quando o chunk estoura. Sem distinguir, a contagem de
+		# truncamento do scan acusaria 14 cortes num scan perfeitamente saudavel.
+		_rotulo = WATCHDOG_MARKER_EXPECTED if expected_timeout else WATCHDOG_MARKER
+		logger.error(f'run_command: watchdog disparou ({_motivo}), grupo morto: {cmd}')
+		output += f'\n{_rotulo}: {_motivo}'
 		return_code = -9
 	command_obj.output = output
 	command_obj.return_code = return_code
@@ -6277,7 +6364,9 @@ def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-
 		universal_newlines=True,
 		start_new_session=True,
 		shell=shell)
-	_timer, _wd = _arm_command_watchdog(process, timeout)
+	# Ver a nota em run_command: teto generoso so para o orcamento global.
+	_ceiling = COMMAND_WATCHDOG_CEILING if timeout == DEFAULT_COMMAND_EXEC_TIMEOUT else None
+	_timer, _wd = _arm_command_watchdog(process, timeout, ceiling=_ceiling)
 
 	# Log the output in real-time to the database
 	output = ""
@@ -6331,8 +6420,9 @@ def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-
 				pass
 		return_code = process.returncode
 		if _wd['timed_out']:
-			logger.error(f'stream_command: timed out after {timeout}s, killed process group: {cmd}')
-			output += f'\n[suricatoos] command timed out after {timeout}s and was killed'
+			_motivo = _wd.get('reason') or f'{timeout}s'
+			logger.error(f'stream_command: watchdog disparou ({_motivo}), grupo morto: {cmd}')
+			output += f'\n{WATCHDOG_MARKER}: {_motivo}'
 			return_code = -9
 
 		# Update the return code and final output in the database
