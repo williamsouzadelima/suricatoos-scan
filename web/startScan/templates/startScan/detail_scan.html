@@ -173,9 +173,7 @@
 							<p class="text-danger">{{ history.error_message }}</p>
 							{% endif %}
 						{% endif %}
-						{# Cobertura incompleta: um scan pode fechar VERDE tendo perdido varredura no
-						   meio. Sem isto o corte ficava so no log e o cliente lia "concluido" como
-						   "completo". Ver ScanHistory.get_truncated_command_count. #}
+						{# Cobertura incompleta: scan pode fechar VERDE tendo perdido varredura. Ver get_truncated_command_count. #}
 						{% with truncados=history.get_truncated_command_count %}
 						{% if truncados %}
 							<div class="alert alert-warning mt-2 mb-2 p-2" role="alert">
@@ -1533,6 +1531,39 @@
 <script src="{% static 'startScan/js/endpoint-datatables-suggestions.js' %}"></script>
 <script src="{% static 'custom/subdomain_datatable.js' %}"></script>
 
+{# Gate PROPRIO: higiene e vulnerabilidade sao contagens independentes. Este init morava #}
+{# dentro de `total_vulnerability_count > 0`, entao o scan 74 (47 de higiene, ZERO vulns) #}
+{# carregava a aba com cabecalho e nenhuma linha — o handler nem era emitido. #}
+{% if total_hygiene_count > 0 %}
+<script>
+	$(document).ready(function() {
+			// Aba de Higiene: mesma API, filtrada por classe. Tabela simples de proposito —
+			// higiene nao tem severidade util (todas sao info), entao ordenar por risco seria
+			// teatro; o que importa e o tipo e onde.
+			$("#pills-hygiene-tab").click(function() {
+				if ( $.fn.dataTable.isDataTable( '#hygiene_results' ) ) {
+					return false;
+				}
+				$('#hygiene_results').DataTable({
+					"destroy": true,
+					"processing": true,
+					"serverSide": true,
+					"order": [[0, "asc"]],
+					"ajax": '/api/listVulnerability/?scan_history={{scan_history_id}}&finding_class=hygiene&format=datatables',
+					"columns": [
+						{"data": "name"},
+						{"data": "subdomain.name", "defaultContent": "-"},
+						{"data": "http_url", "defaultContent": "-", "render": function(data) {
+							if (!data) { return '-'; }
+							var safe = $('<div>').text(data).html();
+							return '<a href="' + safe + '" target="_blank" rel="noopener noreferrer" class="text-muted">' + safe + '</a>';
+						}}
+					]
+				});
+	});
+</script>
+{% endif %}
+
 {% if total_vulnerability_count > 0 %}
 <script src="{% static 'startScan/js/vulnerability-datatables-suggestions.js' %}"></script>
 {% endif %}
@@ -1743,29 +1774,6 @@ $(document).ready(function() {
 		chart.render()
 
 		// vulnerability datatable
-		// Aba de Higiene: mesma API, filtrada por classe. Tabela simples de proposito —
-		// higiene nao tem severidade util (todas sao info), entao ordenar por risco seria
-		// teatro; o que importa e o tipo e onde.
-		$("#pills-hygiene-tab").click(function() {
-			if ( $.fn.dataTable.isDataTable( '#hygiene_results' ) ) {
-				return false;
-			}
-			$('#hygiene_results').DataTable({
-				"destroy": true,
-				"processing": true,
-				"serverSide": true,
-				"order": [[0, "asc"]],
-				"ajax": '/api/listVulnerability/?scan_history={{scan_history_id}}&finding_class=hygiene&format=datatables',
-				"columns": [
-					{"data": "name"},
-					{"data": "subdomain.name", "defaultContent": "-"},
-					{"data": "http_url", "defaultContent": "-", "render": function(data) {
-						if (!data) { return '-'; }
-						var safe = $('<div>').text(data).html();
-						return '<a href="' + safe + '" target="_blank" rel="noopener noreferrer" class="text-muted">' + safe + '</a>';
-					}}
-				]
-			});
 		});
 
 		const ps2 = new PerfectScrollbar(document.querySelector('.vulnerability-search'));
