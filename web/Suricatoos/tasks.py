@@ -6425,8 +6425,15 @@ def stream_command(cmd, cwd=None, shell=False, history_file=None, encoding='utf-
 			output += f'\n{WATCHDOG_MARKER}: {_motivo}'
 			return_code = -9
 
-		# Update the return code and final output in the database
+		# Update the return code and final output in the database.
+		# O `output` estava faltando aqui, contra o que o proprio comentario dizia: o
+		# marcador de truncamento e anexado a variavel local logo acima e NUNCA chegava
+		# ao banco. Por isso, em producao, `dalfox` e `naabu` (stream_command) apareciam
+		# com return_code -9 e output SEM marcador, enquanto o `nmap` (run_command, que
+		# grava output no fim) aparecia com ele — e get_truncated_command_count() ficaria
+		# cega justamente para as ferramentas que mais foram cortadas.
 		command_obj.return_code = return_code
+		command_obj.output = output
 		command_obj.save()
 
 		# Append the command, return code and output to the history file

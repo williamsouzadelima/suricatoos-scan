@@ -20,6 +20,8 @@ import time
 import unittest
 from unittest.mock import patch
 
+from django.test import TestCase
+
 from Suricatoos.tasks import _arm_command_watchdog, _beat_watchdog
 from Suricatoos.definitions import WATCHDOG_MARKER, WATCHDOG_MARKER_EXPECTED
 
@@ -132,3 +134,51 @@ class MarcadoresTests(unittest.TestCase):
         # dois e a contagem de truncamento misturaria desenho com defeito.
         self.assertNotIn(WATCHDOG_MARKER, WATCHDOG_MARKER_EXPECTED)
         self.assertNotIn(WATCHDOG_MARKER_EXPECTED, WATCHDOG_MARKER)
+
+
+class MarcadorChegaNoBancoTests(TestCase):
+    """O marcador precisa chegar ao Command, senao a contagem do scan fica cega.
+
+    Em producao o `stream_command` anexava o marcador a variavel local e salvava
+    apenas o return_code — por isso `dalfox` e `naabu` apareciam com -9 e output SEM
+    marcador, enquanto o `nmap` (run_command) aparecia com ele. A feature de
+    cobertura incompleta teria nascido cega exatamente para as duas ferramentas mais
+    cortadas.
+    """
+
+    def test_stream_command_grava_output_junto_do_return_code(self):
+        import inspect
+        from Suricatoos import tasks
+        src = inspect.getsource(tasks.stream_command)
+        # O save final tem de levar output, nao so return_code.
+        self.assertIn('command_obj.output = output', src)
+        pos_rc = src.rindex('command_obj.return_code = return_code')
+        pos_out = src.rindex('command_obj.output = output')
+        pos_save = src.index('command_obj.save()', pos_rc)
+        self.assertLess(pos_out, pos_save,
+                        'output precisa ser atribuido ANTES do save() final')
+
+    def test_contagem_de_truncamento_ignora_o_corte_previsto(self):
+        from dashboard.models import Project
+        from targetApp.models import Domain
+        from startScan.models import ScanHistory, EngineType, Command
+        from django.utils import timezone
+        agora = timezone.now()
+        proj = Project.objects.create(name='p', slug='p', insert_date=agora)
+        dom = Domain.objects.create(name='e.com', project=proj, insert_date=agora)
+        eng = EngineType.objects.create(engine_name='e', yaml_configuration='',
+                                        default_engine=False)
+        sh = ScanHistory.objects.create(start_scan_date=agora, domain=dom,
+                                        scan_type=eng, scan_status=2)
+        Command.objects.create(scan_history=sh, command='dalfox ...', time=agora,
+                               return_code=-9, output=f'[\n{WATCHDOG_MARKER}: sem saida por 5100s')
+        Command.objects.create(scan_history=sh, command='naabu ...', time=agora,
+                               return_code=-9, output=f'x\n{WATCHDOG_MARKER}: teto absoluto')
+        # subdivisao do sweep UDP: corte PREVISTO, nao conta como perda de cobertura
+        for _ in range(14):
+            Command.objects.create(scan_history=sh, command='nmap -sU ...', time=agora,
+                                   return_code=-9,
+                                   output=f'y\n{WATCHDOG_MARKER_EXPECTED}: 2700s')
+        Command.objects.create(scan_history=sh, command='ok', time=agora,
+                               return_code=0, output='tudo certo')
+        self.assertEqual(sh.get_truncated_command_count(), 2)
