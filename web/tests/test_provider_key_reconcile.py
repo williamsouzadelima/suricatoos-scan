@@ -44,10 +44,18 @@ class MapaDePropagacaoTests(TestCase):
                         self.assertRegex(destino, r'^[A-Za-z0-9_]+$')
 
 
-@override_settings(SUBFINDER_PROVIDER_CONFIG_PATH=_tmp('provider-config.yaml'),
-                   THEHARVESTER_API_KEYS_PATH=_tmp('api-keys.yaml'))
 class ReconciliacaoTests(TestCase):
+    # Diretorio NOVO por teste. Com @override_settings na classe, o _tmp() e avaliado
+    # UMA vez na importacao e todos os testes dividem o mesmo arquivo — o test_apply
+    # rodava antes e o dry-run enxergava a chave que ele havia gravado, falhando por
+    # vazamento entre testes e nao por defeito do produto.
     def setUp(self):
+        d = tempfile.mkdtemp()
+        cfg = override_settings(
+            SUBFINDER_PROVIDER_CONFIG_PATH=os.path.join(d, 'provider-config.yaml'),
+            THEHARVESTER_API_KEYS_PATH=os.path.join(d, 'api-keys.yaml'))
+        cfg.enable()
+        self.addCleanup(cfg.disable)
         ApiCredential.upsert('intelx', 'chave-intelx')
         ApiCredential.upsert('netlas', 'chave-netlas')
         ApiCredential.upsert('chaos', 'chave-chaos')
