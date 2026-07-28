@@ -112,3 +112,16 @@ class BarreiraProgressoTests(unittest.TestCase):
         ok, decorrido = self._roda(grupo, timeout=100, poll=5)
         self.assertTrue(ok)
         self.assertEqual(decorrido, 0)
+
+    def test_completed_count_nao_numerico_nao_derruba_a_fase(self):
+        # Regressao real: a sonda devolvia MagicMock nos testes existentes e o `>`
+        # estourava TypeError DENTRO da task da fase — o que derrubaria port_scan /
+        # osint / nuclei_scan inteiros. Sonda invalida vira "sem progresso", nunca
+        # excecao.
+        class SondaEstranha(GrupoFalso):
+            def completed_count(self):
+                return object()
+        grupo = SondaEstranha(pronto_em=10**9)
+        ok, _ = self._roda(grupo, timeout=100, poll=5)
+        self.assertFalse(ok)
+        self.assertTrue(grupo.revogado)

@@ -99,8 +99,13 @@ def join_group_with_timeout(job, label, timeout=None, poll=5):
 	while not job.ready():
 		# Sonda best-effort: se o backend falhar, NAO conta como progresso (senao um
 		# backend quebrado renovaria o prazo para sempre) nem encurta o prazo.
+		#
+		# O int() esta DENTRO do try de proposito. Esta funcao roda dentro da task da
+		# fase (port_scan, osint, nuclei_scan): qualquer excecao que escape daqui
+		# derruba a fase inteira. Um backend que devolva algo nao-numerico nao pode
+		# custar um scan — vira "sem progresso", que no pior caso revoga o grupo.
 		try:
-			agora = job.completed_count()
+			agora = int(job.completed_count())
 		except Exception:   # noqa: BLE001 - probe do backend e best-effort
 			agora = concluidos
 		if agora > concluidos:
