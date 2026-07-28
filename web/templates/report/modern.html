@@ -726,6 +726,16 @@
                 {% blocktrans with domain=scan_object.domain.name %}This section contains quick summary of scan performed on
                 <span class="primary-color">{{ domain }}</span>{% endblocktrans %}
             </p>
+            {# Cobertura incompleta: no INICIO de proposito — quem le o PDF entende
+               "concluido" como "completo". Ver default.html. #}
+            {% if truncated_command_count %}
+                <div style="border-left:4px solid #b00020; background:#fdecea; padding:8px 12px; margin:10px 0;">
+                    <p style="margin:0; color:#b00020;"><strong>{% trans "Incomplete coverage" %}</strong></p>
+                    <p style="margin:4px 0 0 0; font-size:11px;">
+                        {% blocktrans count counter=truncated_command_count with num=truncated_command_count %}{{ num }} scanning tool was stopped by the watchdog before it finished. The findings below are therefore partial — absence of a finding in the affected area is not evidence of absence.{% plural %}{{ num }} scanning tools were stopped by the watchdog before they finished. The findings below are therefore partial — absence of a finding in the affected areas is not evidence of absence.{% endblocktrans %}
+                    </p>
+                </div>
+            {% endif %}
             <br />
             {% if show_recon %}
                 <div class="section">
@@ -1025,6 +1035,113 @@
                             </table>
                         </div>
                     {% endif %}
+                </article>
+            {% endif %}
+            {# Secoes que existiam so no template default — o modern estava mais atrasado. #}
+            {% if show_vuln and hygiene_findings %}
+                <article style="page-break-before: always">
+                    <h2 class="page-title" id="hygiene-summary">{% trans "Hygiene &amp; Compliance" %}</h2>
+                    <p>{% trans "Missing best practices found on the target. These are reportable and worth fixing, but are not directly exploitable — they are listed apart from the vulnerabilities above so they do not dilute the risk picture." %}</p>
+                    <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                        <thead><tr style="text-align:left; border-bottom:2px solid {{primary_color}};"><th style="padding:4px;">{% trans "Finding" %}</th><th style="padding:4px;">{% trans "Asset" %}</th><th style="padding:4px;">{% trans "URL" %}</th></tr></thead>
+                        <tbody>
+                            {% for h in hygiene_findings %}
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:4px;">{{ h.name }}</td>
+                                <td style="padding:4px;">{{ h.subdomain.name|default:"-" }}</td>
+                                <td style="padding:4px; word-break:break-all;">{{ h.http_url|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </article>
+            {% endif %}
+            {% if leaked_secrets and show_vuln %}
+                <article style="page-break-before: always">
+                    <h2 class="page-title" id="leaked-secrets">{% trans "Leaked Secrets" %}</h2>
+                    <p>{% trans "Credentials and tokens found exposed. Values are stored redacted — rotate every secret listed here, regardless of whether it still works." %}</p>
+                    <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                        <thead><tr style="text-align:left; border-bottom:2px solid {{primary_color}};"><th style="padding:4px;">{% trans "Rule" %}</th><th style="padding:4px;">{% trans "Source" %}</th><th style="padding:4px;">{% trans "Location" %}</th><th style="padding:4px;">{% trans "Redacted" %}</th></tr></thead>
+                        <tbody>
+                            {% for s in leaked_secrets %}
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:4px;">{{ s.rule_id|default:"-" }}</td>
+                                <td style="padding:4px;">{{ s.source|default:"-" }}</td>
+                                <td style="padding:4px; word-break:break-all;">{{ s.file_path|default:s.repo_url|default:"-" }}{% if s.line %}:{{ s.line }}{% endif %}</td>
+                                <td style="padding:4px; word-break:break-all;">{{ s.secret_redacted|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </article>
+            {% endif %}
+            {% if technologies and show_recon %}
+                <article style="page-break-before: always">
+                    <h2 class="page-title" id="technologies">{% trans "Technology Inventory" %}</h2>
+                    <p>{% trans "Software identified across the target's hosts, ordered by how many hosts run each one." %}</p>
+                    <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                        <thead><tr style="text-align:left; border-bottom:2px solid {{primary_color}};"><th style="padding:4px;">{% trans "Technology" %}</th><th style="padding:4px;">{% trans "Hosts" %}</th></tr></thead>
+                        <tbody>
+                            {% for t in technologies %}
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:4px;">{{ t.name }}</td>
+                                <td style="padding:4px;">{{ t.host_count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </article>
+            {% endif %}
+            {% if wafs and show_recon %}
+                <article>
+                    <h2 class="page-title" id="waf">{% trans "Web Application Firewalls" %}</h2>
+                    <p>{% trans "WAFs detected in front of the target. Results on protected hosts may understate the real exposure — a blocked probe is not a safe host." %}</p>
+                    <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                        <thead><tr style="text-align:left; border-bottom:2px solid {{primary_color}};"><th style="padding:4px;">{% trans "WAF" %}</th><th style="padding:4px;">{% trans "Manufacturer" %}</th><th style="padding:4px;">{% trans "Hosts" %}</th></tr></thead>
+                        <tbody>
+                            {% for w in wafs %}
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:4px;">{{ w.name }}</td>
+                                <td style="padding:4px;">{{ w.manufacturer|default:"-" }}</td>
+                                <td style="padding:4px;">{{ w.host_count }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </article>
+            {% endif %}
+            {% if directory_subdomains and show_recon %}
+                <article style="page-break-before: always">
+                    <h2 class="page-title" id="directories">{% trans "Discovered Directories" %}</h2>
+                    <p>{% trans "Paths found by directory fuzzing, grouped by host." %}</p>
+                    {% for sub in directory_subdomains %}
+                        <p class="primary-color" style="margin-bottom:2px;"><strong>{{ sub.name }}</strong></p>
+                        <table style="width:100%; border-collapse:collapse; font-size:11px;">
+                        <thead><tr style="text-align:left; border-bottom:2px solid {{primary_color}};"><th style="padding:4px;">{% trans "Path" %}</th><th style="padding:4px;">{% trans "Status" %}</th><th style="padding:4px;">{% trans "Length" %}</th><th style="padding:4px;">{% trans "Type" %}</th></tr></thead>
+                        <tbody>
+                            {% for ds in sub.directories.all %}{% for f in ds.directory_files.all %}
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:4px; word-break:break-all;">{{ f.name|default:"-" }}</td>
+                                <td style="padding:4px;">{{ f.http_status }}</td>
+                                <td style="padding:4px;">{{ f.length }}</td>
+                                <td style="padding:4px;">{{ f.content_type|default:"-" }}</td>
+                            </tr>
+                            {% endfor %}{% endfor %}
+                        </tbody>
+                    </table>
+                    {% endfor %}
+                </article>
+            {% endif %}
+            {% if screenshot_subdomains and show_recon %}
+                <article style="page-break-before: always">
+                    <h2 class="page-title" id="screenshots">{% trans "Screenshots" %}</h2>
+                    <p>{% trans "Visual evidence captured for each responsive host at scan time." %}</p>
+                    {% for sub in screenshot_subdomains %}
+                        <div style="display:inline-block; width:47%; vertical-align:top; margin:0 1% 12px 0;">
+                            <p style="font-size:11px; margin:0 0 2px 0;"><strong>{{ sub.name }}</strong></p>
+                            <img src="file://{{ screenshot_base }}/{{ sub.screenshot_path }}" style="width:100%; border:1px solid #ddd;" />
+                        </div>
+                    {% endfor %}
                 </article>
             {% endif %}
             {% if show_recon %}
