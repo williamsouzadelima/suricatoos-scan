@@ -491,6 +491,18 @@
     <article id="summary" style="page-break-before: always">
       <h2 id="quick-summary" class="page_title">{% trans "Quick Summary" %}</h2>
       <p>{% blocktrans with domain=scan_object.domain.name %}This section contains quick summary of scan performed on <span class="primary-color">{{ domain }}</span>{% endblocktrans %}</p>
+      {# Cobertura incompleta: fica no INICIO de proposito. Um scan pode terminar com
+         status de sucesso tendo perdido varredura no meio, e quem le o PDF entende
+         "concluido" como "completo". Omitir isto e deixar o relatorio afirmar uma
+         cobertura que nao houve. #}
+      {% if truncated_command_count %}
+        <div style="border-left:4px solid #b00020; background:#fdecea; padding:8px 12px; margin:10px 0;">
+          <p style="margin:0; color:#b00020;"><strong>{% trans "Incomplete coverage" %}</strong></p>
+          <p style="margin:4px 0 0 0; font-size:11px;">
+            {% blocktrans count counter=truncated_command_count with num=truncated_command_count %}{{ num }} scanning tool was stopped by the watchdog before it finished. The findings below are therefore partial — absence of a finding in the affected area is not evidence of absence.{% plural %}{{ num }} scanning tools were stopped by the watchdog before they finished. The findings below are therefore partial — absence of a finding in the affected areas is not evidence of absence.{% endblocktrans %}
+          </p>
+        </div>
+      {% endif %}
       <br>
     </article>
 
@@ -672,6 +684,134 @@
             {% endfor %}
           </tbody>
         </table>
+      </article>
+    {% endif %}
+
+    {# Segredos vazados: risco direto, nao higiene — vao ANTES do resto do recon. #}
+    {% if leaked_secrets and show_vuln %}
+      <article style="page-break-before: always" class="summary">
+        <h3 id="leaked-secrets" class="page_title">{% trans "Leaked Secrets" %}</h3>
+        <p>{% trans "Credentials and tokens found exposed. Values are stored redacted — rotate every secret listed here, regardless of whether it still works." %}</p>
+        <table style="width:100%; border-collapse:collapse; font-size:11px;">
+          <thead>
+            <tr style="text-align:left; border-bottom:2px solid {{primary_color}};">
+              <th style="padding:4px;">{% trans "Rule" %}</th>
+              <th style="padding:4px;">{% trans "Source" %}</th>
+              <th style="padding:4px;">{% trans "Location" %}</th>
+              <th style="padding:4px;">{% trans "Redacted" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in leaked_secrets %}
+              <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px;">{{ s.rule_id|default:"-" }}</td>
+                <td style="padding:4px;">{{ s.source|default:"-" }}</td>
+                <td style="padding:4px; word-break:break-all;">{{ s.file_path|default:s.repo_url|default:"-" }}{% if s.line %}:{{ s.line }}{% endif %}</td>
+                <td style="padding:4px; word-break:break-all;">{{ s.secret_redacted|default:"-" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+    {% endif %}
+
+    {# Tecnologias: inventario que o cliente usa para AGIR (o que atualizar, o que tirar do ar). #}
+    {% if technologies and show_recon %}
+      <article style="page-break-before: always" class="summary">
+        <h3 id="technologies" class="page_title">{% trans "Technology Inventory" %}</h3>
+        <p>{% trans "Software identified across the target's hosts, ordered by how many hosts run each one." %}</p>
+        <table style="width:100%; border-collapse:collapse; font-size:11px;">
+          <thead>
+            <tr style="text-align:left; border-bottom:2px solid {{primary_color}};">
+              <th style="padding:4px;">{% trans "Technology" %}</th>
+              <th style="padding:4px;">{% trans "Hosts" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in technologies %}
+              <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px;">{{ t.name }}</td>
+                <td style="padding:4px;">{{ t.host_count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+    {% endif %}
+
+    {# WAF: fato de ambiente que muda a leitura do resto — ausencia de achado atras de WAF
+       nao e o mesmo que ausencia de achado sem WAF. #}
+    {% if wafs and show_recon %}
+      <article class="summary">
+        <h3 id="waf" class="page_title">{% trans "Web Application Firewalls" %}</h3>
+        <p>{% trans "WAFs detected in front of the target. Results on protected hosts may understate the real exposure — a blocked probe is not a safe host." %}</p>
+        <table style="width:100%; border-collapse:collapse; font-size:11px;">
+          <thead>
+            <tr style="text-align:left; border-bottom:2px solid {{primary_color}};">
+              <th style="padding:4px;">{% trans "WAF" %}</th>
+              <th style="padding:4px;">{% trans "Manufacturer" %}</th>
+              <th style="padding:4px;">{% trans "Hosts" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for w in wafs %}
+              <tr style="border-bottom:1px solid #eee;">
+                <td style="padding:4px;">{{ w.name }}</td>
+                <td style="padding:4px;">{{ w.manufacturer|default:"-" }}</td>
+                <td style="padding:4px;">{{ w.host_count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </article>
+    {% endif %}
+
+    {# Diretorios encontrados por fuzzing. #}
+    {% if directory_subdomains and show_recon %}
+      <article style="page-break-before: always" class="summary">
+        <h3 id="directories" class="page_title">{% trans "Discovered Directories" %}</h3>
+        <p>{% trans "Paths found by directory fuzzing, grouped by host." %}</p>
+        {% for sub in directory_subdomains %}
+          <p class="primary-color" style="margin-bottom:2px;"><strong>{{ sub.name }}</strong></p>
+          <table style="width:100%; border-collapse:collapse; font-size:11px; margin-bottom:8px;">
+            <thead>
+              <tr style="text-align:left; border-bottom:1px solid {{primary_color}};">
+                <th style="padding:3px;">{% trans "Path" %}</th>
+                <th style="padding:3px;">{% trans "Status" %}</th>
+                <th style="padding:3px;">{% trans "Length" %}</th>
+                <th style="padding:3px;">{% trans "Type" %}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ds in sub.directories.all %}
+                {% for f in ds.directory_files.all %}
+                  <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:3px; word-break:break-all;">{{ f.name|default:"-" }}</td>
+                    <td style="padding:3px;">{{ f.http_status }}</td>
+                    <td style="padding:3px;">{{ f.length }}</td>
+                    <td style="padding:3px;">{{ f.content_type|default:"-" }}</td>
+                  </tr>
+                {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endfor %}
+      </article>
+    {% endif %}
+
+    {# Capturas de tela: a evidencia visual e o que sustenta o relatorio numa discussao. #}
+    {% if screenshot_subdomains and show_recon %}
+      <article style="page-break-before: always" class="summary">
+        <h3 id="screenshots" class="page_title">{% trans "Screenshots" %}</h3>
+        <p>{% trans "Visual evidence captured for each responsive host at scan time." %}</p>
+        {% for sub in screenshot_subdomains %}
+          <div style="display:inline-block; width:47%; vertical-align:top; margin:0 1% 12px 0;">
+            <p style="font-size:11px; margin:0 0 2px 0;"><strong>{{ sub.name }}</strong>
+              {% if sub.http_status %}<span class="grey-color">[{{ sub.http_status }}]</span>{% endif %}</p>
+            <img src="file://{{ screenshot_base }}/{{ sub.screenshot_path }}"
+                 style="width:100%; border:1px solid #ddd;" />
+          </div>
+        {% endfor %}
       </article>
     {% endif %}
 

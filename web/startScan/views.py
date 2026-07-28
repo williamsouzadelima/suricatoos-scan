@@ -1163,6 +1163,35 @@ def create_report(request, id):
         'brand_name': _branding.name,
         'osint_results': OsintResult.objects.filter(
             scan_history=scan).order_by('-is_malicious', 'bucket', 'event_type'),
+        # --- dados que o scan produzia e o relatorio NAO mostrava (auditado em
+        # 28/07/2026 contra o scan 74: 12 capturas, 35 tecnologias, 2 diretorios e
+        # 2 WAF ficavam so na tela). O relatorio e o artefato que vai ao cliente;
+        # o que nao esta nele, para o cliente, nao existe.
+        'technologies': (
+            Technology.objects.filter(technologies__in=subdomains)
+            .annotate(host_count=Count('technologies', distinct=True))
+            .order_by('-host_count', 'name').distinct()),
+        'wafs': (
+            Waf.objects.filter(waf__in=subdomains)
+            .annotate(host_count=Count('waf', distinct=True))
+            .order_by('-host_count', 'name').distinct()),
+        'directory_subdomains': (
+            subdomains.filter(directories__isnull=False)
+            .prefetch_related('directories__directory_files').distinct()),
+        'leaked_secrets': (
+            LeakedSecret.objects.filter(scan_history=scan)
+            .order_by('-severity', 'source', 'rule_id')),
+        'screenshot_subdomains': (
+            subdomains.exclude(screenshot_path__isnull=True)
+            .exclude(screenshot_path__exact='').order_by('name')),
+        # `screenshot_path` ja e relativo a MEDIA_ROOT e inclui o diretorio do scan
+        # (`loga.com.br_74/screenshots/...`), entao a base e a RAIZ, nao results_dir —
+        # concatenar com results_dir duplicaria o segmento e a imagem nao carregaria.
+        'screenshot_base': settings.MEDIA_ROOT.rstrip('/'),
+        # Cobertura incompleta: o scan pode fechar VERDE tendo perdido varredura. Ate
+        # aqui isso so aparecia na tela de detalhe — justamente ausente do artefato
+        # que o cliente le como "concluido = completo".
+        'truncated_command_count': scan.get_truncated_command_count(),
     }
 
     # Get report related config
