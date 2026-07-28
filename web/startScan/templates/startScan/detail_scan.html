@@ -173,6 +173,18 @@
 							<p class="text-danger">{{ history.error_message }}</p>
 							{% endif %}
 						{% endif %}
+						{# Cobertura incompleta: um scan pode fechar VERDE tendo perdido varredura no
+						   meio. Sem isto o corte ficava so no log e o cliente lia "concluido" como
+						   "completo". Ver ScanHistory.get_truncated_command_count. #}
+						{% with truncados=history.get_truncated_command_count %}
+						{% if truncados %}
+							<div class="alert alert-warning mt-2 mb-2 p-2" role="alert">
+								<i class="fe-alert-triangle"></i>
+								<strong>{% trans "Incomplete coverage" %}:</strong>
+								{% blocktrans count counter=truncados with num=truncados %}{{ num }} tool was stopped by the watchdog before finishing, so this scan's results are partial.{% plural %}{{ num }} tools were stopped by the watchdog before finishing, so this scan's results are partial.{% endblocktrans %}
+							</div>
+						{% endif %}
+						{% endwith %}
 						<h6 class="font-13 text-muted text-uppercase"><i class="fe-settings"></i> {% trans "Scan Configurations" %}</h6>
 						<span>{% trans "Starting Path:" %} {% if history.cfg_starting_point_path %} {{history.cfg_starting_point_path}} {% else %}/ {% endif %}</span><i class="fa fa-info-circle text-muted float-end" data-bs-container="#tooltip-container" data-bs-toggle="tooltip" data-bs-placement="bottom" title="{% trans 'Scan path where the scan began' %}"></i><br>
 						<div class="accordion custom-accordion" id="custom-accordion-one">
