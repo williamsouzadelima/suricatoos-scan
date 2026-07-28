@@ -1,0 +1,140 @@
+# SpiderFoot (poppopjmp/spiderfoot v6.1.0) — HOST DEDICADO.
+#
+# Dimensionado a partir de medicao real feita em 28/07/2026 no host do score, NAO dos
+# defaults do fork. O que a medicao mostrou, com UM scan, concurrency 1, alvo pequeno:
+#
+#   servico          repouso    sob carga
+#   sf-scan-worker      —        1024 MiB  (pregado no teto de 1g que eu havia posto)
+#   sf-worker (core)  301 MiB     367 MiB
+#   sf-api            204 MiB     326 MiB
+#   postgres           37 MiB      39 MiB
+#   redis              12 MiB       7 MiB
+#   TOTAL             554 MiB    1760 MiB
+#
+# O `scan-worker` saturou o limite: ele queria mais. Por isso aqui ele vai com 2g, e
+# nao com o 1g da medicao nem com os 4g do default do fork — 2g e o meio-termo com
+# base em evidencia. Se voltar a saturar, o proximo passo e medir de novo, nao chutar.
+#
+# Requisito de host: >= 4 GB de RAM livres e >= 5 GB de disco. Abaixo disso nao suba
+# junto de outra carga pesada — foi exatamente essa soma que causou os OOM que
+# abortaram os scans 66/67/68 do score.
+#
+# Uso:
+#   cp .env.example .env   # e preencha os segredos
+#   docker compose up -d
+name: spiderfoot
+
+x-sf-common: &sf-common
+  image: ghcr.io/poppopjmp/spiderfoot-scanner:6.1.0
+  restart: unless-stopped
+  depends_on:
+    sf-postgres:
+      condition: service_healthy
+    sf-redis:
+      condition: service_started
+  networks: [spiderfoot]
+
+x-sf-env: &sf-env
+  SF_REDIS_URL: redis://sf-redis:6379/0
+  SF_POSTGRES_DSN: postgresql://spiderfoot:${SF_POSTGRES_PASSWORD:?defina SF_POSTGRES_PASSWORD}@sf-postgres:5432/spiderfoot
+  SF_LOG_LEVEL: ${SF_LOG_LEVEL:-INFO}
+  SF_EVENTBUS_BACKEND: redis
+  # Perfis de IA/vetor ficam desligados: a integracao consome eventos crus e faz a
+  # propria classificacao. Ligar embedding/reranker aqui so somaria memoria sem uso.
+  SF_QDRANT_BACKEND: memory
+  SF_EMBEDDING_PROVIDER: mock
+  SF_RERANKER_PROVIDER: mock
+  SF_LLM_PROVIDER: mock
+
+services:
+  sf-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # appendonly off de proposito: e broker de fila, nao fonte de verdade. O estado
+    # do scan vive no postgres.
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "192mb",
+              "--maxmemory-policy", "noeviction"]
+    mem_limit: 256m
+    networks: [spiderfoot]
+
+  sf-postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: spiderfoot
+      POSTGRES_PASSWORD: ${SF_POSTGRES_PASSWORD:?defina SF_POSTGRES_PASSWORD}
+      POSTGRES_DB: spiderfoot
+    volumes:
+      - sf-postgres-data:/var/lib/postgresql/data
+    mem_limit: 512m
+    networks: [spiderfoot]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spiderfoot"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  sf-api:
+    image: ghcr.io/poppopjmp/spiderfoot-api:6.1.0
+    restart: unless-stopped
+    depends_on:
+      sf-postgres:
+        condition: service_healthy
+      sf-redis:
+        condition: service_started
+    environment:
+      <<: *sf-env
+      SF_SERVICE_ROLE: api
+      SF_DEPLOYMENT_MODE: microservice
+      SF_API_HOST: "0.0.0.0"
+      SF_API_PORT: "8001"
+      # O default do fork e 8 workers uvicorn — cada um carrega a app inteira. Medido:
+      # 1 worker atende o caminho da integracao (1 scan por vez, polling) em 326 MiB.
+      SF_API_WORKERS: ${SF_API_WORKERS:-2}
+      SF_ADMIN_USERNAME: ${SF_ADMIN_USERNAME:-suricatoos}
+      SF_ADMIN_PASSWORD: ${SF_ADMIN_PASSWORD:?defina SF_ADMIN_PASSWORD}
+    mem_limit: 768m
+    # Escuta SO no loopback. Quem expoe para o score e o proxy TLS (ver runbook):
+    # publicar 8001 na interface publica deixaria a API do SpiderFoot aberta.
+    ports:
+      - "127.0.0.1:8001:8001"
+    networks: [spiderfoot]
+
+  # Fila `default/agents/export/monitor` — relatorios, exportacao, housekeeping.
+  sf-worker:
+    <<: *sf-common
+    environment:
+      <<: *sf-env
+      SF_SERVICE_ROLE: scanner
+    mem_limit: 512m
+
+  # Fila `scan` — e ESTE que executa varredura. O worker do core NAO consome `scan`;
+  # sem este servico a tarefa fica parada no redis e o scan nunca sai de CREATED.
+  # Foi o que aconteceu na primeira medicao, e custou uma leitura errada de footprint.
+  sf-scan-worker:
+    <<: *sf-common
+    command:
+      - "python"
+      - "-m"
+      - "celery"
+      - "-A"
+      - "spiderfoot.celery_app:celery_app"
+      - "worker"
+      - "--loglevel=info"
+      - "--queues=scan"
+      - "--concurrency=${SF_SCAN_CONCURRENCY:-1}"
+      - "--hostname=active-scanner@%h"
+      - "--without-heartbeat"
+      - "--without-mingle"
+    environment:
+      <<: *sf-env
+      SF_SERVICE_ROLE: scanner
+    # 2g: a medicao com 1g saturou. Subir concurrency multiplica isto — meca antes.
+    mem_limit: 2g
+
+networks:
+  spiderfoot:
+    name: spiderfoot
+
+volumes:
+  sf-postgres-data:
