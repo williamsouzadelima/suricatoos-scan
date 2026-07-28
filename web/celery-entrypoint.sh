@@ -151,6 +151,20 @@ python3 manage.py loaddata fixtures/default_scan_engines.yaml --app scanEngine.E
 python3 manage.py loaddata fixtures/default_keywords.yaml --app scanEngine.InterestingLookupModel
 python3 manage.py loaddata fixtures/external_tools.yaml --app scanEngine.InstalledExternalTool
 
+# Reaplica as chaves do cofre nas configs de subfinder/theHarvester.
+#
+# `propagate_vault_key` so roda no momento em que a chave e salva na tela, entao
+# chave cadastrada antes do mecanismo existir nunca chegava a lugar nenhum — e nao
+# havia backfill. Medido em 28/07/2026: 4 dos 5 provedores do cofre estavam ausentes
+# das configs e o theHarvester pulava 19 fontes por falta de chave em toda execucao,
+# com as credenciais sentadas no banco.
+#
+# O comando e idempotente e nao imprime valor de chave. Nao pode derrubar o boot:
+# sem cofre configurado ele nao tem o que fazer, e uma falha aqui nao justifica
+# deixar o worker fora do ar.
+python3 manage.py reconcile_provider_keys --apply || \
+    echo "[suricatoos] reconcile_provider_keys falhou; seguindo o boot"
+
 # install firefox https://askubuntu.com/a/1404401
 echo '
 Package: *
