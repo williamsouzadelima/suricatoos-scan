@@ -216,6 +216,12 @@ VAULT_TOOL_PROPAGATION = {
     'intelx':         ('intelx', 'intelx'),
     'hunter':         (None, 'hunter'),
     'censys':         ('censys', None),  # subfinder wants id:secret (handled below)
+    # netlas e chaos estavam no cofre marcados `consumer:recon` — rotulo generico, sem
+    # propagacao ligada. Ambos sao fonte do subfinder (`subfinder -ls` confirma
+    # `netlas *` e `chaos *`) e o netlas tambem do theHarvester, que reclamava
+    # "Missing API key for netlas" em toda execucao com a chave sentada no cofre.
+    'netlas':         ('netlas', 'netlas'),
+    'chaos':          ('chaos', None),   # fonte de subdominio da ProjectDiscovery; theHarvester nao tem
 }
 
 
