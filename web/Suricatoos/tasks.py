@@ -68,21 +68,50 @@ def join_group_with_timeout(job, label, timeout=None, poll=5):
 	under the prefork ``main_scan_queue`` (MAX_CONCURRENCY) that starves the
 	children and deadlocks the whole queue for every user (the scan-#28 hang).
 
-	This waits at most ``timeout`` seconds. On expiry it revokes (SIGKILL) the
-	outstanding children and returns ``False`` so the caller can degrade
-	gracefully — partial results are already persisted incrementally. Returns
-	``True`` when the group finished within the budget. ``timeout=0`` (or the
-	``DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT`` default of 0) restores the legacy
-	unbounded wait.
+	O prazo e SEM PROGRESSO, nao tempo total. Cada filho que conclui renova o
+	orcamento. Um scan grande porem saudavel roda o tempo que precisar; so um grupo
+	que passa ``timeout`` segundos inteiros sem NENHUM filho concluir e considerado
+	travado, revogado (SIGKILL) e degradado para resultado parcial.
+
+	Era tempo total, e isso matava trabalho legitimo: com o orcamento em 5100s neste
+	host, um fan-out de muitos hosts que precisasse de mais que isso perdia os filhos
+	restantes no SIGKILL e o scan reportava SUCESSO assim mesmo — resultado parcial
+	silencioso, sem nada visivel ao usuario. Diretiva de 27/07/2026: scan saudavel se
+	espera terminar, independente do tempo. Demora nao e sintoma de travamento; a
+	AUSENCIA DE PROGRESSO e.
+
+	A protecao original continua de pe — um filho preso segue segurando um slot do
+	prefork ``main_scan_queue`` e travando a fila (a cunha do scan #28) —, so que
+	agora ela dispara pelo sintoma certo.
+
+	Returns ``True`` quando o grupo terminou. ``timeout=0`` (ou
+	``DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT`` em 0) restaura a espera ilimitada.
 	"""
 	if timeout is None:
 		timeout = DEFAULT_ORCHESTRATION_BARRIER_TIMEOUT
-	deadline = (time.monotonic() + timeout) if timeout and timeout > 0 else None
+	if not (timeout and timeout > 0):
+		while not job.ready():
+			time.sleep(poll)
+		return True
+
+	deadline = time.monotonic() + timeout
+	concluidos = -1
 	while not job.ready():
-		if deadline is not None and time.monotonic() >= deadline:
+		# Sonda best-effort: se o backend falhar, NAO conta como progresso (senao um
+		# backend quebrado renovaria o prazo para sempre) nem encurta o prazo.
+		try:
+			agora = job.completed_count()
+		except Exception:   # noqa: BLE001 - probe do backend e best-effort
+			agora = concluidos
+		if agora > concluidos:
+			concluidos = agora
+			deadline = time.monotonic() + timeout
+
+		if time.monotonic() >= deadline:
 			logger.warning(
-				f'{label}: orchestration barrier exceeded {timeout}s; revoking '
-				f'outstanding child task(s) and continuing with partial results')
+				f'{label}: barreira de orquestracao sem progresso por {timeout}s '
+				f'({max(concluidos, 0)} filho(s) concluido(s)); revogando os '
+				f'pendentes e seguindo com resultado parcial')
 			try:
 				job.revoke(terminate=True, signal='SIGKILL')
 			except Exception as e:   # noqa: BLE001 - best-effort cleanup
